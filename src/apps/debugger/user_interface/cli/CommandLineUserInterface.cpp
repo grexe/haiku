@@ -20,6 +20,7 @@
 #include "CliContinueCommand.h"
 #include "CliDebugReportCommand.h"
 #include "CliDumpMemoryCommand.h"
+#include "CliDumpStringCommand.h"
 #include "CliPrintVariableCommand.h"
 #include "CliQuitCommand.h"
 #include "CliStackFrameCommand.h"
@@ -96,6 +97,7 @@ private:
 
 CommandLineUserInterface::CommandLineUserInterface()
 	:
+	fContext(new CliContext()),
 	fCommands(20, true),
 	fShowSemaphore(-1),
 	fShown(false),
@@ -121,7 +123,7 @@ CommandLineUserInterface::ID() const
 status_t
 CommandLineUserInterface::Init(Team* team, UserInterfaceListener* listener)
 {
-	status_t error = fContext.Init(team, listener);
+	status_t error = fContext->Init(team, listener);
 	if (error != B_OK)
 		return error;
 
@@ -151,7 +153,7 @@ CommandLineUserInterface::Terminate()
 	fTerminating = true;
 
 	if (fShown) {
-		fContext.Terminating();
+		fContext->Terminating();
 
 		// Wait for input loop to finish.
 		while (acquire_sem(fShowSemaphore) == B_INTERRUPTED) {
@@ -162,7 +164,10 @@ CommandLineUserInterface::Terminate()
 		fShowSemaphore = -1;
 	}
 
-	fContext.Cleanup();
+	fContext->Cleanup();
+
+	BMessage message(B_QUIT_REQUESTED);
+	fContext->PostMessage(&message);
 }
 
 
@@ -235,16 +240,10 @@ CommandLineUserInterface::Run()
 	if (error != B_OK)
 		return;
 
+	fContext->Run();
 	_InputLoop();
 	// Release the Show() semaphore to signal Terminate().
 	release_sem(fShowSemaphore);
-}
-
-
-/*static*/ status_t
-CommandLineUserInterface::_InputLoopEntry(void* data)
-{
-	return ((CommandLineUserInterface*)data)->_InputLoop();
 }
 
 
@@ -255,18 +254,18 @@ CommandLineUserInterface::_InputLoop()
 
 	while (!fTerminating) {
 		// Wait for a thread or Ctrl-C.
-		fContext.WaitForThreadOrUser();
-		if (fContext.IsTerminating())
+		fContext->WaitForThreadOrUser();
+		if (fContext->IsTerminating())
 			break;
 
 		// Print the active thread, if it changed.
-		if (fContext.CurrentThreadID() != currentThread) {
-			fContext.PrintCurrentThread();
-			currentThread = fContext.CurrentThreadID();
+		if (fContext->CurrentThreadID() != currentThread) {
+			fContext->PrintCurrentThread();
+			currentThread = fContext->CurrentThreadID();
 		}
 
 		// read a command line
-		const char* line = fContext.PromptUser(kDebuggerPrompt);
+		const char* line = fContext->PromptUser(kDebuggerPrompt);
 		if (line == NULL)
 			break;
 
@@ -292,7 +291,7 @@ CommandLineUserInterface::_InputLoop()
 			continue;
 
 		// add line to history
-		fContext.AddLineToInputHistory(line);
+		fContext->AddLineToInputHistory(line);
 
 		// execute command
 		_ExecuteCommand(args.ArgumentCount(), args.Arguments());
@@ -307,8 +306,14 @@ CommandLineUserInterface::_RegisterCommands()
 {
 	if (_RegisterCommand("bt sc", new(std::nothrow) CliStackTraceCommand)
 		&& _RegisterCommand("continue", new(std::nothrow) CliContinueCommand)
-		&& _RegisterCommand("db ds dw dl string", new(std::nothrow)
-			CliDumpMemoryCommand)
+		&& _RegisterCommand("db", new(std::nothrow)
+			CliDumpMemoryCommand(1, "byte", 16))
+		&& _RegisterCommand("ds", new(std::nothrow)
+			CliDumpMemoryCommand(2, "short", 8))
+		&& _RegisterCommand("dw", new(std::nothrow)
+			CliDumpMemoryCommand(4, "word", 4))
+		&& _RegisterCommand("dl", new(std::nothrow)
+			CliDumpMemoryCommand(8, "long", 2))
 		&& _RegisterCommand("frame", new(std::nothrow) CliStackFrameCommand)
 		&& _RegisterCommand("help", new(std::nothrow) HelpCommand(this))
 		&& _RegisterCommand("print", new(std::nothrow) CliPrintVariableCommand)
@@ -316,6 +321,8 @@ CommandLineUserInterface::_RegisterCommands()
 		&& _RegisterCommand("save-report",
 			new(std::nothrow) CliDebugReportCommand)
 		&& _RegisterCommand("stop", new(std::nothrow) CliStopCommand)
+		&& _RegisterCommand("string", new(std::nothrow)
+			CliDumpStringCommand())
 		&& _RegisterCommand("thread", new(std::nothrow) CliThreadCommand)
 		&& _RegisterCommand("threads", new(std::nothrow) CliThreadsCommand)
 		&& _RegisterCommand("variables",
@@ -365,7 +372,7 @@ CommandLineUserInterface::_ExecuteCommand(int argc, const char* const* argv)
 {
 	CommandEntry* commandEntry = _FindCommand(argv[0]);
 	if (commandEntry != NULL)
-		commandEntry->Command()->Execute(argc, argv, fContext);
+		commandEntry->Command()->Execute(argc, argv, *fContext);
 }
 
 

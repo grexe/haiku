@@ -11,7 +11,6 @@
 #include <stdio.h>
 
 #include <driver_settings.h>
-#include <PCI_x86.h>
 #include <bus/PCI.h>
 #include <USB3.h>
 #include <KernelExport.h>
@@ -24,7 +23,6 @@
 #define USB_MODULE_NAME	"ehci"
 
 
-static pci_x86_module_info* sPCIx86Module = NULL;
 device_manager_info* gDeviceManager;
 static usb_for_controller_interface* gUSB;
 
@@ -221,30 +219,12 @@ module_dependency module_dependencies[] = {
 };
 
 
-static status_t
-device_std_ops(int32 op, ...)
-{
-	switch (op) {
-		case B_MODULE_INIT:
-			if (get_module(B_PCI_X86_MODULE_NAME, (module_info**)&sPCIx86Module) != B_OK)
-				sPCIx86Module = NULL;
-			return B_OK;
-		case B_MODULE_UNINIT:
-			if (sPCIx86Module != NULL)
-				put_module(B_PCI_X86_MODULE_NAME);
-			return B_OK;
-		default:
-			return B_ERROR;
-	}
-}
-
-
 static usb_bus_interface gEHCIPCIDeviceModule = {
 	{
 		{
 			EHCI_PCI_USB_BUS_MODULE_NAME,
 			0,
-			device_std_ops
+			NULL
 		},
 		NULL,  // supports device
 		NULL,  // register device
@@ -592,13 +572,10 @@ EHCI::EHCI(pci_info *info, pci_device_module_info* pci, pci_device* device, Stac
 	} else {
 		// Find the right interrupt vector, using MSIs if available.
 		fIRQ = fPCIInfo->u.h0.interrupt_line;
-		if (sPCIx86Module != NULL && sPCIx86Module->get_msi_count(
-				fPCIInfo->bus, fPCIInfo->device, fPCIInfo->function) >= 1) {
+		if (fPci->get_msi_count(fDevice) >= 1) {
 			uint8 msiVector = 0;
-			if (sPCIx86Module->configure_msi(fPCIInfo->bus, fPCIInfo->device,
-					fPCIInfo->function, 1, &msiVector) == B_OK
-				&& sPCIx86Module->enable_msi(fPCIInfo->bus, fPCIInfo->device,
-					fPCIInfo->function) == B_OK) {
+			if (fPci->configure_msi(fDevice, 1, &msiVector) == B_OK
+				&& fPci->enable_msi(fDevice) == B_OK) {
 				TRACE_ALWAYS("using message signaled interrupts\n");
 				fIRQ = msiVector;
 				fUseMSI = true;
@@ -830,11 +807,9 @@ EHCI::~EHCI()
 	delete_area(fPeriodicFrameListArea);
 	delete_area(fRegisterArea);
 
-	if (fUseMSI && sPCIx86Module != NULL) {
-		sPCIx86Module->disable_msi(fPCIInfo->bus,
-			fPCIInfo->device, fPCIInfo->function);
-		sPCIx86Module->unconfigure_msi(fPCIInfo->bus,
-			fPCIInfo->device, fPCIInfo->function);
+	if (fUseMSI) {
+		fPci->disable_msi(fDevice);
+		fPci->unconfigure_msi(fDevice);
 	}
 
 }
@@ -1044,11 +1019,11 @@ EHCI::CheckDebugTransfer(Transfer *transfer)
 		bool nextDataToggle = false;
 		if (transferData->data_descriptor != NULL && transferData->incoming) {
 			// data to read out
-			iovec *vector = transfer->Vector();
+			generic_io_vec *vector = transfer->Vector();
 			size_t vectorCount = transfer->VectorCount();
 
 			ReadDescriptorChain(transferData->data_descriptor,
-				vector, vectorCount, &nextDataToggle);
+				vector, vectorCount, transfer->IsPhysical(), &nextDataToggle);
 		} else if (transferData->data_descriptor != NULL)
 			ReadActualLength(transferData->data_descriptor, &nextDataToggle);
 
@@ -2029,13 +2004,13 @@ EHCI::FinishTransfers()
 					bool nextDataToggle = false;
 					if (transfer->data_descriptor && transfer->incoming) {
 						// data to read out
-						iovec *vector = transfer->transfer->Vector();
+						generic_io_vec *vector = transfer->transfer->Vector();
 						size_t vectorCount = transfer->transfer->VectorCount();
 						callbackStatus = transfer->transfer->PrepareKernelAccess();
 						if (callbackStatus == B_OK) {
 							actualLength = ReadDescriptorChain(
 								transfer->data_descriptor,
-								vector, vectorCount,
+								vector, vectorCount, transfer->transfer->IsPhysical(),
 								&nextDataToggle);
 						}
 					} else if (transfer->data_descriptor) {
@@ -2470,10 +2445,10 @@ EHCI::FillQueueWithRequest(Transfer *transfer, ehci_qh *queueHead,
 		return B_NO_MEMORY;
 	}
 
-	iovec vector;
-	vector.iov_base = requestData;
-	vector.iov_len = sizeof(usb_request_data);
-	WriteDescriptorChain(setupDescriptor, &vector, 1);
+	generic_io_vec vector;
+	vector.base = (generic_addr_t)requestData;
+	vector.length = sizeof(usb_request_data);
+	WriteDescriptorChain(setupDescriptor, &vector, 1, false);
 
 	ehci_qtd *strayDescriptor = queueHead->stray_log;
 	statusDescriptor->token |= EHCI_QTD_IOC | EHCI_QTD_DATA_TOGGLE;
@@ -2501,7 +2476,7 @@ EHCI::FillQueueWithRequest(Transfer *transfer, ehci_qh *queueHead,
 				}
 			}
 			WriteDescriptorChain(dataDescriptor, transfer->Vector(),
-				transfer->VectorCount());
+				transfer->VectorCount(), transfer->IsPhysical());
 		}
 
 		LinkDescriptors(setupDescriptor, dataDescriptor, strayDescriptor);
@@ -2548,7 +2523,7 @@ EHCI::FillQueueWithData(Transfer *transfer, ehci_qh *queueHead,
 			}
 		}
 		WriteDescriptorChain(firstDescriptor, transfer->Vector(),
-			transfer->VectorCount());
+			transfer->VectorCount(), transfer->IsPhysical());
 	}
 
 	queueHead->element_log = firstDescriptor;
@@ -2809,8 +2784,8 @@ EHCI::UnlinkSITDescriptors(ehci_sitd *sitd, ehci_sitd **last)
 
 
 size_t
-EHCI::WriteDescriptorChain(ehci_qtd *topDescriptor, iovec *vector,
-	size_t vectorCount)
+EHCI::WriteDescriptorChain(ehci_qtd *topDescriptor, generic_io_vec *vector,
+	size_t vectorCount, bool physical)
 {
 	ehci_qtd *current = topDescriptor;
 	size_t actualLength = 0;
@@ -2824,16 +2799,18 @@ EHCI::WriteDescriptorChain(ehci_qtd *topDescriptor, iovec *vector,
 
 		while (true) {
 			size_t length = min_c(current->buffer_size - bufferOffset,
-				vector[vectorIndex].iov_len - vectorOffset);
+				vector[vectorIndex].length - vectorOffset);
 
-			memcpy((uint8 *)current->buffer_log + bufferOffset,
-				(uint8 *)vector[vectorIndex].iov_base + vectorOffset, length);
+			status_t status = generic_memcpy(
+				(generic_addr_t)current->buffer_log + bufferOffset, false,
+				vector[vectorIndex].base + vectorOffset, physical, length);
+			ASSERT(status == B_OK);
 
 			actualLength += length;
 			vectorOffset += length;
 			bufferOffset += length;
 
-			if (vectorOffset >= vector[vectorIndex].iov_len) {
+			if (vectorOffset >= vector[vectorIndex].length) {
 				if (++vectorIndex >= vectorCount) {
 					TRACE("wrote descriptor chain (%ld bytes, no more vectors)"
 						"\n", actualLength);
@@ -2861,8 +2838,8 @@ EHCI::WriteDescriptorChain(ehci_qtd *topDescriptor, iovec *vector,
 
 
 size_t
-EHCI::ReadDescriptorChain(ehci_qtd *topDescriptor, iovec *vector,
-	size_t vectorCount, bool *nextDataToggle)
+EHCI::ReadDescriptorChain(ehci_qtd *topDescriptor, generic_io_vec *vector,
+	size_t vectorCount, bool physical, bool *nextDataToggle)
 {
 	uint32 dataToggle = 0;
 	ehci_qtd *current = topDescriptor;
@@ -2882,16 +2859,18 @@ EHCI::ReadDescriptorChain(ehci_qtd *topDescriptor, iovec *vector,
 
 		while (true) {
 			size_t length = min_c(bufferSize - bufferOffset,
-				vector[vectorIndex].iov_len - vectorOffset);
+				vector[vectorIndex].length - vectorOffset);
 
-			memcpy((uint8 *)vector[vectorIndex].iov_base + vectorOffset,
-				(uint8 *)current->buffer_log + bufferOffset, length);
+			status_t status = generic_memcpy(
+				vector[vectorIndex].base + vectorOffset, physical,
+				(generic_addr_t)current->buffer_log + bufferOffset, false, length);
+			ASSERT(status == B_OK);
 
 			actualLength += length;
 			vectorOffset += length;
 			bufferOffset += length;
 
-			if (vectorOffset >= vector[vectorIndex].iov_len) {
+			if (vectorOffset >= vector[vectorIndex].length) {
 				if (++vectorIndex >= vectorCount) {
 					TRACE("read descriptor chain (%ld bytes, no more vectors)"
 						"\n", actualLength);
@@ -2947,8 +2926,7 @@ EHCI::ReadActualLength(ehci_qtd *topDescriptor, bool *nextDataToggle)
 
 
 size_t
-EHCI::WriteIsochronousDescriptorChain(isochronous_transfer_data *transfer,
-	uint32 packetCount,	iovec *vector)
+EHCI::WriteIsochronousDescriptorChain(isochronous_transfer_data *transfer)
 {
 	// TODO implement
 	return 0;
@@ -2958,8 +2936,9 @@ EHCI::WriteIsochronousDescriptorChain(isochronous_transfer_data *transfer,
 size_t
 EHCI::ReadIsochronousDescriptorChain(isochronous_transfer_data *transfer)
 {
-	iovec *vector = transfer->transfer->Vector();
+	generic_io_vec *vector = transfer->transfer->Vector();
 	size_t vectorCount = transfer->transfer->VectorCount();
+	const bool physical = transfer->transfer->IsPhysical();
 	size_t vectorOffset = 0;
 	size_t vectorIndex = 0;
 	usb_isochronous_data *isochronousData
@@ -2996,14 +2975,17 @@ EHCI::ReadIsochronousDescriptorChain(isochronous_transfer_data *transfer)
 			size_t skipSize = packetSize - bufferSize;
 			while (bufferSize > 0) {
 				size_t length = min_c(bufferSize,
-					vector[vectorIndex].iov_len - vectorOffset);
-				memcpy((uint8 *)vector[vectorIndex].iov_base + vectorOffset,
-					(uint8 *)transfer->buffer_log + bufferOffset, length);
+					vector[vectorIndex].length - vectorOffset);
+				status_t status = generic_memcpy(
+					vector[vectorIndex].base + vectorOffset, physical,
+					(generic_addr_t)transfer->buffer_log + bufferOffset, false, length);
+				ASSERT(status == B_OK);
+
 				offset += length;
 				vectorOffset += length;
 				bufferSize -= length;
 
-				if (vectorOffset >= vector[vectorIndex].iov_len) {
+				if (vectorOffset >= vector[vectorIndex].length) {
 					if (++vectorIndex >= vectorCount) {
 						TRACE("read isodescriptor chain (%ld bytes, no more "
 							"vectors)\n", totalLength);
@@ -3017,10 +2999,10 @@ EHCI::ReadIsochronousDescriptorChain(isochronous_transfer_data *transfer)
 			// skip to next packet offset
 			while (skipSize > 0) {
 				size_t length = min_c(skipSize,
-					vector[vectorIndex].iov_len - vectorOffset);
+					vector[vectorIndex].length - vectorOffset);
 				vectorOffset += length;
 				skipSize -= length;
-				if (vectorOffset >= vector[vectorIndex].iov_len) {
+				if (vectorOffset >= vector[vectorIndex].length) {
 					if (++vectorIndex >= vectorCount) {
 						TRACE("read isodescriptor chain (%ld bytes, no more "
 							"vectors)\n", totalLength);

@@ -26,6 +26,7 @@
 #include <syscall_numbers.h>
 #include <thread.h>
 #include <timer.h>
+#include <AutoDeleterDrivers.h>
 #include <util/AutoLock.h>
 #include <util/DoublyLinkedList.h>
 #include <util/kernel_cpp.h>
@@ -43,6 +44,8 @@
 #include "soc_omap3.h"
 #include "soc_sun4i.h"
 
+#include "ARMVMTranslationMap.h"
+
 //#define TRACE_ARCH_INT
 #ifdef TRACE_ARCH_INT
 #	define TRACE(x...) dprintf(x)
@@ -57,8 +60,6 @@
 extern int _vectors_start;
 extern int _vectors_end;
 
-static area_id sVectorPageArea;
-static void *sVectorPageAddress;
 static area_id sUserVectorPageArea;
 static void *sUserVectorPageAddress;
 //static fdt_module_info *sFdtModule;
@@ -117,52 +118,40 @@ print_iframe(const char *event, struct iframe *frame)
 }
 
 
+extern "C" void arm_vector_init(void);
+
+
 status_t
 arch_int_init(kernel_args *args)
 {
+	TRACE("arch_int_init\n");
+
+	// copy vector code to vector page
+	memcpy((void*)USER_VECTOR_ADDR_HIGH, &_vectors_start, VECTORPAGE_SIZE);
+
+	// initialize stack for vectors
+	arm_vector_init();
+
+	// enable high vectors
+	arm_set_sctlr(arm_get_sctlr() | SCTLR_HIGH_VECTORS);
+
 	return B_OK;
 }
-
-
-extern "C" void arm_vector_init(void);
 
 
 status_t
 arch_int_init_post_vm(kernel_args *args)
 {
-	// create a read/write kernel area
-	sVectorPageArea = create_area("vectorpage", (void **)&sVectorPageAddress,
-		B_ANY_ADDRESS, VECTORPAGE_SIZE, B_FULL_LOCK,
-		B_KERNEL_WRITE_AREA | B_KERNEL_READ_AREA);
-	if (sVectorPageArea < 0)
-		panic("vector page could not be created!");
+	TRACE("arch_int_init_post_vm\n");
 
-	// clone it at a fixed address with user read/only permissions
 	sUserVectorPageAddress = (addr_t*)USER_VECTOR_ADDR_HIGH;
-	sUserVectorPageArea = clone_area("user_vectorpage",
+	sUserVectorPageArea = create_area("user_vectorpage",
 		(void **)&sUserVectorPageAddress, B_EXACT_ADDRESS,
-		B_READ_AREA | B_EXECUTE_AREA, sVectorPageArea);
+		B_PAGE_SIZE, B_ALREADY_WIRED, B_READ_AREA | B_EXECUTE_AREA);
 
 	if (sUserVectorPageArea < 0)
 		panic("user vector page @ %p could not be created (%x)!",
-			sVectorPageAddress, sUserVectorPageArea);
-
-	// copy vectors into the newly created area
-	memcpy(sVectorPageAddress, &_vectors_start, VECTORPAGE_SIZE);
-
-	arm_vector_init();
-
-	// see if high vectors are enabled
-	if ((mmu_read_c1() & (1 << 13)) != 0)
-		dprintf("High vectors already enabled\n");
-	else {
-		mmu_write_c1(mmu_read_c1() | (1 << 13));
-
-		if ((mmu_read_c1() & (1 << 13)) == 0)
-			dprintf("Unable to enable high vectors!\n");
-		else
-			dprintf("Enabled high vectors\n");
-	}
+			sUserVectorPageAddress, sUserVectorPageArea);
 
 	if (strncmp(args->arch_args.interrupt_controller.kind, INTC_KIND_GICV2,
 		sizeof(args->arch_args.interrupt_controller.kind)) == 0) {
@@ -308,9 +297,60 @@ arch_arm_syscall(struct iframe *iframe)
 }
 
 
+static bool
+arch_arm_handle_access_flag_fault(addr_t far, uint32 fsr, bool isWrite, bool isExec)
+{
+	VMAddressSpacePutter addressSpace;
+	if (IS_KERNEL_ADDRESS(far))
+		addressSpace.SetTo(VMAddressSpace::GetKernel());
+	else if (IS_USER_ADDRESS(far))
+		addressSpace.SetTo(VMAddressSpace::GetCurrent());
+
+	if (!addressSpace.IsSet())
+		return false;
+
+	ARMVMTranslationMap *map = (ARMVMTranslationMap *)addressSpace->TranslationMap();
+
+	if ((fsr & (FSR_FS_MASK | FSR_LPAE_MASK)) == FSR_FS_ACCESS_FLAG_FAULT) {
+		phys_addr_t physAddr;
+		uint32 pageFlags;
+
+		map->QueryInterrupt(far, &physAddr, &pageFlags);
+
+		if ((PAGE_PRESENT & pageFlags) == 0)
+			return false;
+
+		if ((pageFlags & PAGE_ACCESSED) == 0) {
+			map->SetFlags(far, PAGE_ACCESSED);
+			return true;
+		}
+	}
+
+	if (isWrite && ((fsr & (FSR_FS_MASK | FSR_LPAE_MASK)) == FSR_FS_PERMISSION_FAULT_L2)) {
+		phys_addr_t physAddr;
+		uint32 pageFlags;
+
+		map->QueryInterrupt(far, &physAddr, &pageFlags);
+
+		if ((PAGE_PRESENT & pageFlags) == 0)
+			return false;
+
+		if (((pageFlags & B_KERNEL_WRITE_AREA) && ((pageFlags & PAGE_MODIFIED) == 0))) {
+			map->SetFlags(far, PAGE_MODIFIED);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 static void
 arch_arm_page_fault(struct iframe *frame, addr_t far, uint32 fsr, bool isWrite, bool isExec)
 {
+	if (arch_arm_handle_access_flag_fault(far, fsr, isWrite, isExec))
+		return;
+
 	Thread *thread = thread_get_current_thread();
 	bool isUser = (frame->spsr & CPSR_MODE_MASK) == CPSR_MODE_USR;
 	addr_t newip = 0;
@@ -356,6 +396,8 @@ arch_arm_page_fault(struct iframe *frame, addr_t far, uint32 fsr, bool isWrite, 
 			far);
 	} else if (!isExec && ((fsr & 0x060f) == FSR_FS_ALIGNMENT_FAULT)) {
 		panic("unhandled alignment exception\n");
+	} else if ((fsr & 0x060f) == FSR_FS_ACCESS_FLAG_FAULT) {
+		panic("unhandled access flag fault\n");
 	} else if ((frame->spsr & CPSR_I) != 0) {
 		// interrupts disabled
 

@@ -264,7 +264,7 @@ ARMVMTranslationMap32Bit::Unmap(addr_t start, addr_t end)
 					ARM_PTE_TYPE_MASK);
 			fMapCount--;
 
-			if (true /* (oldEntry & ARM_PTE_ACCESSED) != 0*/) {
+			if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 				// Note, that we only need to invalidate the address, if the
 				// accessed flags was set, since only then the entry could have
 				// been in any TLB.
@@ -319,7 +319,7 @@ ARMVMTranslationMap32Bit::DebugMarkRangePresent(addr_t start, addr_t end,
 					= X86PagingMethod32Bit::ClearPageTableEntryFlags(&pt[index],
 						X86_PTE_PRESENT);
 
-				if ((oldEntry & X86_PTE_ACCESSED) != 0) {
+				if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 					// Note, that we only need to invalidate the address, if the
 					// accessed flags was set, since only then the entry could
 					// have been in any TLB.
@@ -371,7 +371,7 @@ ARMVMTranslationMap32Bit::UnmapPage(VMArea* area, addr_t address,
 	fMapCount--;
 
 
-	if (true /*(oldEntry & ARM_PTE_ACCESSED) != 0*/) { // XXX IRA
+	if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 		// Note, that we only need to invalidate the address, if the
 		// accessed flags was set, since only then the entry could have been
 		// in any TLB.
@@ -394,7 +394,7 @@ ARMVMTranslationMap32Bit::UnmapPage(VMArea* area, addr_t address,
 		// PageUnmapped() will unlock for us
 
 	PageUnmapped(area, (oldEntry & ARM_PTE_ADDRESS_MASK) / B_PAGE_SIZE,
-		true /*(oldEntry & ARM_PTE_ACCESSED) != 0*/, false /*(oldEntry & ARM_PTE_DIRTY) != 0*/,
+		(oldEntry & ARM_MMU_L2_FLAG_AP0) != 0, false /*(oldEntry & ARM_PTE_DIRTY) != 0*/,
 		updatePageQueue);
 
 	return B_OK;
@@ -444,7 +444,7 @@ ARMVMTranslationMap32Bit::UnmapPages(VMArea* area, addr_t base, size_t size,
 
 			fMapCount--;
 
-			if (true /*(oldEntry & ARM_PTE_ACCESSED) != 0*/) { // XXX IRA
+			if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 				// Note, that we only need to invalidate the address, if the
 				// accessed flags was set, since only then the entry could have
 				// been in any TLB.
@@ -460,9 +460,9 @@ ARMVMTranslationMap32Bit::UnmapPages(VMArea* area, addr_t base, size_t size,
 				DEBUG_PAGE_ACCESS_START(page);
 
 				// transfer the accessed/dirty flags to the page
-				if (/*(oldEntry & ARM_PTE_ACCESSED) != 0*/ true) // XXX IRA
+				if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0)
 					page->accessed = true;
-				if (/*(oldEntry & ARM_PTE_DIRTY) != 0 */ false)
+				if ((oldEntry & ARM_MMU_L2_FLAG_AP2) == 0)
 					page->modified = true;
 
 				// remove the mapping object/decrement the wired_count of the
@@ -583,7 +583,7 @@ ARMVMTranslationMap32Bit::UnmapArea(VMArea* area, bool deletingAddressSpace,
 
 			// transfer the accessed/dirty flags to the page and invalidate
 			// the mapping, if necessary
-			if (true /*(oldEntry & ARM_PTE_ACCESSED) != 0*/) { // XXX IRA
+			if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 				page->accessed = true;
 
 				if (!deletingAddressSpace)
@@ -648,7 +648,6 @@ ARMVMTranslationMap32Bit::Query(addr_t va, phys_addr_t *_physical,
 	if ((entry & ARM_PTE_TYPE_MASK) != 0)
 		*_physical = (entry & ARM_PTE_ADDRESS_MASK);
 
-	//TODO: read in the page state flags
 	*_flags = ARMPagingMethod32Bit::PageTableEntryFlagsToAttributes(entry);
 	if (*_physical != 0)
 		*_flags |= PAGE_PRESENT;
@@ -684,7 +683,6 @@ ARMVMTranslationMap32Bit::QueryInterrupt(addr_t va, phys_addr_t *_physical,
 	if ((entry & ARM_PTE_TYPE_MASK) != 0)
 		*_physical = (entry & ARM_PTE_ADDRESS_MASK);
 
-	//TODO: read in the page state flags
 	*_flags = ARMPagingMethod32Bit::PageTableEntryFlagsToAttributes(entry);
 	if (*_physical != 0)
 		*_flags |= PAGE_PRESENT;
@@ -749,10 +747,44 @@ ARMVMTranslationMap32Bit::Protect(addr_t start, addr_t end, uint32 attributes,
 				entry = oldEntry;
 			}
 
-			//TODO: invalidate only if the Accessed flag is set
-			InvalidatePage(start);
+			if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
+				// Note, that we only need to invalidate the address, if the
+				// accessed flag was set, since only then the entry could have
+				// been in any TLB.
+				InvalidatePage(start);
+			}
 		}
 	} while (start != 0 && start < end);
+
+	return B_OK;
+}
+
+
+status_t
+ARMVMTranslationMap32Bit::SetFlags(addr_t virtualAddress, uint32 flags)
+{
+	int index = VADDR_TO_PDENT(virtualAddress);
+	page_directory_entry* pd = fPagingStructures->pgdir_virt;
+	if ((pd[index] & ARM_PDE_TYPE_MASK) == 0) {
+		// no pagetable here
+		return B_OK;
+	}
+
+	uint32 flagsToSet = (flags & PAGE_ACCESSED) ? ARM_MMU_L2_FLAG_AP0 : 0;
+	uint32 flagsToClear = (flags & PAGE_MODIFIED) ? ARM_MMU_L2_FLAG_AP2 : 0;
+
+	page_table_entry* pt = (page_table_entry*)ARMPagingMethod32Bit::Method()
+		->PhysicalPageMapper()->InterruptGetPageTableAt(
+			pd[index] & ARM_PDE_ADDRESS_MASK);
+	index = VADDR_TO_PTENT(virtualAddress);
+
+	ARMPagingMethod32Bit::SetAndClearPageTableEntryFlags(&pt[index], flagsToSet, flagsToClear);
+
+	// normally we would call InvalidatePage() here and then Flush() later when all updates are done
+	// however, as this scenario happens only in case of Modified flag handling,
+	// we can directly call TLBIMVAIS from here as we need to update only a single TLB entry
+	if (flagsToClear)
+		arch_cpu_invalidate_TLB_page(virtualAddress);
 
 	return B_OK;
 }
@@ -767,12 +799,10 @@ ARMVMTranslationMap32Bit::ClearFlags(addr_t va, uint32 flags)
 		// no pagetable here
 		return B_OK;
 	}
-#if 0 //IRA
-	uint32 flagsToClear = ((flags & PAGE_MODIFIED) ? X86_PTE_DIRTY : 0)
-		| ((flags & PAGE_ACCESSED) ? X86_PTE_ACCESSED : 0);
-#else
-	uint32 flagsToClear = 0;
-#endif
+
+	uint32 flagsToClear = (flags & PAGE_ACCESSED) ? ARM_MMU_L2_FLAG_AP0 : 0;
+	uint32 flagsToSet = (flags & PAGE_MODIFIED) ? ARM_MMU_L2_FLAG_AP2 : 0;
+
 	Thread* thread = thread_get_current_thread();
 	ThreadCPUPinner pinner(thread);
 
@@ -780,14 +810,14 @@ ARMVMTranslationMap32Bit::ClearFlags(addr_t va, uint32 flags)
 		pd[index] & ARM_PDE_ADDRESS_MASK);
 	index = VADDR_TO_PTENT(va);
 
-	// clear out the flags we've been requested to clear
+	// adjust the flags we've been requested to set/clear
 	page_table_entry oldEntry
-		= ARMPagingMethod32Bit::ClearPageTableEntryFlags(&pt[index],
-			flagsToClear);
+		= ARMPagingMethod32Bit::SetAndClearPageTableEntryFlags(&pt[index],
+			flagsToSet, flagsToClear);
 
 	pinner.Unlock();
 
-	//XXX IRA if ((oldEntry & flagsToClear) != 0)
+	if (((oldEntry & flagsToClear) != 0) || ((oldEntry & flagsToSet) == 0))
 		InvalidatePage(va);
 
 	return B_OK;
@@ -828,14 +858,13 @@ ARMVMTranslationMap32Bit::ClearAccessedAndModified(VMArea* area, addr_t address,
 				// page mapping not valid
 				return false;
 			}
-#if 0 //IRA
-			if (oldEntry & ARM_PTE_ACCESSED) {
+			if (oldEntry & ARM_MMU_L2_FLAG_AP0) {
 				// page was accessed -- just clear the flags
-				oldEntry = ARMPagingMethod32Bit::ClearPageTableEntryFlags(
-					&pt[index], ARM_PTE_ACCESSED | ARM_PTE_DIRTY);
+				oldEntry = ARMPagingMethod32Bit::SetAndClearPageTableEntryFlags(
+					&pt[index], ARM_MMU_L2_FLAG_AP2, ARM_MMU_L2_FLAG_AP0);
 				break;
 			}
-#endif
+
 			// page hasn't been accessed -- unmap it
 			if (ARMPagingMethod32Bit::TestAndSetPageTableEntry(&pt[index], 0,
 					oldEntry) == oldEntry) {
@@ -845,19 +874,15 @@ ARMVMTranslationMap32Bit::ClearAccessedAndModified(VMArea* area, addr_t address,
 			// something changed -- check again
 		}
 	} else {
-#if 0 //IRA
-		oldEntry = ARMPagingMethod32Bit::ClearPageTableEntryFlags(&pt[index],
-			ARM_PTE_ACCESSED | ARM_PTE_DIRTY);
-#else
-		oldEntry = pt[index];
-#endif
+		oldEntry = ARMPagingMethod32Bit::SetAndClearPageTableEntryFlags(&pt[index],
+			ARM_MMU_L2_FLAG_AP2, ARM_MMU_L2_FLAG_AP0);
 	}
 
 	pinner.Unlock();
 
-	_modified = false /* (oldEntry & X86_PTE_DIRTY) != 0 */; // XXX IRA
+	_modified = (oldEntry & ARM_MMU_L2_FLAG_AP2) == 0;
 
-	if (true /*(oldEntry & ARM_PTE_ACCESSED) != 0*/) {
+	if ((oldEntry & ARM_MMU_L2_FLAG_AP0) != 0) {
 		// Note, that we only need to invalidate the address, if the
 		// accessed flags was set, since only then the entry could have been
 		// in any TLB.

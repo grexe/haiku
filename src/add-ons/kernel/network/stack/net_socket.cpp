@@ -302,7 +302,7 @@ socket_receive_no_buffer(net_socket* socket, msghdr* header, void* data,
 	ancillary_data_container* ancillaryData = NULL;
 	ssize_t bytesRead = socket->first_info->read_data_no_buffer(
 		socket->first_protocol, vecs, vecCount, &ancillaryData, address,
-		addressLen);
+		addressLen, flags);
 	if (bytesRead < 0)
 		return bytesRead;
 
@@ -540,12 +540,12 @@ socket_control(net_socket* socket, uint32 op, void* data, size_t length)
 
 		case FIONREAD:
 		{
-			if (data == NULL)
+			if (data == NULL || (socket->options & SO_ACCEPTCONN) != 0)
 				return B_BAD_VALUE;
 
 			int available = (int)socket_read_avail(socket);
 			if (available < 0)
-				return available;
+				available = 0;
 
 			if (is_syscall()) {
 				if (!IS_USER_ADDRESS(data)
@@ -1006,12 +1006,8 @@ socket_bind(net_socket* socket, const struct sockaddr* address,
 		addressLength = sizeof(sockaddr);
 	}
 
-	if (socket->address.ss_len != 0) {
-		status_t status = socket->first_info->unbind(socket->first_protocol,
-			(sockaddr*)&socket->address);
-		if (status != B_OK)
-			return status;
-	}
+	if (socket->address.ss_len != 0)
+		return B_BAD_VALUE;
 
 	memcpy(&socket->address, address, sizeof(sockaddr));
 	socket->address.ss_len = sizeof(sockaddr_storage);
@@ -1050,7 +1046,11 @@ socket_getpeername(net_socket* _socket, struct sockaddr* address,
 	socklen_t* _addressLength)
 {
 	net_socket_private* socket = (net_socket_private*)_socket;
-	if (!socket->is_connected || socket->peer.ss_len == 0)
+	BReference<net_socket_private> parent;
+	if (socket->parent.PrivatePointer() != NULL)
+		parent = socket->parent.GetReference();
+
+	if ((!parent.IsSet() && !socket->is_connected) || socket->peer.ss_len == 0)
 		return ENOTCONN;
 
 	memcpy(address, &socket->peer, min_c(*_addressLength, socket->peer.ss_len));
@@ -1393,7 +1393,7 @@ socket_send(net_socket* socket, msghdr* header, const void* data, size_t length,
 
 		ssize_t written = socket->first_info->send_data_no_buffer(
 			socket->first_protocol, vecs, vecCount, ancillaryData, address,
-			addressLength);
+			addressLength, flags);
 		if (written > 0)
 			ancillaryDataDeleter.Detach();
 		return written;
@@ -1645,7 +1645,7 @@ socket_socketpair(int family, int type, int protocol, net_socket* sockets[2])
 		error = socket_bind(sockets[0], NULL, 0);
 
 	// start listening
-	if (error == B_OK)
+	if (error == B_OK && type == SOCK_STREAM)
 		error = socket_listen(sockets[0], 1);
 
 	// connect them
@@ -1654,17 +1654,25 @@ socket_socketpair(int family, int type, int protocol, net_socket* sockets[2])
 			sockets[0]->address.ss_len);
 	}
 
-	// accept a socket
-	net_socket* acceptedSocket = NULL;
-	if (error == B_OK)
-		error = socket_accept(sockets[0], NULL, NULL, &acceptedSocket);
-
 	if (error == B_OK) {
-		// everything worked: close the listener socket
-		socket_close(sockets[0]);
-		socket_free(sockets[0]);
-		sockets[0] = acceptedSocket;
-	} else {
+		// accept a socket
+		if (type == SOCK_STREAM) {
+			net_socket* acceptedSocket = NULL;
+			error = socket_accept(sockets[0], NULL, NULL, &acceptedSocket);
+			if (error == B_OK) {
+				// everything worked: close the listener socket
+				socket_close(sockets[0]);
+				socket_free(sockets[0]);
+				sockets[0] = acceptedSocket;
+			}
+		// connect the other side
+		} else {
+			error = socket_connect(sockets[0], (sockaddr*)&sockets[1]->address,
+				sockets[1]->address.ss_len);
+		}
+	}
+
+	if (error != B_OK) {
 		// close sockets on error
 		for (int i = 0; i < 2; i++) {
 			if (sockets[i] != NULL) {

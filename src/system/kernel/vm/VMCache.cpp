@@ -952,7 +952,7 @@ VMCache::WaitForPageEvents(vm_page* page, uint32 events, bool relock)
 
 	fPageEventWaiters = &waiter;
 
-	thread_prepare_to_block(waiter.thread, 0, THREAD_BLOCK_TYPE_OTHER, page);
+	thread_prepare_to_block(waiter.thread, 0, THREAD_BLOCK_TYPE_OTHER_OBJECT, page);
 
 	Unlock();
 	thread_block();
@@ -1208,7 +1208,7 @@ VMCache::Resize(off_t newSize, int priority)
 status_t
 VMCache::Rebase(off_t newBase, int priority)
 {
-	TRACE(("VMCache::Rebase(cache %p, newBase %Ld) old base %Ld\n",
+	TRACE(("VMCache::Rebase(cache %p, newBase %lld) old base %lld\n",
 		this, newBase, this->virtual_base));
 	this->AssertLocked();
 

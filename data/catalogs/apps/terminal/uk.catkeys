@@ -1,8 +1,9 @@
-1	ukrainian	x-vnd.Haiku-Terminal	4000370057
+1	ukrainian	x-vnd.Haiku-Terminal	686383766
 Close other tabs	Terminal TermWindow		Закрити інші вкладки
-Insert path	Terminal TermView		Введіть шлях
+Insert path	Terminal TermView		Вставити шлях
 Terminal couldn't start the shell. Sorry.	Terminal TermApp		Термінал не зміг запустити оболонку. Прикро.
 Text encoding	Terminal TermWindow		Кодування тексту
+Colors	Terminal ThemeWindow		Кольори
 OK	Terminal SetTitleWindow		ОК
 Edit	Terminal TermWindow		Дія
   -h,     --help               print this help\n  -t,     --title              set window title\n  -f,     --fullscreen         start fullscreen\n  -w,     --working-directory  set initial working directory\n	Terminal TermApp		  -h,     --help               показати довідку\n  -t,     --title              встановити заголовок вікна\n  -f,     --fullscreen         запуск у повноекранному режимі\n  -w,     --working-directory  встановити робочий каталог\n
@@ -23,12 +24,12 @@ Error!	Terminal getString		Помилка!
 Colors…	Terminal TermWindow		Кольори…
 Appearance	Terminal PrefWindow		Вигляд
 Set tab title	Terminal TermWindow		Встановити заголовок вкладки
-Create link here	Terminal TermView		Створити посилання тут
+Create link here	Terminal TermView		Створити посилання
 Encoding:	Terminal AppearancePrefView		Кодування:
 yellow	Terminal ThemeView		жовтий
 Change directory	Terminal TermView		Змінити каталог
 Custom	Terminal AppearancePrefView	Window size	Вибір користувача
-Page setup…	Terminal TermWindow		Налаштування друку…
+Page setup…	Terminal TermWindow		Параметри сторінки…
 ANSI yellow color	Terminal ThemeView		ANSI жовтий
 Cancel	Terminal TermView		Скасувати
 Defaults	Terminal PrefWindow		Типові настройки
@@ -94,7 +95,7 @@ Use text:	Terminal FindWindow		Використати текст:
 Close active tab	Terminal TermWindow		Закрити активну вкладку
 The pattern specifying the window title. The following placeholders\ncan be used:\n	Terminal TermWindow		Шаблон визначає заголовок вікна.\nМожна використовувати наступні заповнювачі:\n\n
 Selected background	Terminal ThemeView		Фон виділення
-Save as default	Terminal TermWindow		Зберегти за замовчуванням
+Save as default	Terminal TermWindow		Зберегти як типові
 Nothing is selected.	Terminal TermWindow		Нічого не вибрано.
 ANSI bright red color	Terminal ThemeView		ANSI яскравий червоний
 Use left Option as Meta key	Terminal AppearancePrefView		Використовувати лівий Option як клавішу Meta 
@@ -115,7 +116,7 @@ ANSI bright yellow color	Terminal ThemeView		ANSI яскравий жовтий
 Not found.	Terminal TermWindow		Не знайдено.
 ANSI black color	Terminal ThemeView		ANSI чорний
 Find…	Terminal TermWindow		Знайти…
-No search string was entered.	Terminal TermWindow		Стрічка для пошуку не введена.
+No search string was entered.	Terminal TermWindow		Пошуковий рядок відсутній.
 Move here	Terminal TermView		Перемістити сюди
 Abort	Terminal Shell		Перервати
 The following processes are still running:\n\n\t%1\n\nIf you close the Terminal, the processes will be killed.	Terminal TermWindow		Наступні процеси все ще запущені:\n\n\t%1\n\nЯкщо Ви закриєте Термінал, процеси будуть знищені.
@@ -131,7 +132,6 @@ Close window	Terminal TermWindow		Закрити вікно
 ANSI magenta color	Terminal ThemeView		ANSI пурпурний
 Haiku Terminal\nCopyright 2001-2019 Haiku, Inc.\nCopyright(C) 1999 Kazuho Okui and Takashi Murai.\n\nUsage: %s [OPTION] [SHELL]\n	Terminal TermApp		Haiku Terminal\nCopyright 2001-2019 Haiku, Inc.\nCopyright(C) 1999 Kazuho Okui and Takashi Murai.\n\nВикористання: %s [OPTION] [SHELL]\n
 cyan	Terminal ThemeView		бірюзовий
-Colors	System name		Кольори
 Clear all	Terminal TermWindow		Очистити все
 Cursor	Terminal ThemeView		Курсор
 Search forward	Terminal FindWindow		Шукати далі

@@ -1,11 +1,11 @@
-1	turkish	x-vnd.Haiku-MediaPlayer	716811487
+1	turkish	x-vnd.Haiku-MediaPlayer	834755355
 Remove Entry into Trash	MediaPlayer-RemovePLItemsCmd		Girdiyi çöpe at
 Close	MediaPlayer-PlaylistWindow		Kapat
 Volume of background clips	MediaPlayer-SettingsWindow		Arka plan kliplerinin ses düzeyi
 Use hardware video overlays if available	MediaPlayer-SettingsWindow		Olanaklıysa video donanım bindirmelerini kullan
 Audio	MediaPlayer-InfoWin		Ses
 Subtitle placement:	MediaPlayer-SettingsWindow		Altyazı konumu:
-MediaPlayer	System name		Ortam Oynatıcı
+MediaPlayer	System name		Ortam Oynatıcısı
 Audio track	MediaPlayer-Main		Ses parçası
 Muted	MediaPlayer-SettingsWindow		Sessiz
 OK	MediaPlayer-RemovePLItemsCmd		Tamam
@@ -36,6 +36,7 @@ Full volume	MediaPlayer-SettingsWindow		Tam ses
 Start media server	MediaPlayer-Main		Ortam sunucusu başlat
 It appears the media server is not running.\nWould you like to start it ?	MediaPlayer-Main		Ortam sunucusu çalışmıyor gibi görünüyor.\nBaşlatılsın mı?
 Location	MediaPlayer-InfoWin		Konum
+%lu × %lu	MediaPlayer-InfoWin	The '×' is the Unicode multiplication sign U+00D7	%lu × %lu
 Opening '%s'.	MediaPlayer-Main		'%s' açılıyor.
 Medium	MediaPlayer-SettingsWindow		Orta
 Play mode	MediaPlayer-SettingsWindow		Oynatma kipi
@@ -46,7 +47,7 @@ Close	MediaPlayer-Main		Kapat
 Save error	MediaPlayer-PlaylistWindow		Kaydetme hatası
 Attributes	MediaPlayer-Main		Öznitelikler
 Bottom of screen	MediaPlayer-SettingsWindow		Ekranın alt kısmı
-MediaPlayer settings	MediaPlayer-SettingsWindow		Ortam Oynatıcı ayarları
+MediaPlayer settings	MediaPlayer-SettingsWindow		Ortam Oynatıcısı ayarları
 Copyright	MediaPlayer-InfoWin		Telif hakkı
 Invalid URL inserted!	MediaPlayer-NetworkStream		Geçersiz URL girildi!
 Aspect ratio	MediaPlayer-Main		En boy oranı

@@ -183,7 +183,7 @@ ARMPagingMethod32Bit::PhysicalPageSlotPool::Map(phys_addr_t physicalAddress,
 	pte = (physicalAddress & ARM_PTE_ADDRESS_MASK)
 		| ARM_MMU_L2_TYPE_SMALLNEW
 		| ARM_MMU_L2_FLAG_B | ARM_MMU_L2_FLAG_C
-		| ARM_MMU_L2_FLAG_AP_KRW | ARM_MMU_L2_FLAG_XN;
+		| ARM_MMU_L2_FLAG_HAIKU_KERNEL_RW | ARM_MMU_L2_FLAG_XN;
 
 	arch_cpu_invalidate_TLB_page(virtualAddress);
 }
@@ -305,14 +305,6 @@ ARMPagingMethod32Bit::Init(kernel_args* args,
 		fPhysicalPageMapper, fKernelPhysicalPageMapper);
 		// TODO: Select the best page mapper!
 
-	// enable global page feature if available
-#if 0 //IRA: check for ARMv6!!
-	if (x86_check_feature(IA32_FEATURE_PGE, FEATURE_COMMON)) {
-		// this prevents kernel pages from being flushed from TLB on
-		// context-switch
-		x86_write_cr4(x86_read_cr4() | IA32_CR4_GLOBAL_PAGES);
-	}
-#endif
 	TRACE("ARMPagingMethod32Bit::Init(): done\n");
 
 	*_physicalPageMapper = fPhysicalPageMapper;
@@ -416,7 +408,8 @@ ARMPagingMethod32Bit::MapEarly(kernel_args* args, addr_t virtualAddress,
 
 	// now, fill in the pentry
 	PutPageTableEntryInTable(ptEntry,
-		physicalAddress, attributes, 0, IS_KERNEL_ADDRESS(virtualAddress));
+		physicalAddress, attributes | PAGE_ACCESSED | PAGE_MODIFIED, 0,
+		IS_KERNEL_ADDRESS(virtualAddress));
 
 	return B_OK;
 }

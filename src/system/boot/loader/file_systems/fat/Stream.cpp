@@ -38,7 +38,7 @@ Stream::Stream(Volume &volume, uint32 chain, off_t size, const char *name)
 	fClusterMapCacheLast(0),
 	fSize(size)
 {
-	TRACE(("FATFS::Stream::(, %d, %Ld, %s)\n", chain, size, name));
+	TRACE(("FATFS::Stream::(, %d, %lld, %s)\n", chain, size, name));
 	fName[FATFS_NAME_LENGTH] = '\0';
 	strlcpy(fName, name, FATFS_NAME_LENGTH+1);
 	fClusterCount = (fSize + fVolume.ClusterSize() - 1) / fVolume.ClusterSize();
@@ -109,7 +109,7 @@ Stream::GetFileMap(struct file_map_run *runs, int32 *count)
 status_t
 Stream::_FindCluster(off_t pos, uint32& _cluster)
 {
-	//TRACE(("FATFS::Stream::%s(%Ld,,)\n", __FUNCTION__, pos));
+	//TRACE(("FATFS::Stream::%s(%lld,,)\n", __FUNCTION__, pos));
 	uint32 index = (uint32)(pos / fVolume.ClusterSize());
 	if (pos > fSize || index >= fClusterCount)
 		return B_BAD_VALUE;
@@ -126,10 +126,7 @@ Stream::_FindCluster(off_t pos, uint32& _cluster)
 	}
 	if (!found) {
 #if 1
-		uint32 count = (fSize + fVolume.ClusterSize() - 1) / fVolume.ClusterSize();
 		cluster = fFirstCluster;
-		if (fSize == UINT32_MAX) // it's a directory, try a large enough value
-			count = 10;
 		for (i = 0; i < index && fVolume.IsValidCluster(cluster); i++) {
 			if (fVolume.IsLastCluster(cluster))
 				break;
@@ -234,7 +231,7 @@ Stream::FindBlock(off_t pos, off_t &block, off_t &offset)
 status_t
 Stream::ReadAt(off_t pos, void *_buffer, size_t *_length, off_t *diskOffset)
 {
-	TRACE(("FATFS::Stream::%s(%Ld, )\n", __FUNCTION__, pos));
+	TRACE(("FATFS::Stream::%s(%lld, )\n", __FUNCTION__, pos));
 
 	uint8* buffer = (uint8*)_buffer;
 
@@ -308,8 +305,6 @@ Stream::ReadAt(off_t pos, void *_buffer, size_t *_length, off_t *diskOffset)
 	// read the following complete blocks using cached_read(),
 	// the last partial block is read using the generic Cache class
 
-	bool partial = false;
-
 	while (length > 0) {
 		// offset is the offset to the current pos in the block_run
 
@@ -321,7 +316,6 @@ Stream::ReadAt(off_t pos, void *_buffer, size_t *_length, off_t *diskOffset)
 			}
 			memcpy(buffer + bytesRead, block, length);
 			bytesRead += length;
-			partial = true;
 			break;
 		}
 

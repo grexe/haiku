@@ -30,6 +30,8 @@ AddFilesToPackage add-ons kernel busses ata
 
 AddFilesToPackage add-ons kernel busses i2c : pch_i2c@x86,x86_64 ;
 AddFilesToPackage add-ons kernel busses mmc : sdhci_pci ;
+AddFilesToPackage add-ons kernel busses pci : 
+	<pci>designware@riscv64 <pci>ecam@riscv64,arm,arm64 <pci>x86@x86,x86_64 ;
 AddFilesToPackage add-ons kernel busses random : ccp_rng@x86,x86_64 virtio_rng ;
 AddFilesToPackage add-ons kernel busses scsi : ahci virtio_scsi ;
 AddFilesToPackage add-ons kernel busses usb : <usb>uhci <usb>ohci <usb>ehci
@@ -57,14 +59,14 @@ if $(TARGET_ARCH) = x86 || $(TARGET_ARCH) = x86_64 {
 
 # drivers
 AddNewDriversToPackage 				: wmi@x86,x86_64 ;
-AddNewDriversToPackage disk			: nvme_disk ;
+AddNewDriversToPackage disk			: nvme_disk usb_disk ;
 AddNewDriversToPackage disk mmc		: mmc_disk ;
 AddNewDriversToPackage disk scsi	: scsi_cd scsi_disk ;
-AddNewDriversToPackage disk virtual : virtio_block ram_disk ;
+AddNewDriversToPackage disk virtual : ram_disk virtio_block ;
 AddNewDriversToPackage power		: $(SYSTEM_ADD_ONS_DRIVERS_POWER) ;
 AddNewDriversToPackage sensor		: $(SYSTEM_ADD_ONS_DRIVERS_SENSOR) ;
 AddNewDriversToPackage network		: usb_ecm virtio_net ;
-AddNewDriversToPackage input		: virtio_input ;
+AddNewDriversToPackage input		: i2c_elan virtio_input ;
 #AddNewDriversToPackage display		: display_adapter@x86 ;
 
 # legacy drivers
@@ -74,7 +76,6 @@ AddDriversToPackage audio old		: $(SYSTEM_ADD_ONS_DRIVERS_AUDIO_OLD) ;
 AddDriversToPackage bluetooth h2	: $(SYSTEM_ADD_ONS_DRIVERS_BT_H2) ;
 AddDriversToPackage midi			: $(SYSTEM_ADD_ONS_DRIVERS_MIDI) ;
 AddDriversToPackage bus				: usb_raw ;
-AddDriversToPackage disk usb		: usb_disk ;
 AddDriversToPackage disk virtual	: nbd ;
 AddDriversToPackage dvb				: cx23882 ;
 AddDriversToPackage graphics		: $(SYSTEM_ADD_ONS_DRIVERS_GRAPHICS) ;
@@ -197,6 +198,7 @@ AddBootModuleSymlinksToPackage
 	nvme_disk
 	openpic@ppc
 	packagefs pci
+	<pci>designware@riscv64 <pci>ecam@riscv64,arm,arm64 <pci>x86@x86,x86_64
 	fdt@riscv64,arm,arm64
 	scsi scsi_cd scsi_disk scsi_periph silicon_image_3112 highpoint_ide_pci
 	sdhci_pci

@@ -49,6 +49,7 @@
 #include <StopWatch.h>
 #include <SupportDefs.h>
 #include <TranslatorRoster.h>
+#include <WindowScreen.h>
 
 #include <tracker_private.h>
 
@@ -171,10 +172,9 @@ PopUpMenu::~PopUpMenu()
 //	#pragma mark -
 
 
-ShowImageView::ShowImageView(BRect rect, const char* name, uint32 resizingMode,
-		uint32 flags)
+ShowImageView::ShowImageView(const char* name, uint32 flags)
 	:
-	BView(rect, name, resizingMode, flags),
+	BView(name, flags),
 	fBitmapOwner(NULL),
 	fBitmap(NULL),
 	fDisplayBitmap(NULL),
@@ -253,8 +253,13 @@ ShowImageView::Pulse()
 			BPoint mousePos;
 			uint32 buttons;
 			GetMouse(&mousePos, &buttons, false);
-			if (Bounds().Contains(mousePos))
+			if (Bounds().Contains(mousePos)) {
 				be_app->ObscureCursor();
+
+				// Set current mouse coordinates to avoid the screen saver kicking in
+				ConvertToScreen(&mousePos);
+				set_mouse_position((int32)mousePos.x, (int32)mousePos.y);
+			}
 		} else if (fHideCursorCountDown > 0)
 			fHideCursorCountDown--;
 	}

@@ -1,16 +1,18 @@
 /*
- * Copyright 2006-2007, Haiku.
+ * Copyright 2006-2007, 2023, Haiku.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
  *		Stephan Aßmus <superstippi@gmx.de>
+ *		Zardshard
  */
 #ifndef PATH_LIST_VIEW_H
 #define PATH_LIST_VIEW_H
 
 
+#include "Container.h"
 #include "ListViews.h"
-#include "PathContainer.h"
+#include "IconBuild.h"
 
 
 class BMenu;
@@ -18,8 +20,8 @@ class BMenuItem;
 
 _BEGIN_ICON_NAMESPACE
 	class VectorPath;
+	class PathSourceShape;
 	class Shape;
-	class ShapeContainer;
 _END_ICON_NAMESPACE
 
 class CommandStack;
@@ -32,85 +34,83 @@ _USING_ICON_NAMESPACE
 
 
 class PathListView : public SimpleListView,
-					 public PathContainerListener {
+					 public ContainerListener<VectorPath> {
  public:
-								PathListView(BRect frame,
-											 const char* name,
-											 BMessage* selectionMessage = NULL,
-											 BHandler* target = NULL);
-	virtual						~PathListView();
+	enum {
+		kSelectionArchiveCode		= 'spth',
+	};
+									PathListView(BRect frame,
+												 const char* name,
+												 BMessage* selectionMessage = NULL,
+												 BHandler* target = NULL);
+	virtual							~PathListView();
 
 	// SimpleListView interface
-	virtual	void				SelectionChanged();
+	virtual	void					SelectionChanged();
 
-	virtual	void				MouseDown(BPoint where);
-	virtual	void				MessageReceived(BMessage* message);
+	virtual	void					MouseDown(BPoint where);
+	virtual	void					MessageReceived(BMessage* message);
 
-	virtual	void				MakeDragMessage(BMessage* message) const;
+	virtual	status_t				ArchiveSelection(BMessage* into, bool deep = true) const;
+	virtual	bool					InstantiateSelection(const BMessage* archive, int32 dropIndex);
 
-	virtual	bool				AcceptDragMessage(const BMessage* message) const;
-	virtual	void				SetDropTargetRect(const BMessage* message,
-									BPoint where);
-	virtual	bool				HandleDropMessage(const BMessage* message,
-									int32 dropIndex);
+	virtual	void					MoveItems(BList& items, int32 toIndex);
+	virtual	void					CopyItems(BList& items, int32 toIndex);
+	virtual	void					RemoveItemList(BList& items);
 
-	virtual	void				MoveItems(BList& items, int32 toIndex);
-	virtual	void				CopyItems(BList& items, int32 toIndex);
-	virtual	void				RemoveItemList(BList& items);
+	virtual	BListItem*				CloneItem(int32 atIndex) const;
 
-	virtual	BListItem*			CloneItem(int32 atIndex) const;
+	virtual	int32					IndexOfSelectable(Selectable* selectable) const;
+	virtual	Selectable*				SelectableFor(BListItem* item) const;
 
-	virtual	int32				IndexOfSelectable(Selectable* selectable) const;
-	virtual	Selectable*			SelectableFor(BListItem* item) const;
-
-	// ShapeContainerListener interface
-	virtual	void				PathAdded(VectorPath* path, int32 index);
-	virtual	void				PathRemoved(VectorPath* path);
+	// ContainerListener<VectorPath> interface
+	virtual	void					ItemAdded(VectorPath* path, int32 index);
+	virtual	void					ItemRemoved(VectorPath* path);
 
 	// PathListView
-			void				SetPathContainer(PathContainer* container);
-			void				SetShapeContainer(ShapeContainer* container);
-			void				SetCommandStack(CommandStack* stack);
-			void				SetMenu(BMenu* menu);
+			void					SetPathContainer(Container<VectorPath>* container);
+			void					SetShapeContainer(Container<Shape>* container);
+			void					SetCommandStack(CommandStack* stack);
+			void					SetMenu(BMenu* menu);
 
-			void				SetCurrentShape(Shape* shape);
-			Shape*				CurrentShape() const
-									{ return fCurrentShape; }
+			void					SetCurrentShape(Shape* shape);
+			PathSourceShape*		CurrentShape() const
+										{ return fCurrentShape; }
 
  private:
-			bool				_AddPath(VectorPath* path, int32 index);
-			bool				_RemovePath(VectorPath* path);
+			bool					_AddPath(VectorPath* path, int32 index);
+			bool					_RemovePath(VectorPath* path);
 
-			PathListItem*		_ItemForPath(VectorPath* path) const;
+			PathListItem*			_ItemForPath(VectorPath* path) const;
 
 	friend class ShapePathListener;
-			void				_UpdateMarks();
-			void				_SetPathMarked(VectorPath* path, bool marked);
-			void				_UpdateMenu();
+			void					_UpdateMarks();
+			void					_SetPathMarked(VectorPath* path, bool marked);
+			void					_UpdateMenu();
 
-			BMessage*			fMessage;
+			BMessage*				fMessage;
 
-			BMenu*				fMenu;
-			BMenuItem*			fAddMI;
-			BMenuItem*			fAddRectMI;
-			BMenuItem*			fAddCircleMI;
-			BMenuItem*			fAddArcMI;
-			BMenuItem*			fDuplicateMI;
-			BMenuItem*			fReverseMI;
-			BMenuItem*			fCleanUpMI;
-			BMenuItem*			fRotateIndicesLeftMI;
-			BMenuItem*			fRotateIndicesRightMI;
-			BMenuItem*			fRemoveMI;
+			BMenu*					fMenu;
+			BMenuItem*				fAddMI;
+			BMenuItem*				fAddRectMI;
+			BMenuItem*				fAddCircleMI;
+			BMenuItem*				fAddArcMI;
+			BMenuItem*				fDuplicateMI;
+			BMenuItem*				fReverseMI;
+			BMenuItem*				fCleanUpMI;
+			BMenuItem*				fRotateIndicesLeftMI;
+			BMenuItem*				fRotateIndicesRightMI;
+			BMenuItem*				fRemoveMI;
 
-			PathContainer*		fPathContainer;
-			ShapeContainer*		fShapeContainer;
-			CommandStack*		fCommandStack;
+			Container<VectorPath>*	fPathContainer;
+			Container<Shape>*		fShapeContainer;
+			CommandStack*			fCommandStack;
 
-			Shape*				fCurrentShape;
+			PathSourceShape*		fCurrentShape;
 				// those path items will be marked that
 				// are referenced by this shape
 
-			ShapePathListener*	fShapePathListener;
+			ShapePathListener*		fShapePathListener;
 };
 
 #endif // PATH_LIST_VIEW_H

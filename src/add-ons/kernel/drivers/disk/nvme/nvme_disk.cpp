@@ -19,7 +19,6 @@
 
 #include <fs/devfs.h>
 #include <bus/PCI.h>
-#include <PCI_x86.h>
 #include <vm/vm.h>
 
 #include "IORequest.h"
@@ -76,7 +75,6 @@ static const uint8 kDriveIcon[] = {
 
 
 static device_manager_info* sDeviceManager;
-static pci_x86_module_info* sPCIx86Module;
 
 typedef struct {
 	device_node*			node;
@@ -227,38 +225,24 @@ nvme_disk_init_device(void* _info, void** _cookie)
 		nsstat.sector_size, info->ns->stripe_size);
 	nvme_disk_set_capacity(info, nsstat.sectors, nsstat.sector_size);
 
-	// set up interrupts
-	if (get_module(B_PCI_X86_MODULE_NAME, (module_info**)&sPCIx86Module)
-			!= B_OK) {
-		sPCIx86Module = NULL;
-	}
-
 	command = pci->read_pci_config(pcidev, PCI_command, 2);
 	command &= ~(PCI_command_int_disable);
 	pci->write_pci_config(pcidev, PCI_command, 2, command);
 
 	uint8 irq = info->info.u.h0.interrupt_line;
-	if (sPCIx86Module != NULL) {
-		if (sPCIx86Module->get_msix_count(info->info.bus, info->info.device,
-				info->info.function)) {
-			uint8 msixVector = 0;
-			if (sPCIx86Module->configure_msix(info->info.bus, info->info.device,
-					info->info.function, 1, &msixVector) == B_OK
-				&& sPCIx86Module->enable_msix(info->info.bus, info->info.device,
-					info->info.function) == B_OK) {
-				TRACE_ALWAYS("using MSI-X\n");
-				irq = msixVector;
-			}
-		} else if (sPCIx86Module->get_msi_count(info->info.bus,
-				info->info.device, info->info.function) >= 1) {
-			uint8 msiVector = 0;
-			if (sPCIx86Module->configure_msi(info->info.bus, info->info.device,
-					info->info.function, 1, &msiVector) == B_OK
-				&& sPCIx86Module->enable_msi(info->info.bus, info->info.device,
-					info->info.function) == B_OK) {
-				TRACE_ALWAYS("using message signaled interrupts\n");
-				irq = msiVector;
-			}
+	if (pci->get_msix_count(pcidev)) {
+		uint8 msixVector = 0;
+		if (pci->configure_msix(pcidev, 1, &msixVector) == B_OK
+			&& pci->enable_msix(pcidev) == B_OK) {
+			TRACE_ALWAYS("using MSI-X\n");
+			irq = msixVector;
+		}
+	} else if (pci->get_msi_count(pcidev) >= 1) {
+		uint8 msiVector = 0;
+		if (pci->configure_msi(pcidev, 1, &msiVector) == B_OK
+			&& pci->enable_msi(pcidev) == B_OK) {
+			TRACE_ALWAYS("using message signaled interrupts\n");
+			irq = msiVector;
 		}
 	}
 
@@ -586,7 +570,6 @@ nvme_disk_bounced_io(nvme_disk_handle* handle, io_request* request)
 		if (status != B_OK)
 			break;
 
-		size_t transferredBytes = 0;
 		do {
 			TRACE("%p: IOO offset: %" B_PRIdOFF ", length: %" B_PRIuGENADDR
 				", write: %s\n", request, operation.Offset(),
@@ -599,10 +582,9 @@ nvme_disk_bounced_io(nvme_disk_handle* handle, io_request* request)
 			nvme_request.iovec_count = operation.VecCount();
 
 			status = do_nvme_io_request(handle->info, &nvme_request);
-			if (status == B_OK && nvme_request.write == request->IsWrite())
-				transferredBytes += operation.OriginalLength();
 
-			operation.SetStatus(status);
+			operation.SetStatus(status,
+				status == B_OK ? operation.Length() : 0);
 		} while (status == B_OK && !operation.Finish());
 
 		if (status == B_OK && operation.Status() != B_OK) {
@@ -610,9 +592,7 @@ nvme_disk_bounced_io(nvme_disk_handle* handle, io_request* request)
 			status = operation.Status();
 		}
 
-		operation.SetTransferredBytes(transferredBytes);
-		request->OperationFinished(&operation, status, status != B_OK,
-			operation.OriginalOffset() + transferredBytes);
+		request->OperationFinished(&operation);
 
 		handle->info->dma_resource.RecycleBuffer(operation.Buffer());
 
@@ -639,6 +619,10 @@ nvme_disk_io(void* cookie, io_request* request)
 	CALLED();
 
 	nvme_disk_handle* handle = (nvme_disk_handle*)cookie;
+
+	const off_t ns_end = (handle->info->capacity * handle->info->block_size);
+	if ((request->Offset() + (off_t)request->Length()) > ns_end)
+		return ERANGE;
 
 	nvme_io_request nvme_request;
 	memset(&nvme_request, 0, sizeof(nvme_io_request));
@@ -813,11 +797,11 @@ nvme_disk_read(void* cookie, off_t pos, void* buffer, size_t* length)
 	CALLED();
 	nvme_disk_handle* handle = (nvme_disk_handle*)cookie;
 
-	const off_t end = (handle->info->capacity * handle->info->block_size);
-	if (pos >= end)
+	const off_t ns_end = (handle->info->capacity * handle->info->block_size);
+	if (pos >= ns_end)
 		return B_BAD_VALUE;
-	if (pos + (off_t)*length > end)
-		*length = end - pos;
+	if ((pos + (off_t)*length) > ns_end)
+		*length = ns_end - pos;
 
 	IORequest request;
 	status_t status = request.Init(pos, (addr_t)buffer, *length, false, 0);
@@ -836,11 +820,11 @@ nvme_disk_write(void* cookie, off_t pos, const void* buffer, size_t* length)
 	CALLED();
 	nvme_disk_handle* handle = (nvme_disk_handle*)cookie;
 
-	const off_t end = (handle->info->capacity * handle->info->block_size);
-	if (pos >= end)
+	const off_t ns_end = (handle->info->capacity * handle->info->block_size);
+	if (pos >= ns_end)
 		return B_BAD_VALUE;
-	if (pos + (off_t)*length > end)
-		*length = end - pos;
+	if ((pos + (off_t)*length) > ns_end)
+		*length = ns_end - pos;
 
 	IORequest request;
 	status_t status = request.Init(pos, (addr_t)buffer, *length, true, 0);

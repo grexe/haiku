@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011, Haiku, Inc. All rights reserved.
+ * Copyright 2008-2023, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
@@ -23,6 +23,7 @@
 #include <util/DoublyLinkedList.h>
 #include <util/OpenHashTable.h>
 #include <AutoDeleter.h>
+#include <StackOrHeapArray.h>
 
 
 //#define TRACE_XSI_SEM
@@ -36,23 +37,6 @@
 
 
 namespace {
-
-// Queue for holding blocked threads
-struct queued_thread : DoublyLinkedListLinkImpl<queued_thread> {
-	queued_thread(Thread *thread, int32 count)
-		:
-		thread(thread),
-		count(count),
-		queued(false)
-	{
-	}
-
-	Thread	*thread;
-	int32	count;
-	bool	queued;
-};
-
-typedef DoublyLinkedList<queued_thread> ThreadQueue;
 
 class XsiSemaphoreSet;
 
@@ -101,25 +85,21 @@ namespace {
 class XsiSemaphore {
 public:
 	XsiSemaphore()
-		: fLastPidOperation(0),
-		fThreadsWaitingToIncrease(0),
-		fThreadsWaitingToBeZero(0),
+		:
+		fLastPidOperation(0),
 		fValue(0)
 	{
+		fWaitingToIncrease.Init(this, "XsiSemaphore");
+		fWaitingToBeZero.Init(this, "XsiSemaphore");
 	}
 
 	~XsiSemaphore()
 	{
 		// For some reason the semaphore is getting destroyed.
 		// Wake up any remaing awaiting threads
-		while (queued_thread *entry = fWaitingToIncreaseQueue.RemoveHead()) {
-			entry->queued = false;
-			thread_unblock(entry->thread, EIDRM);
-		}
-		while (queued_thread *entry = fWaitingToBeZeroQueue.RemoveHead()) {
-			entry->queued = false;
-			thread_unblock(entry->thread, EIDRM);
-		}
+		fWaitingToIncrease.NotifyAll(EIDRM);
+		fWaitingToBeZero.NotifyAll(EIDRM);
+
 		// No need to remove any sem_undo request still
 		// hanging. When the process exit and doesn't found
 		// the semaphore set, it'll just ignore the sem_undo
@@ -138,51 +118,26 @@ public:
 			return true;
 		} else {
 			fValue += value;
-			if (fValue == 0 && fThreadsWaitingToBeZero > 0)
-				WakeUpThread(true);
-			else if (fValue > 0 && fThreadsWaitingToIncrease > 0)
-				WakeUpThread(false);
+			if (fValue == 0)
+				WakeUpThreads(true);
+			else if (fValue > 0)
+				WakeUpThreads(false);
 			return false;
 		}
 	}
 
-	status_t BlockAndUnlock(Thread *thread, MutexLocker *setLocker)
+	static void Dequeue(ConditionVariableEntry *queueEntry)
 	{
-		thread_prepare_to_block(thread, B_CAN_INTERRUPT,
-			THREAD_BLOCK_TYPE_OTHER, (void*)"xsi semaphore");
-		// Unlock the set before blocking
-		setLocker->Unlock();
-
-// TODO: We've got a serious race condition: If BlockAndUnlock() returned due to
-// interruption, we will still be queued. A WakeUpThread() at this point will
-// call thread_unblock() and might thus screw with our trying to re-lock the
-// mutex.
-		return thread_block();
+		queueEntry->Wait(B_RELATIVE_TIMEOUT, 0);
 	}
 
-	void Deque(queued_thread *queueEntry, bool waitForZero)
-	{
-		if (queueEntry->queued) {
-			if (waitForZero) {
-				fWaitingToBeZeroQueue.Remove(queueEntry);
-				fThreadsWaitingToBeZero--;
-			} else {
-				fWaitingToIncreaseQueue.Remove(queueEntry);
-				fThreadsWaitingToIncrease--;
-			}
-		}
-	}
-
-	void Enqueue(queued_thread *queueEntry, bool waitForZero)
+	void Enqueue(ConditionVariableEntry *queueEntry, bool waitForZero)
 	{
 		if (waitForZero) {
-			fWaitingToBeZeroQueue.Add(queueEntry);
-			fThreadsWaitingToBeZero++;
+			fWaitingToBeZero.Add(queueEntry);
 		} else {
-			fWaitingToIncreaseQueue.Add(queueEntry);
-			fThreadsWaitingToIncrease++;
+			fWaitingToIncrease.Add(queueEntry);
 		}
-		queueEntry->queued = true;
 	}
 
 	pid_t LastPid() const
@@ -193,10 +148,10 @@ public:
 	void Revert(short value)
 	{
 		fValue -= value;
-		if (fValue == 0 && fThreadsWaitingToBeZero > 0)
-			WakeUpThread(true);
-		else if (fValue > 0 && fThreadsWaitingToIncrease > 0)
-			WakeUpThread(false);
+		if (fValue == 0)
+			WakeUpThreads(true);
+		else if (fValue > 0)
+			WakeUpThreads(false);
 	}
 
 	void SetPid(pid_t pid)
@@ -209,14 +164,14 @@ public:
 		fValue = value;
 	}
 
-	ushort ThreadsWaitingToIncrease() const
+	ushort ThreadsWaitingToIncrease()
 	{
-		return fThreadsWaitingToIncrease;
+		return fWaitingToIncrease.EntriesCount();
 	}
 
-	ushort ThreadsWaitingToBeZero() const
+	ushort ThreadsWaitingToBeZero()
 	{
-		return fThreadsWaitingToBeZero;
+		return fWaitingToBeZero.EntriesCount();
 	}
 
 	ushort Value() const
@@ -224,33 +179,21 @@ public:
 		return fValue;
 	}
 
-	void WakeUpThread(bool waitingForZero)
+	void WakeUpThreads(bool waitingForZero)
 	{
 		if (waitingForZero) {
-			// Wake up all threads waiting on zero
-			while (queued_thread *entry = fWaitingToBeZeroQueue.RemoveHead()) {
-				entry->queued = false;
-				fThreadsWaitingToBeZero--;
-				thread_unblock(entry->thread, 0);
-			}
+			fWaitingToBeZero.NotifyAll();
 		} else {
-			// Wake up all threads even though they might go back to sleep
-			while (queued_thread *entry = fWaitingToIncreaseQueue.RemoveHead()) {
-				entry->queued = false;
-				fThreadsWaitingToIncrease--;
-				thread_unblock(entry->thread, 0);
-			}
+			fWaitingToIncrease.NotifyAll();
 		}
 	}
 
 private:
 	pid_t				fLastPidOperation;				// sempid
-	ushort				fThreadsWaitingToIncrease;		// semncnt
-	ushort				fThreadsWaitingToBeZero;		// semzcnt
 	ushort				fValue;							// semval
 
-	ThreadQueue			fWaitingToIncreaseQueue;
-	ThreadQueue			fWaitingToBeZeroQueue;
+	ConditionVariable	fWaitingToIncrease;
+	ConditionVariable	fWaitingToBeZero;
 };
 
 #define MAX_XSI_SEMS_PER_TEAM	128
@@ -284,7 +227,7 @@ public:
 		delete[] fSemaphores;
 	}
 
-	void ClearUndo(unsigned short semaphoreNumber)
+	void ClearUndo(ushort semaphoreNumber)
 	{
 		Team *team = thread_get_current_thread()->team;
 		UndoList::Iterator iterator = fUndoList.GetIterator();
@@ -394,7 +337,7 @@ public:
 	// Record the sem_undo operation into our private fUndoList and
 	// the team undo_list. The only limit here is the memory needed
 	// for creating a new sem_undo structure.
-	int RecordUndo(short semaphoreNumber, short value)
+	int RecordUndo(ushort semaphoreNumber, short value)
 	{
 		// Look if there is already a record from the team caller
 		// for the same semaphore set
@@ -468,7 +411,7 @@ public:
 		return B_OK;
 	}
 
-	void RevertUndo(short semaphoreNumber, short value)
+	void RevertUndo(ushort semaphoreNumber, short value)
 	{
 		// This can be called only when RecordUndo fails.
 		Team *team = thread_get_current_thread()->team;
@@ -747,23 +690,10 @@ _user_xsi_semget(key_t key, int numberOfSemaphores, int flags)
 		// Check if key already exist, if it does it already has a semaphore
 		// set associated with it
 		ipcKey = sIpcHashTable.Lookup(key);
-		if (ipcKey == NULL) {
-			// The ipc key does not exist. Create it and add it to the system
-			if (!(flags & IPC_CREAT)) {
-				TRACE_ERROR(("xsi_semget: key %d does not exist, but the "
-					"caller did not ask for creation\n",(int)key));
-				return ENOENT;
-			}
-			ipcKey = new(std::nothrow) Ipc(key);
-			if (ipcKey == NULL) {
-				TRACE_ERROR(("xsi_semget: failed to create new Ipc object "
-					"for key %d\n",	(int)key));
-				return ENOMEM;
-			}
-		} else {
+		if (ipcKey != NULL) {
 			// The IPC key exist and it already has a semaphore
 			if ((flags & IPC_CREAT) && (flags & IPC_EXCL)) {
-				TRACE_ERROR(("xsi_semget: key %d already exist\n", (int)key));
+				TRACE(("xsi_semget: key %d already exist\n", (int)key));
 				return EEXIST;
 			}
 			int semaphoreSetID = ipcKey->SemaphoreSetID();
@@ -771,19 +701,19 @@ _user_xsi_semget(key_t key, int numberOfSemaphores, int flags)
 			MutexLocker semaphoreSetLocker(sXsiSemaphoreSetLock);
 			semaphoreSet = sSemaphoreHashTable.Lookup(semaphoreSetID);
 			if (semaphoreSet == NULL) {
-				TRACE_ERROR(("xsi_semget: calling process has no semaphore, "
+				TRACE(("xsi_semget: calling process has no semaphore, "
 					"key %d\n", (int)key));
 				return EINVAL;
 			}
 			if (!semaphoreSet->HasPermission()) {
-				TRACE_ERROR(("xsi_semget: calling process has no permission "
+				TRACE(("xsi_semget: calling process has no permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)key));
 				return EACCES;
 			}
 			if (numberOfSemaphores > semaphoreSet->NumberOfSemaphores()
-				&& numberOfSemaphores != 0) {
-				TRACE_ERROR(("xsi_semget: numberOfSemaphores greater than the "
+					&& numberOfSemaphores != 0) {
+				TRACE(("xsi_semget: numberOfSemaphores greater than the "
 					"one associated with semaphore %d, key %d\n",
 					semaphoreSet->ID(), (int)key));
 				return EINVAL;
@@ -791,25 +721,37 @@ _user_xsi_semget(key_t key, int numberOfSemaphores, int flags)
 
 			return semaphoreSet->ID();
 		}
+
+		// The ipc key does not exist. Create it and add it to the system
+		if (!(flags & IPC_CREAT)) {
+			TRACE(("xsi_semget: key %d does not exist, but the "
+				"caller did not ask for creation\n",(int)key));
+			return ENOENT;
+		}
+		ipcKey = new(std::nothrow) Ipc(key);
+		if (ipcKey == NULL) {
+			TRACE_ERROR(("xsi_semget: failed to create new Ipc object "
+				"for key %d\n",	(int)key));
+			return ENOMEM;
+		}
 	}
 
-	// Create a new sempahore set for this key
+	// Create a new semaphore set for this key
 	if (numberOfSemaphores <= 0
-		|| numberOfSemaphores >= MAX_XSI_SEMS_PER_TEAM) {
+			|| numberOfSemaphores >= MAX_XSI_SEMS_PER_TEAM) {
 		TRACE_ERROR(("xsi_semget: numberOfSemaphores out of range\n"));
 		delete ipcKey;
 		return EINVAL;
 	}
 	if (sXsiSemaphoreCount >= MAX_XSI_SEMAPHORE
-		|| sXsiSemaphoreSetCount >= MAX_XSI_SEMAPHORE_SET) {
+			|| sXsiSemaphoreSetCount >= MAX_XSI_SEMAPHORE_SET) {
 		TRACE_ERROR(("xsi_semget: reached limit of maximum number of "
 			"semaphores allowed\n"));
 		delete ipcKey;
 		return ENOSPC;
 	}
 
-	semaphoreSet = new(std::nothrow) XsiSemaphoreSet(numberOfSemaphores,
-		flags);
+	semaphoreSet = new(std::nothrow) XsiSemaphoreSet(numberOfSemaphores, flags);
 	if (semaphoreSet == NULL || !semaphoreSet->InitOK()) {
 		TRACE_ERROR(("xsi_semget: failed to allocate a new xsi "
 			"semaphore set\n"));
@@ -856,13 +798,13 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 	MutexLocker setHashLocker(sXsiSemaphoreSetLock);
 	XsiSemaphoreSet *semaphoreSet = sSemaphoreHashTable.Lookup(semaphoreID);
 	if (semaphoreSet == NULL) {
-		TRACE_ERROR(("xsi_semctl: semaphore set id %d not valid\n",
+		TRACE(("xsi_semctl: semaphore set id %d not valid\n",
 			semaphoreID));
 		return EINVAL;
 	}
 	if (semaphoreNumber < 0
 		|| semaphoreNumber > semaphoreSet->NumberOfSemaphores()) {
-		TRACE_ERROR(("xsi_semctl: semaphore number %d not valid for "
+		TRACE(("xsi_semctl: semaphore number %d not valid for "
 			"semaphore %d\n", semaphoreNumber, semaphoreID));
 		return EINVAL;
 	}
@@ -872,16 +814,10 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 	// the command it's not IPC_RMID, this prevents undesidered
 	// situation from happening while (hopefully) improving the
 	// concurrency.
-	MutexLocker setLocker;
+	MutexLocker setLocker(semaphoreSet->Lock());
 	if (command != IPC_RMID) {
-		setLocker.SetTo(&semaphoreSet->Lock(), false);
 		setHashLocker.Unlock();
 		ipcHashLocker.Unlock();
-	} else {
-		// We are about to delete the set along with its mutex, so
-		// we can't use the MutexLocker class, as the mutex itself
-		// won't exist on function exit
-		mutex_lock(&semaphoreSet->Lock());
 	}
 
 	int result = 0;
@@ -889,7 +825,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 	switch (command) {
 		case GETVAL: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -900,13 +836,13 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case SETVAL: {
 			if (!semaphoreSet->HasPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
 			} else {
 				if (args.val > USHRT_MAX) {
-					TRACE_ERROR(("xsi_semctl: value %d out of range\n", args.val));
+					TRACE(("xsi_semctl: value %d out of range\n", args.val));
 					result = ERANGE;
 				} else {
 					semaphore->SetValue(args.val);
@@ -918,7 +854,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case GETPID: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -929,7 +865,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case GETNCNT: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -940,7 +876,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case GETZCNT: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -951,7 +887,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case GETALL: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not read "
+				TRACE(("xsi_semctl: calling process has not read "
 					"permission on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -971,7 +907,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case SETALL: {
 			if (!semaphoreSet->HasPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not permission "
+				TRACE(("xsi_semctl: calling process has not permission "
 					"on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -997,7 +933,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case IPC_STAT: {
 			if (!semaphoreSet->HasReadPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not read "
+				TRACE(("xsi_semctl: calling process has not read "
 					"permission on semaphore %d, key %d\n", semaphoreSet->ID(),
 					(int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -1018,7 +954,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 
 		case IPC_SET: {
 			if (!semaphoreSet->HasPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not "
+				TRACE(("xsi_semctl: calling process has not "
 					"permission on semaphore %d, key %d\n",
 					semaphoreSet->ID(), (int)semaphoreSet->IpcKey()));
 				result = EACCES;
@@ -1041,7 +977,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 			// itself, this way we are sure there is not
 			// one waiting in the queue of the mutex.
 			if (!semaphoreSet->HasPermission()) {
-				TRACE_ERROR(("xsi_semctl: calling process has not "
+				TRACE(("xsi_semctl: calling process has not "
 					"permission on semaphore %d, key %d\n",
 					semaphoreSet->ID(), (int)semaphoreSet->IpcKey()));
 				return EACCES;
@@ -1067,6 +1003,7 @@ _user_xsi_semctl(int semaphoreID, int semaphoreNumber, int command,
 				delete entry;
 			}
 
+			setLocker.Detach();
 			delete semaphoreSet;
 			return 0;
 		}
@@ -1085,33 +1022,31 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 {
 	TRACE(("xsi_semop: semaphoreID = %d, ops = %p, numOps = %ld\n",
 		semaphoreID, ops, numOps));
+
+	if (!IS_USER_ADDRESS(ops)) {
+		TRACE(("xsi_semop: sembuf address is not valid\n"));
+		return B_BAD_ADDRESS;
+	}
+	if (numOps < 0 || numOps >= MAX_XSI_SEMS_PER_TEAM) {
+		TRACE(("xsi_semop: numOps out of range\n"));
+		return EINVAL;
+	}
+
 	MutexLocker setHashLocker(sXsiSemaphoreSetLock);
 	XsiSemaphoreSet *semaphoreSet = sSemaphoreHashTable.Lookup(semaphoreID);
 	if (semaphoreSet == NULL) {
-		TRACE_ERROR(("xsi_semop: semaphore set id %d not valid\n",
+		TRACE(("xsi_semop: semaphore set id %d not valid\n",
 			semaphoreID));
 		return EINVAL;
 	}
 	MutexLocker setLocker(semaphoreSet->Lock());
 	setHashLocker.Unlock();
 
-	if (!IS_USER_ADDRESS(ops)) {
-		TRACE_ERROR(("xsi_semop: sembuf address is not valid\n"));
-		return B_BAD_ADDRESS;
-	}
-
-	if (numOps < 0 || numOps >= MAX_XSI_SEMS_PER_TEAM) {
-		TRACE_ERROR(("xsi_semop: numOps out of range\n"));
-		return EINVAL;
-	}
-
-	struct sembuf *operations
-		= (struct sembuf *)malloc(sizeof(struct sembuf) * numOps);
-	if (operations == NULL) {
+	BStackOrHeapArray<struct sembuf, 16> operations(numOps);
+	if (!operations.IsValid()) {
 		TRACE_ERROR(("xsi_semop: failed to allocate sembuf struct\n"));
 		return B_NO_MEMORY;
 	}
-	MemoryDeleter operationsDeleter(operations);
 
 	if (user_memcpy(operations, ops,
 			(sizeof(struct sembuf) * numOps)) != B_OK) {
@@ -1129,14 +1064,14 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 	status_t result = 0;
 	while (notDone) {
 		XsiSemaphore *semaphore = NULL;
-		short numberOfSemaphores = semaphoreSet->NumberOfSemaphores();
+		const ushort numberOfSemaphores = semaphoreSet->NumberOfSemaphores();
 		bool goToSleep = false;
 
 		uint32 i = 0;
 		for (; i < numOps; i++) {
-			short semaphoreNumber = operations[i].sem_num;
+			ushort semaphoreNumber = operations[i].sem_num;
 			if (semaphoreNumber >= numberOfSemaphores) {
-				TRACE_ERROR(("xsi_semop: %" B_PRIu32 " invalid semaphore number"
+				TRACE(("xsi_semop: %" B_PRIu32 " invalid semaphore number"
 					"\n", i));
 				result = EINVAL;
 				break;
@@ -1175,7 +1110,7 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 		if (goToSleep || result != 0) {
 			// Undo all previously done operations
 			for (uint32 j = 0; j < i; j++) {
-				short semaphoreNumber = operations[j].sem_num;
+				ushort semaphoreNumber = operations[j].sem_num;
 				semaphore = semaphoreSet->Semaphore(semaphoreNumber);
 				short operation = operations[j].sem_op;
 				if (operation != 0)
@@ -1191,33 +1126,34 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 			if (operations[i].sem_op != 0)
 				waitOnZero = false;
 
-			Thread *thread = thread_get_current_thread();
-			queued_thread queueEntry(thread, (int32)operations[i].sem_op);
+			ConditionVariableEntry queueEntry;
 			semaphore->Enqueue(&queueEntry, waitOnZero);
 
-			uint32 sequenceNumber = semaphoreSet->SequenceNumber();
+			const uint32 sequenceNumber = semaphoreSet->SequenceNumber();
 
 			TRACE(("xsi_semop: thread %d going to sleep\n", (int)thread->id));
-			result = semaphore->BlockAndUnlock(thread, &setLocker);
+			setLocker.Unlock();
+			semaphoreSet = NULL;
+			semaphore = NULL;
+			result = queueEntry.Wait(B_CAN_INTERRUPT);
 			TRACE(("xsi_semop: thread %d back to life\n", (int)thread->id));
 
 			// We are back to life. Find out why!
-			// Make sure the set hasn't been deleted or worst yet
-			// replaced.
+			// Make sure the set hasn't been deleted or worst yet replaced.
 			setHashLocker.Lock();
 			semaphoreSet = sSemaphoreHashTable.Lookup(semaphoreID);
 			if (result == EIDRM || semaphoreSet == NULL || (semaphoreSet != NULL
-				&& sequenceNumber != semaphoreSet->SequenceNumber())) {
-				TRACE_ERROR(("xsi_semop: semaphore set id %d (sequence = "
+					&& sequenceNumber != semaphoreSet->SequenceNumber())) {
+				TRACE(("xsi_semop: semaphore set id %d (sequence = "
 					"%" B_PRIu32 ") got destroyed\n", semaphoreID,
 					sequenceNumber));
 				notDone = false;
 				result = EIDRM;
 			} else if (result == B_INTERRUPTED) {
-				TRACE_ERROR(("xsi_semop: thread %d got interrupted while "
-					"waiting on semaphore set id %d\n",(int)thread->id,
+				TRACE(("xsi_semop: thread %d got interrupted while "
+					"waiting on semaphore set id %d\n", (int)thread_get_current_thread_id(),
 					semaphoreID));
-				semaphore->Deque(&queueEntry, waitOnZero);
+				XsiSemaphore::Dequeue(&queueEntry);
 				result = EINTR;
 				notDone = false;
 			} else {
@@ -1230,33 +1166,34 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 			TRACE(("xsi_semop: semaphore acquired succesfully\n"));
 			// We acquired the semaphore, now records the sem_undo
 			// requests
-			XsiSemaphore *semaphore = NULL;
-			uint32 i = 0;
-			for (; i < numOps; i++) {
-				short semaphoreNumber = operations[i].sem_num;
-				semaphore = semaphoreSet->Semaphore(semaphoreNumber);
+			for (uint32 i = 0; i < numOps; i++) {
+				if ((operations[i].sem_flg & SEM_UNDO) == 0)
+					continue;
+
+				ushort semaphoreNumber = operations[i].sem_num;
+				XsiSemaphore *semaphore = semaphoreSet->Semaphore(semaphoreNumber);
 				short operation = operations[i].sem_op;
-				if (operations[i].sem_flg & SEM_UNDO)
-					if (semaphoreSet->RecordUndo(semaphoreNumber, operation)
-						!= B_OK) {
-						// Unlikely scenario, but we might get here.
-						// Undo everything!
-						// Start with semaphore operations
-						for (uint32 j = 0; j < numOps; j++) {
-							short semaphoreNumber = operations[j].sem_num;
-							semaphore = semaphoreSet->Semaphore(semaphoreNumber);
-							short operation = operations[j].sem_op;
-							if (operation != 0)
-								semaphore->Revert(operation);
-						}
-						// Remove all previously registered sem_undo request
-						for (uint32 j = 0; j < i; j++) {
-							if (operations[j].sem_flg & SEM_UNDO)
-								semaphoreSet->RevertUndo(operations[j].sem_num,
-									operations[j].sem_op);
-						}
-						result = ENOSPC;
+
+				if (semaphoreSet->RecordUndo(semaphoreNumber, operation) != B_OK) {
+					// Unlikely scenario, but we might get here.
+					// Undo everything!
+					// Start with semaphore operations
+					for (uint32 j = 0; j < numOps; j++) {
+						ushort semaphoreNumber = operations[j].sem_num;
+						semaphore = semaphoreSet->Semaphore(semaphoreNumber);
+						short operation = operations[j].sem_op;
+						if (operation != 0)
+							semaphore->Revert(operation);
 					}
+					// Remove all previously registered sem_undo request
+					for (uint32 j = 0; j < i; j++) {
+						if (operations[j].sem_flg & SEM_UNDO) {
+							semaphoreSet->RevertUndo(operations[j].sem_num,
+								operations[j].sem_op);
+						}
+					}
+					result = ENOSPC;
+				}
 			}
 		}
 	}
@@ -1264,7 +1201,7 @@ _user_xsi_semop(int semaphoreID, struct sembuf *ops, size_t numOps)
 	// We did it. Set the pid of all semaphores used
 	if (result == 0) {
 		for (uint32 i = 0; i < numOps; i++) {
-			short semaphoreNumber = operations[i].sem_num;
+			ushort semaphoreNumber = operations[i].sem_num;
 			XsiSemaphore *semaphore = semaphoreSet->Semaphore(semaphoreNumber);
 			semaphore->SetPid(getpid());
 		}

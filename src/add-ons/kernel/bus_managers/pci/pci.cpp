@@ -10,12 +10,17 @@
 #include <KernelExport.h>
 #define __HAIKU_PCI_BUS_MANAGER_TESTING 1
 #include <PCI.h>
+#include <arch/generic/msi.h>
+#if defined(__i386__) || defined(__x86_64__)
+#include <arch/x86/msi.h>
+#endif
 
 #include "util/kernel_cpp.h"
 #include "pci_fixup.h"
 #include "pci_info.h"
 #include "pci_private.h"
 #include "pci.h"
+
 
 #define TRACE_CAP(x...) dprintf(x)
 #define FLOW(x...)
@@ -26,13 +31,6 @@ PCI *gPCI;
 
 
 // #pragma mark bus manager exports
-
-
-status_t
-pci_controller_add(pci_controller *controller, void *cookie)
-{
-	return gPCI->AddController(controller, cookie);
-}
 
 
 long
@@ -71,6 +69,23 @@ pci_write_config(uint8 virtualBus, uint8 device, uint8 function, uint16 offset,
 		return;
 
 	gPCI->WriteConfig(domain, bus, device, function, offset, size, value);
+}
+
+
+phys_addr_t
+pci_ram_address(phys_addr_t childAdr)
+{
+	phys_addr_t hostAdr = 0;
+#if defined(__i386__) || defined(__x86_64__)
+	hostAdr = childAdr;
+#else
+	uint8 domain;
+	pci_resource_range range;
+	if (gPCI->LookupRange(kPciRangeMmio, childAdr, domain, range) >= B_OK)
+		hostAdr = childAdr - range.pci_addr + range.host_addr;
+#endif
+	//dprintf("pci_ram_address(%#" B_PRIx64 ") -> %#" B_PRIx64 "\n", childAdr, hostAdr);
+	return hostAdr;
 }
 
 
@@ -151,11 +166,10 @@ pci_reserve_device(uchar virtualBus, uchar device, uchar function,
 	device_node *node, *legacy;
 
 	status = B_DEVICE_NOT_FOUND;
-	if (gPCIRootNode == NULL)
-		goto err1;
+	device_node *root_pci_node = gPCI->_GetDomainData(domain)->root_node;
 
 	node = NULL;
-	if (gDeviceManager->get_next_child_node(gPCIRootNode,
+	if (gDeviceManager->get_next_child_node(root_pci_node,
 		matchThis, &node) < B_OK) {
 		goto err1;
 	}
@@ -204,10 +218,6 @@ pci_unreserve_device(uchar virtualBus, uchar device, uchar function,
 	//TRACE(("%s(%d [%d:%d], %d, %d, %s, %p)\n", __FUNCTION__, virtualBus,
 	//	domain, bus, device, function, driverName, nodeCookie));
 
-	device_attr matchPCIRoot[] = {
-		{B_DEVICE_PRETTY_NAME, B_STRING_TYPE, {.string = "PCI"}},
-		{NULL}
-	};
 	device_attr matchThis[] = {
 		// info about device
 		{B_DEVICE_BUS, B_STRING_TYPE, {.string = "pci"}},
@@ -232,16 +242,11 @@ pci_unreserve_device(uchar virtualBus, uchar device, uchar function,
 		{"legacy_driver_cookie", B_UINT64_TYPE, {.ui64 = (uint64)nodeCookie}},
 		{NULL}
 	};
-	device_node *root, *pci, *node, *legacy, *drv;
+	device_node *pci, *node, *legacy, *drv;
 
 	status = B_DEVICE_NOT_FOUND;
-	root = gDeviceManager->get_root_node();
-	if (!root)
-		return status;
 
-	pci = NULL;
-	if (gDeviceManager->get_next_child_node(root, matchPCIRoot, &pci) < B_OK)
-		goto err0;
+	pci = gPCI->_GetDomainData(domain)->root_node;
 
 	node = NULL;
 	if (gDeviceManager->get_next_child_node(pci, matchThis, &node) < B_OK)
@@ -268,8 +273,6 @@ pci_unreserve_device(uchar virtualBus, uchar device, uchar function,
 	// we'll get EBUSY here anyway...
 
 	gDeviceManager->put_node(node);
-	gDeviceManager->put_node(pci);
-	gDeviceManager->put_node(root);
 	return B_OK;
 
 err3:
@@ -277,9 +280,6 @@ err3:
 err2:
 	gDeviceManager->put_node(node);
 err1:
-	gDeviceManager->put_node(pci);
-err0:
-	gDeviceManager->put_node(root);
 	TRACE(("pci_unreserve_device for driver %s failed: %s\n", driverName,
 		strerror(status)));
 	return status;
@@ -457,7 +457,14 @@ write_io(int argc, char **argv)
 static int
 pcistatus(int argc, char **argv)
 {
-	gPCI->ClearDeviceStatus(NULL, true);
+	for (uint32 domain = 0; ; domain++) {
+		domain_data *data = gPCI->_GetDomainData(domain);
+		if (data == NULL)
+			break;
+
+		gPCI->ClearDeviceStatus(data->bus, true);
+	}
+
 	return 0;
 }
 
@@ -473,31 +480,11 @@ pcirefresh(int argc, char **argv)
 
 // #pragma mark bus manager init/uninit
 
-static bool sInitDone;
-
-
-status_t __attribute__((weak)) pci_controller_finalize() { return B_OK; }
-
 
 status_t
-pci_init_deferred(void)
+pci_init(void)
 {
-	if (sInitDone)
-		return B_OK;
-
-	status_t ret = pci_controller_init();
-	if (ret == B_DEV_NOT_READY)
-		return ret;
-
-	if (ret != B_OK) {
-		TRACE(("PCI: pci_controller_init failed\n"));
-		return B_ERROR;
-	}
-
-	if (pci_io_init() != B_OK) {
-		TRACE(("PCI: pci_io_init failed\n"));
-		return B_ERROR;
-	}
+	gPCI = new PCI;
 
 	add_debugger_command("inw", &display_io, "dump io words (32-bit)");
 	add_debugger_command("in32", &display_io, "dump io words (32-bit)");
@@ -513,36 +500,10 @@ pci_init_deferred(void)
 	add_debugger_command("outb", &write_io, "write io bytes (8-bit)");
 	add_debugger_command("out8", &write_io, "write io bytes (8-bit)");
 
-	gPCI->InitDomainData();
-	gPCI->InitBus();
-
 	add_debugger_command("pcistatus", &pcistatus, "dump and clear pci device status registers");
 	add_debugger_command("pcirefresh", &pcirefresh, "refresh and print all pci_info");
 
-	if (pci_controller_finalize() != B_OK) {
-		TRACE(("PCI: pci_controller_finalize failed\n"));
-		return B_ERROR;
-	}
-
-	pci_print_info();
-
-	sInitDone = true;
 	return B_OK;
-}
-
-
-status_t
-pci_init(void)
-{
-	gPCI = new PCI;
-
-	status_t ret = pci_init_deferred();
-	if (ret == B_DEV_NOT_READY) {
-		TRACE(("PCI: init deferred\n"));
-		return B_OK;
-	}
-
-	return ret;
 }
 
 
@@ -550,11 +511,6 @@ void
 pci_uninit(void)
 {
 	delete gPCI;
-
-	if (!sInitDone)
-		return;
-
-	sInitDone = false;
 
 	remove_debugger_command("outw", &write_io);
 	remove_debugger_command("out32", &write_io);
@@ -580,7 +536,6 @@ pci_uninit(void)
 
 PCI::PCI()
 	:
-	fRootBus(0),
 	fDomainCount(0),
 	fBusEnumeration(false),
 	fVirtualBusMap(),
@@ -593,38 +548,20 @@ PCI::PCI()
 
 
 void
-PCI::InitBus()
+PCI::InitBus(PCIBus *bus)
 {
-	PCIBus **nextBus = &fRootBus;
-	for (uint8 i = 0; i < fDomainCount; i++) {
-		PCIBus *bus = new PCIBus;
-		bus->next = NULL;
-		bus->parent = NULL;
-		bus->child = NULL;
-		bus->domain = i;
-		bus->bus = 0;
-		*nextBus = bus;
-		nextBus = &bus->next;
-	}
-
 	if (fBusEnumeration) {
-		for (uint8 i = 0; i < fDomainCount; i++) {
-			_EnumerateBus(i, 0);
-		}
+		_EnumerateBus(bus->domain, 0);
 	}
 
 	if (1) {
-		for (uint8 i = 0; i < fDomainCount; i++) {
-			_FixupDevices(i, 0);
-		}
+		_FixupDevices(bus->domain, 0);
 	}
 
-	if (fRootBus) {
-		_DiscoverBus(fRootBus);
-		_ConfigureBridges(fRootBus);
-		ClearDeviceStatus(fRootBus, false);
-		_RefreshDeviceInfo(fRootBus);
-	}
+	_DiscoverBus(bus);
+	_ConfigureBridges(bus);
+	ClearDeviceStatus(bus, false);
+	_RefreshDeviceInfo(bus);
 }
 
 
@@ -697,32 +634,107 @@ PCI::ResolveVirtualBus(uint8 virtualBus, uint8 *domain, uint8 *bus)
 
 
 status_t
-PCI::AddController(pci_controller *controller, void *controller_cookie)
+PCI::AddController(pci_controller_module_info *controller,
+	void *controllerCookie, device_node *rootNode, domain_data **domainData)
 {
 	if (fDomainCount == MAX_PCI_DOMAINS)
 		return B_ERROR;
 
-	fDomainData[fDomainCount].controller = controller;
-	fDomainData[fDomainCount].controller_cookie = controller_cookie;
+	uint8 domain = fDomainCount;
+	domain_data& data = fDomainData[domain];
+
+	data.controller = controller;
+	data.controller_cookie = controllerCookie;
+	data.root_node = rootNode;
+
+	data.bus = new(std::nothrow) PCIBus {.domain = domain};
+	if (data.bus == NULL)
+		return B_NO_MEMORY;
 
 	// initialized later to avoid call back into controller at this point
-	fDomainData[fDomainCount].max_bus_devices = -1;
+	data.max_bus_devices = -1;
 
 	fDomainCount++;
+
+	InitDomainData(data);
+	InitBus(data.bus);
+	if (data.controller->finalize != NULL)
+		data.controller->finalize(data.controller_cookie);
+	_RefreshDeviceInfo(data.bus);
+
+	pci_print_info();
+
+	*domainData = &data;
 	return B_OK;
 }
 
-void
-PCI::InitDomainData()
-{
-	for (uint8 i = 0; i < fDomainCount; i++) {
-		int32 count;
-		status_t status;
 
-		status = (*fDomainData[i].controller->get_max_bus_devices)(
-			fDomainData[i].controller_cookie, &count);
-		fDomainData[i].max_bus_devices = (status == B_OK) ? count : 0;
+status_t
+PCI::LookupRange(uint32 type, phys_addr_t pciAddr,
+	uint8 &domain, pci_resource_range &range, uint8 **mappedAdr)
+{
+	if (type >= kPciRangeEnd)
+		return B_BAD_VALUE;
+
+	for (uint8 curDomain = 0; curDomain < fDomainCount; curDomain++) {
+		pci_resource_range const *const &ranges = fDomainData[curDomain].ranges;
+
+		uint32 typeBeg, typeEnd;
+		if (type == kPciRangeMmio) {
+			typeBeg = kPciRangeMmio;
+			typeEnd = kPciRangeMmioEnd;
+		} else {
+			typeBeg = type;
+			typeEnd = type + 1;
+		}
+		for (uint32 curType = typeBeg; curType < typeEnd; curType++) {
+			const pci_resource_range curRange = ranges[curType];
+			if (pciAddr >= curRange.pci_addr && pciAddr < curRange.pci_addr + curRange.size) {
+				domain = curDomain;
+				range = curRange;
+#if !(defined(__i386__) || defined(__x86_64__))
+				if (type == kPciRangeIoPort && mappedAdr != NULL)
+					*mappedAdr = fDomainData[curDomain].io_port_adr;
+#endif
+				return B_OK;
+			}
+		}
 	}
+	return B_ENTRY_NOT_FOUND;
+}
+
+
+void
+PCI::InitDomainData(domain_data &data)
+{
+	int32 count;
+	status_t status;
+
+	pci_controller_module_info *ctrl = data.controller;
+	void *ctrlCookie = data.controller_cookie;
+
+	status = ctrl->get_max_bus_devices(ctrlCookie, &count);
+	data.max_bus_devices = (status == B_OK) ? count : 0;
+
+	memset(data.ranges, 0, sizeof(data.ranges));
+	pci_resource_range range;
+	for (uint32 j = 0; ctrl->get_range(ctrlCookie, j, &range) >= B_OK; j++) {
+		if (range.type < kPciRangeEnd && range.size > 0)
+			data.ranges[range.type] = range;
+	}
+
+#if !(defined(__i386__) || defined(__x86_64__))
+	// TODO: free resources when domain is detached
+	pci_resource_range &ioPortRange = data.ranges[kPciRangeIoPort];
+	if (ioPortRange.size > 0) {
+		data.io_port_area = map_physical_memory("PCI IO Ports",
+			ioPortRange.host_addr, ioPortRange.size, B_ANY_KERNEL_ADDRESS,
+			B_KERNEL_READ_AREA | B_KERNEL_WRITE_AREA, (void **)&data.io_port_adr);
+
+		if (data.io_port_area < B_OK)
+			data.io_port_adr = NULL;
+	}
+#endif
 }
 
 
@@ -749,10 +761,13 @@ status_t
 PCI::GetNthInfo(long index, pci_info *outInfo)
 {
 	long currentIndex = 0;
-	if (!fRootBus)
-		return B_ERROR;
 
-	return _GetNthInfo(fRootBus, &currentIndex, index, outInfo);
+	for (uint32 domain = 0; domain < fDomainCount; domain++) {
+		if (_GetNthInfo(fDomainData[domain].bus, &currentIndex, index, outInfo) >= B_OK)
+			return B_OK;
+	}
+
+	return B_ERROR;
 }
 
 
@@ -773,9 +788,6 @@ PCI::_GetNthInfo(PCIBus *bus, long *currentIndex, long wantIndex,
 			return B_OK;
 		dev = dev->next;
 	}
-
-	if (bus->next)
-		return _GetNthInfo(bus->next, currentIndex, wantIndex, outInfo);
 
 	return B_ERROR;
 }
@@ -1016,21 +1028,12 @@ PCI::_ConfigureBridges(PCIBus *bus)
 		if (dev->child)
 			_ConfigureBridges(dev->child);
 	}
-
-	if (bus->next)
-		_ConfigureBridges(bus->next);
 }
 
 
 void
 PCI::ClearDeviceStatus(PCIBus *bus, bool dumpStatus)
 {
-	if (!bus) {
-		if (!fRootBus)
-			return;
-		bus = fRootBus;
-	}
-
 	for (PCIDev *dev = bus->child; dev; dev = dev->next) {
 		// Clear and dump PCI device status
 		uint16 status = ReadConfig(dev->domain, dev->bus, dev->device,
@@ -1098,9 +1101,6 @@ PCI::ClearDeviceStatus(PCIBus *bus, bool dumpStatus)
 		if (dev->child)
 			ClearDeviceStatus(dev->child, dumpStatus);
 	}
-
-	if (bus->next)
-		ClearDeviceStatus(bus->next, dumpStatus);
 }
 
 
@@ -1131,8 +1131,6 @@ PCI::_DiscoverBus(PCIBus *bus)
 			_DiscoverDevice(bus, dev, function);
 	}
 
-	if (bus->next)
-		_DiscoverBus(bus->next);
 	recursed--;
 }
 
@@ -1172,7 +1170,6 @@ PCI::_CreateBus(PCIDev *parent, uint8 domain, uint8 bus)
 	if (newBus == NULL)
 		return NULL;
 
-	newBus->next = NULL;
 	newBus->parent = parent;
 	newBus->child = NULL;
 	newBus->domain = domain;
@@ -1538,10 +1535,8 @@ PCI::_ReadHeaderInfo(PCIDev *dev)
 void
 PCI::RefreshDeviceInfo()
 {
-	if (fRootBus == NULL)
-		return;
-
-	_RefreshDeviceInfo(fRootBus);
+	for (uint32 domain = 0; domain < fDomainCount; domain++)
+		_RefreshDeviceInfo(fDomainData[domain].bus);
 }
 
 
@@ -1551,15 +1546,12 @@ PCI::_RefreshDeviceInfo(PCIBus *bus)
 	for (PCIDev *dev = bus->child; dev; dev = dev->next) {
 		_ReadBasicInfo(dev);
 		_ReadHeaderInfo(dev);
-#if defined(__i386__) || defined(__x86_64__)
-		pci_read_arch_info(dev);
-#endif
+		_ReadMSIInfo(dev);
+		_ReadMSIXInfo(dev);
+		_ReadHtMappingInfo(dev);
 		if (dev->child)
 			_RefreshDeviceInfo(dev->child);
 	}
-
-	if (bus->next)
-		_RefreshDeviceInfo(bus->next);
 }
 
 
@@ -1809,7 +1801,10 @@ PCI::FindHTCapability(PCIDev *device, uint16 capID, uint8 *offset)
 PCIDev *
 PCI::FindDevice(uint8 domain, uint8 bus, uint8 device, uint8 function)
 {
-	return _FindDevice(fRootBus, domain, bus, device, function);
+	if (domain >= fDomainCount)
+		return NULL;
+
+	return _FindDevice(fDomainData[domain].bus, domain, bus, device, function);
 }
 
 
@@ -1835,10 +1830,6 @@ PCI::_FindDevice(PCIBus *current, uint8 domain, uint8 bus, uint8 device,
 			}
 		}
 	}
-
-	// search other busses
-	if (current->next != NULL)
-		return _FindDevice(current->next, domain, bus, device, function);
 
 	return NULL;
 }
@@ -1925,3 +1916,476 @@ PCI::SetPowerstate(uint8 domain, uint8 bus, uint8 _device, uint8 function,
 	return B_OK;
 }
 
+
+//#pragma mark - MSI
+
+uint8
+PCI::GetMSICount(PCIDev *device)
+{
+	if (!msi_supported())
+		return 0;
+
+	msi_info *info = &device->msi;
+	if (!info->msi_capable)
+		return 0;
+
+	return info->message_count;
+}
+
+
+status_t
+PCI::ConfigureMSI(PCIDev *device, uint8 count, uint8 *startVector)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	if (count == 0 || startVector == NULL)
+		return B_BAD_VALUE;
+
+	msi_info *info = &device->msi;
+	if (!info->msi_capable)
+		return B_UNSUPPORTED;
+
+	if (count > 32 || count > info->message_count
+		|| ((count - 1) & count) != 0 /* needs to be a power of 2 */) {
+		return B_BAD_VALUE;
+	}
+
+	if (info->configured_count != 0)
+		return B_BUSY;
+
+	status_t result = msi_allocate_vectors(count, &info->start_vector,
+		&info->address_value, &info->data_value);
+	if (result != B_OK)
+		return result;
+
+	uint8 offset = info->capability_offset;
+	WriteConfig(device, offset + PCI_msi_address, 4,
+		info->address_value & 0xffffffff);
+	if (info->control_value & PCI_msi_control_64bit) {
+		WriteConfig(device, offset + PCI_msi_address_high, 4,
+			info->address_value >> 32);
+		WriteConfig(device, offset + PCI_msi_data_64bit, 2,
+			info->data_value);
+	} else
+		WriteConfig(device, offset + PCI_msi_data, 2, info->data_value);
+
+	info->control_value &= ~PCI_msi_control_mme_mask;
+	info->control_value |= (ffs(count) - 1) << 4;
+	WriteConfig(device, offset + PCI_msi_control, 2, info->control_value);
+
+	info->configured_count = count;
+	*startVector = info->start_vector;
+	return B_OK;
+}
+
+
+status_t
+PCI::UnconfigureMSI(PCIDev *device)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	// try MSI-X
+	status_t result = _UnconfigureMSIX(device);
+	if (result != B_UNSUPPORTED && result != B_NO_INIT)
+		return result;
+
+	msi_info *info =  &device->msi;
+	if (!info->msi_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	msi_free_vectors(info->configured_count, info->start_vector);
+
+	info->control_value &= ~PCI_msi_control_mme_mask;
+	WriteConfig(device, info->capability_offset + PCI_msi_control, 2,
+		info->control_value);
+
+	info->configured_count = 0;
+	info->address_value = 0;
+	info->data_value = 0;
+	return B_OK;
+}
+
+
+status_t
+PCI::EnableMSI(PCIDev *device)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	msi_info *info =  &device->msi;
+	if (!info->msi_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	// ensure the pinned interrupt is disabled
+	WriteConfig(device, PCI_command, 2,
+		ReadConfig(device, PCI_command, 2) | PCI_command_int_disable);
+
+	// enable msi generation
+	info->control_value |= PCI_msi_control_enable;
+	WriteConfig(device, info->capability_offset + PCI_msi_control, 2,
+		info->control_value);
+
+	// enable HT msi mapping (if applicable)
+	_HtMSIMap(device, info->address_value);
+
+	dprintf("msi enabled: 0x%04" B_PRIx32 "\n",
+		ReadConfig(device, info->capability_offset + PCI_msi_control, 2));
+	return B_OK;
+}
+
+
+status_t
+PCI::DisableMSI(PCIDev *device)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	// try MSI-X
+	status_t result = _DisableMSIX(device);
+	if (result != B_UNSUPPORTED && result != B_NO_INIT)
+		return result;
+
+	msi_info *info =  &device->msi;
+	if (!info->msi_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	// disable HT msi mapping (if applicable)
+	_HtMSIMap(device, 0);
+
+	// disable msi generation
+	info->control_value &= ~PCI_msi_control_enable;
+	WriteConfig(device, info->capability_offset + PCI_msi_control, 2,
+		info->control_value);
+
+	return B_OK;
+}
+
+
+uint8
+PCI::GetMSIXCount(PCIDev *device)
+{
+	if (!msi_supported())
+		return 0;
+
+	msix_info *info = &device->msix;
+	if (!info->msix_capable)
+		return 0;
+
+	return info->message_count;
+}
+
+
+status_t
+PCI::ConfigureMSIX(PCIDev *device, uint8 count, uint8 *startVector)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	if (count == 0 || startVector == NULL)
+		return B_BAD_VALUE;
+
+	msix_info *info = &device->msix;
+	if (!info->msix_capable)
+		return B_UNSUPPORTED;
+
+	if (count > 32 || count > info->message_count) {
+		return B_BAD_VALUE;
+	}
+
+	if (info->configured_count != 0)
+		return B_BUSY;
+
+	// map the table bar
+	size_t tableSize = info->message_count * 16;
+	addr_t address;
+	phys_addr_t barAddr = device->info.u.h0.base_registers[info->table_bar];
+	uchar flags = device->info.u.h0.base_register_flags[info->table_bar];
+	if ((flags & PCI_address_type) == PCI_address_type_64) {
+		barAddr |= (uint64)device->info.u.h0.base_registers[
+			info->table_bar + 1] << 32;
+	}
+	area_id area = map_physical_memory("msi table map",
+		barAddr, tableSize + info->table_offset,
+		B_ANY_KERNEL_ADDRESS, B_KERNEL_READ_AREA | B_KERNEL_WRITE_AREA,
+		(void**)&address);
+	if (area < 0)
+		return area;
+	info->table_area_id = area;
+	info->table_address = address + info->table_offset;
+
+	// and the pba bar if necessary
+	if (info->table_bar != info->pba_bar) {
+		barAddr = device->info.u.h0.base_registers[info->pba_bar];
+		flags = device->info.u.h0.base_register_flags[info->pba_bar];
+		if ((flags & PCI_address_type) == PCI_address_type_64) {
+			barAddr |= (uint64)device->info.u.h0.base_registers[
+				info->pba_bar + 1] << 32;
+		}
+		area = map_physical_memory("msi pba map",
+			barAddr, tableSize + info->pba_offset,
+			B_ANY_KERNEL_ADDRESS, B_KERNEL_READ_AREA | B_KERNEL_WRITE_AREA,
+			(void**)&address);
+		if (area < 0) {
+			delete_area(info->table_area_id);
+			info->table_area_id = -1;
+			return area;
+		}
+		info->pba_area_id = area;
+	} else
+		info->pba_area_id = -1;
+	info->pba_address = address + info->pba_offset;
+
+	status_t result = msi_allocate_vectors(count, &info->start_vector,
+		&info->address_value, &info->data_value);
+	if (result != B_OK) {
+		delete_area(info->pba_area_id);
+		delete_area(info->table_area_id);
+		info->pba_area_id = -1;
+		info->table_area_id = -1;
+		return result;
+	}
+
+	// ensure the memory i/o is enabled
+	WriteConfig(device, PCI_command, 2,
+		ReadConfig(device, PCI_command, 2) | PCI_command_memory);
+
+	uint32 data_value = info->data_value;
+	for (uint32 index = 0; index < count; index++) {
+		volatile uint32 *entry = (uint32*)(info->table_address + 16 * index);
+		*(entry + 3) |= PCI_msix_vctrl_mask;
+		*entry++ = info->address_value & 0xffffffff;
+		*entry++ = info->address_value >> 32;
+		*entry++ = data_value++;
+		*entry &= ~PCI_msix_vctrl_mask;
+	}
+
+	info->configured_count = count;
+	*startVector = info->start_vector;
+	dprintf("msix configured for %d vectors\n", count);
+	return B_OK;
+}
+
+
+status_t
+PCI::EnableMSIX(PCIDev *device)
+{
+	if (!msi_supported())
+		return B_UNSUPPORTED;
+
+	msix_info *info = &device->msix;
+	if (!info->msix_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	// ensure the pinned interrupt is disabled
+	WriteConfig(device, PCI_command, 2,
+		ReadConfig(device, PCI_command, 2) | PCI_command_int_disable);
+
+	// enable msi-x generation
+	info->control_value |= PCI_msix_control_enable;
+	WriteConfig(device, info->capability_offset + PCI_msix_control, 2,
+		info->control_value);
+
+	// enable HT msi mapping (if applicable)
+	_HtMSIMap(device, info->address_value);
+
+	dprintf("msi-x enabled: 0x%04" B_PRIx32 "\n",
+		ReadConfig(device, info->capability_offset + PCI_msix_control, 2));
+	return B_OK;
+}
+
+
+void
+PCI::_HtMSIMap(PCIDev *device, uint64 address)
+{
+	ht_mapping_info *info = &device->ht_mapping;
+	if (!info->ht_mapping_capable)
+		return;
+
+	bool enabled = (info->control_value & PCI_ht_command_msi_enable) != 0;
+	if ((address != 0) != enabled) {
+		if (enabled) {
+			info->control_value &= ~PCI_ht_command_msi_enable;
+		} else {
+			if ((address >> 20) != (info->address_value >> 20))
+				return;
+			dprintf("ht msi mapping enabled\n");
+			info->control_value |= PCI_ht_command_msi_enable;
+		}
+		WriteConfig(device, info->capability_offset + PCI_ht_command, 2,
+			info->control_value);
+	}
+}
+
+
+void
+PCI::_ReadMSIInfo(PCIDev *device)
+{
+	if (!msi_supported())
+		return;
+
+	msi_info *info = &device->msi;
+	info->msi_capable = false;
+	status_t result = FindCapability(device->domain, device->bus,
+		device->device, device->function, PCI_cap_id_msi,
+		&info->capability_offset);
+	if (result != B_OK)
+		return;
+
+	info->msi_capable = true;
+	info->control_value = ReadConfig(device->domain, device->bus,
+		device->device, device->function,
+		info->capability_offset + PCI_msi_control, 2);
+	info->message_count
+		= 1 << ((info->control_value & PCI_msi_control_mmc_mask) >> 1);
+	info->configured_count = 0;
+	info->data_value = 0;
+	info->address_value = 0;
+}
+
+
+void
+PCI::_ReadMSIXInfo(PCIDev *device)
+{
+	if (!msi_supported())
+		return;
+
+	msix_info *info = &device->msix;
+	info->msix_capable = false;
+	status_t result = FindCapability(device->domain, device->bus,
+		device->device, device->function, PCI_cap_id_msix,
+		&info->capability_offset);
+	if (result != B_OK)
+		return;
+
+	info->msix_capable = true;
+	info->control_value = ReadConfig(device->domain, device->bus,
+		device->device, device->function,
+		info->capability_offset + PCI_msix_control, 2);
+	info->message_count
+		= (info->control_value & PCI_msix_control_table_size) + 1;
+	info->configured_count = 0;
+	info->data_value = 0;
+	info->address_value = 0;
+	info->table_area_id = -1;
+	info->pba_area_id = -1;
+	uint32 table_value = ReadConfig(device->domain, device->bus,
+		device->device, device->function,
+		info->capability_offset + PCI_msix_table, 4);
+	uint32 pba_value = ReadConfig(device->domain, device->bus,
+		device->device, device->function,
+		info->capability_offset + PCI_msix_pba, 4);
+
+	info->table_bar = table_value & PCI_msix_bir_mask;
+	info->table_offset = table_value & PCI_msix_offset_mask;
+	info->pba_bar = pba_value & PCI_msix_bir_mask;
+	info->pba_offset = pba_value & PCI_msix_offset_mask;
+}
+
+
+void
+PCI::_ReadHtMappingInfo(PCIDev *device)
+{
+	if (!msi_supported())
+		return;
+
+	ht_mapping_info *info = &device->ht_mapping;
+	info->ht_mapping_capable = false;
+
+	uint8 offset = 0;
+	if (FindHTCapability(device, PCI_ht_command_cap_msi_mapping,
+		&offset) == B_OK) {
+		info->control_value = ReadConfig(device, offset + PCI_ht_command,
+			2);
+		info->capability_offset = offset;
+		info->ht_mapping_capable = true;
+		if ((info->control_value & PCI_ht_command_msi_fixed) != 0) {
+#if defined(__i386__) || defined(__x86_64__)
+			info->address_value = MSI_ADDRESS_BASE;
+#else
+			// TODO: investigate what should be set here for non-x86
+			dprintf("PCI_ht_command_msi_fixed flag unimplemented\n");
+			info->address_value = 0;
+#endif
+		} else {
+			info->address_value = ReadConfig(device, offset
+				+ PCI_ht_msi_address_high, 4);
+			info->address_value <<= 32;
+			info->address_value |= ReadConfig(device, offset
+				+ PCI_ht_msi_address_low, 4);
+		}
+		dprintf("found an ht msi mapping at %#" B_PRIx64 "\n",
+			info->address_value);
+	}
+}
+
+
+status_t
+PCI::_UnconfigureMSIX(PCIDev *device)
+{
+	msix_info *info =  &device->msix;
+	if (!info->msix_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	// disable msi-x generation
+	info->control_value &= ~PCI_msix_control_enable;
+	WriteConfig(device, info->capability_offset + PCI_msix_control, 2,
+		info->control_value);
+
+	msi_free_vectors(info->configured_count, info->start_vector);
+	for (uint8 index = 0; index < info->configured_count; index++) {
+		volatile uint32 *entry = (uint32*)(info->table_address + 16 * index);
+		if ((*(entry + 3) & PCI_msix_vctrl_mask) == 0)
+			*(entry + 3) |= PCI_msix_vctrl_mask;
+	}
+
+	if (info->pba_area_id != -1)
+		delete_area(info->pba_area_id);
+	if (info->table_area_id != -1)
+		delete_area(info->table_area_id);
+	info->pba_area_id= -1;
+	info->table_area_id = -1;
+
+	info->configured_count = 0;
+	info->address_value = 0;
+	info->data_value = 0;
+	return B_OK;
+}
+
+
+status_t
+PCI::_DisableMSIX(PCIDev *device)
+{
+	msix_info *info =  &device->msix;
+	if (!info->msix_capable)
+		return B_UNSUPPORTED;
+
+	if (info->configured_count == 0)
+		return B_NO_INIT;
+
+	// disable HT msi mapping (if applicable)
+	_HtMSIMap(device, 0);
+
+	// disable msi-x generation
+	info->control_value &= ~PCI_msix_control_enable;
+	gPCI->WriteConfig(device, info->capability_offset + PCI_msix_control, 2,
+		info->control_value);
+
+	return B_OK;
+}

@@ -74,7 +74,7 @@ public:
 	virtual void MenusBeginning();
 	virtual void MenusEnded();
 	virtual void DispatchMessage(BMessage* message, BHandler* handler);
-	virtual void ShowContextMenu(BPoint, const entry_ref*, BView*);
+	virtual void ShowContextMenu(BPoint, const entry_ref*);
 
 	void SetClientObject(BFilePanel*);
 	void SetRefFilter(BRefFilter*);
@@ -108,18 +108,18 @@ public:
 
 protected:
 	BPoseView* NewPoseView(Model* model, uint32);
-	virtual	void Init(const BMessage* message = NULL);
-	virtual	void SaveState(bool hide = true);
-	virtual	void SaveState(BMessage &) const;
+	virtual void Init(const BMessage* message = NULL);
+	virtual void SaveState(bool hide = true);
+	virtual void SaveState(BMessage &) const;
 	virtual void RestoreState();
 	virtual void RestoreWindowState(AttributeStreamNode*);
 	virtual void RestoreWindowState(const BMessage&);
 	virtual void RestoreState(const BMessage&);
 
 	virtual void AddFileContextMenus(BMenu*);
+	virtual void AddVolumeContextMenus(BMenu*);
 	virtual void AddWindowContextMenus(BMenu*);
 	virtual void AddDropContextMenus(BMenu*);
-	virtual void AddVolumeContextMenus(BMenu*);
 
 	virtual void SetupNavigationMenu(const entry_ref*, BMenu*);
 	virtual void OpenDirectory();
@@ -138,10 +138,8 @@ private:
 	bool CanOpenParent() const;
 	void SwitchDirMenuTo(const entry_ref* ref);
 	void AdjustButton();
-	bool SelectChildInParent(const entry_ref* parent,
-		const node_ref* child);
+	bool SelectChildInParent(const entry_ref* parent, const node_ref* child);
 	void OpenSelectionCommon(BMessage*);
-	bool IsOpenButtonAlwaysEnabled() const;
 
 	bool fIsSavePanel;
 	uint32 fNodeFlavors;

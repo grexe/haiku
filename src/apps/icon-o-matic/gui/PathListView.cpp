@@ -1,9 +1,10 @@
 /*
- * Copyright 2006-2012, Haiku, Inc. All rights reserved.
+ * Copyright 2006-2012, 2023, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
  *		Stephan Aßmus <superstippi@gmx.de>
+ *		Zardshard
  */
 
 #include "PathListView.h"
@@ -26,11 +27,11 @@
 #include "CommandStack.h"
 #include "MovePathsCommand.h"
 #include "Observer.h"
+#include "PathSourceShape.h"
 #include "RemovePathsCommand.h"
 #include "ReversePathCommand.h"
 #include "RotatePathIndicesCommand.h"
 #include "Shape.h"
-#include "ShapeContainer.h"
 #include "Selection.h"
 #include "UnassignPathCommand.h"
 #include "Util.h"
@@ -199,8 +200,8 @@ private:
 };
 
 
-class ShapePathListener : public PathContainerListener,
-	public ShapeContainerListener {
+class ShapePathListener : public ContainerListener<VectorPath>,
+	public ContainerListener<Shape> {
 public:
 	ShapePathListener(PathListView* listView)
 		:
@@ -216,33 +217,33 @@ public:
 	}
 
 
-	// PathContainerListener interface
-	virtual void PathAdded(VectorPath* path, int32 index)
+	// ContainerListener<VectorPath> interface
+	virtual void ItemAdded(VectorPath* path, int32 index)
 	{
 		fListView->_SetPathMarked(path, true);
 	}
 
 
-	virtual void PathRemoved(VectorPath* path)
+	virtual void ItemRemoved(VectorPath* path)
 	{
 		fListView->_SetPathMarked(path, false);
 	}
 
 
-	// ShapeContainerListener interface
-	virtual void ShapeAdded(Shape* shape, int32 index)
+	// ContainerListener<Shape> interface
+	virtual void ItemAdded(Shape* shape, int32 index)
 	{
 	}
 
 
-	virtual void ShapeRemoved(Shape* shape)
+	virtual void ItemRemoved(Shape* shape)
 	{
 		fListView->SetCurrentShape(NULL);
 	}
 
 
 	// ShapePathListener
-	void SetShape(Shape* shape)
+	void SetShape(PathSourceShape* shape)
 	{
 		if (fShape == shape)
 			return;
@@ -263,8 +264,8 @@ public:
 	}
 
 private:
-	PathListView*	fListView;
-	Shape*			fShape;
+	PathListView*		fListView;
+	PathSourceShape*	fShape;
 };
 
 
@@ -362,13 +363,13 @@ PathListView::MouseDown(BPoint where)
 		if (itemFrame.Contains(where) && fCommandStack) {
 			// add or remove the path to the shape
 			::Command* command;
-			if (fCurrentShape->Paths()->HasPath(path)) {
+			if (fCurrentShape->Paths()->HasItem(path)) {
 				command = new UnassignPathCommand(fCurrentShape, path);
 			} else {
 				VectorPath* paths[1];
 				paths[0] = path;
 				command = new AddPathsCommand(fCurrentShape->Paths(),
-					paths, 1, false, fCurrentShape->Paths()->CountPaths());
+					paths, 1, false, fCurrentShape->Paths()->CountItems());
 			}
 			fCommandStack->Perform(command);
 			handled = true;
@@ -512,48 +513,32 @@ PathListView::MessageReceived(BMessage* message)
 }
 
 
-void
-PathListView::MakeDragMessage(BMessage* message) const
+status_t
+PathListView::ArchiveSelection(BMessage* into, bool deep) const
 {
-	SimpleListView::MakeDragMessage(message);
-	message->AddPointer("container", fPathContainer);
+	into->what = PathListView::kSelectionArchiveCode;
+
 	int32 count = CountSelectedItems();
 	for (int32 i = 0; i < count; i++) {
 		PathListItem* item = dynamic_cast<PathListItem*>(
 			ItemAt(CurrentSelection(i)));
 		if (item != NULL) {
-			message->AddPointer("path", (void*)item->path);
 			BMessage archive;
-			if (item->path->Archive(&archive, true) == B_OK)
-				message->AddMessage("path archive", &archive);
+			if (item->path->Archive(&archive, deep) == B_OK)
+				into->AddMessage("path", &archive);
 		} else
-			break;
+			return B_ERROR;
 	}
+
+	return B_OK;
 }
 
 
 bool
-PathListView::AcceptDragMessage(const BMessage* message) const
+PathListView::InstantiateSelection(const BMessage* archive, int32 dropIndex)
 {
-	return SimpleListView::AcceptDragMessage(message);
-}
-
-
-void
-PathListView::SetDropTargetRect(const BMessage* message, BPoint where)
-{
-	SimpleListView::SetDropTargetRect(message, where);
-}
-
-
-bool
-PathListView::HandleDropMessage(const BMessage* message, int32 dropIndex)
-{
-	// Let SimpleListView handle drag-sorting (when drag came from ourself)
-	if (SimpleListView::HandleDropMessage(message, dropIndex))
-		return true;
-
-	if (fCommandStack == NULL || fPathContainer == NULL)
+	if (archive->what != PathListView::kSelectionArchiveCode
+		|| fCommandStack == NULL || fPathContainer == NULL)
 		return false;
 
 	// Drag may have come from another instance, like in another window.
@@ -562,14 +547,14 @@ PathListView::HandleDropMessage(const BMessage* message, int32 dropIndex)
 	int index = 0;
 	BList paths;
 	while (true) {
-		BMessage archive;
-		if (message->FindMessage("path archive", index, &archive) != B_OK)
+		BMessage pathArchive;
+		if (archive->FindMessage("path", index, &pathArchive) != B_OK)
 			break;
 
-		VectorPath* path = new(std::nothrow) VectorPath(&archive);
+		VectorPath* path = new(std::nothrow) VectorPath(&pathArchive);
 		if (path == NULL)
 			break;
-		
+
 		if (!paths.AddItem(path)) {
 			delete path;
 			break;
@@ -658,18 +643,12 @@ PathListView::RemoveItemList(BList& items)
 		return;
 
 	int32 count = items.CountItems();
-	VectorPath* paths[count];
-	for (int32 i = 0; i < count; i++) {
-		PathListItem* item = dynamic_cast<PathListItem*>(
-			(BListItem*)items.ItemAtFast(i));
-		if (item != NULL)
-			paths[i] = item->path;
-		else
-			paths[i] = NULL;
-	}
+	int32 indices[count];
+	for (int32 i = 0; i < count; i++)
+		indices[i] = IndexOf((BListItem*)items.ItemAtFast(i));
 
 	RemovePathsCommand* command = new (nothrow) RemovePathsCommand(
-		fPathContainer, paths, count);
+		fPathContainer, indices, count);
 
 	fCommandStack->Perform(command);
 }
@@ -717,7 +696,7 @@ PathListView::SelectableFor(BListItem* item) const
 
 
 void
-PathListView::PathAdded(VectorPath* path, int32 index)
+PathListView::ItemAdded(VectorPath* path, int32 index)
 {
 	// NOTE: we are in the thread that messed with the
 	// ShapeContainer, so no need to lock the
@@ -734,7 +713,7 @@ PathListView::PathAdded(VectorPath* path, int32 index)
 
 
 void
-PathListView::PathRemoved(VectorPath* path)
+PathListView::ItemRemoved(VectorPath* path)
 {
 	// NOTE: we are in the thread that messed with the
 	// ShapeContainer, so no need to lock the
@@ -754,7 +733,7 @@ PathListView::PathRemoved(VectorPath* path)
 
 
 void
-PathListView::SetPathContainer(PathContainer* container)
+PathListView::SetPathContainer(Container<VectorPath>* container)
 {
 	if (fPathContainer == container)
 		return;
@@ -776,16 +755,16 @@ PathListView::SetPathContainer(PathContainer* container)
 //	if (!fPathContainer->ReadLock())
 //		return;
 
-	int32 count = fPathContainer->CountPaths();
+	int32 count = fPathContainer->CountItems();
 	for (int32 i = 0; i < count; i++)
-		_AddPath(fPathContainer->PathAtFast(i), i);
+		_AddPath(fPathContainer->ItemAtFast(i), i);
 
 //	fPathContainer->ReadUnlock();
 }
 
 
 void
-PathListView::SetShapeContainer(ShapeContainer* container)
+PathListView::SetShapeContainer(Container<Shape>* container)
 {
 	if (fShapeContainer == container)
 		return;
@@ -868,8 +847,8 @@ PathListView::SetCurrentShape(Shape* shape)
 	if (fCurrentShape == shape)
 		return;
 
-	fCurrentShape = shape;
-	fShapePathListener->SetShape(shape);
+	fCurrentShape = dynamic_cast<PathSourceShape*>(shape);
+	fShapePathListener->SetShape(fCurrentShape);
 
 	_UpdateMarks();
 }
@@ -940,7 +919,7 @@ PathListView::_UpdateMarks()
 			if (item == NULL)
 				continue;
 			item->SetMarkEnabled(true);
-			item->SetMarked(fCurrentShape->Paths()->HasPath(item->path));
+			item->SetMarked(fCurrentShape->Paths()->HasItem(item->path));
 		}
 	} else {
 		// disable display of marks

@@ -1,7 +1,7 @@
 1	ukrainian	x-vnd.Be-TSKB	316181764
 Auto-hide	PreferencesWindow		Ховати автоматично
 Show all	WindowMenu		Показати все
-Edit in Tracker…	PreferencesWindow		Змінити меню Tracker…
+Edit in Tracker…	PreferencesWindow		Змінити меню у Tracker…
 Menu	PreferencesWindow		Меню
 Tracker always first	PreferencesWindow		Tracker завжди перший
 Hide clock	TimeView		Сховати годинник
@@ -12,7 +12,7 @@ Applications	B_USER_DESKBAR_DIRECTORY/Applications		Програми
 Always on top	PreferencesWindow		Завжди зверху
 Restart system	DeskbarMenu		Перезапустити систему
 Recent documents:	PreferencesWindow		Недавні документи:
-Auto-raise	PreferencesWindow		Авто-випливати
+Auto-raise	PreferencesWindow		Випливати автоматично
 Mount	DeskbarMenu		Підключити
 Icon size	PreferencesWindow		Розмір значків
 About Haiku	DeskbarMenu		Про систему Haiku
@@ -30,11 +30,11 @@ About this system	DeskbarMenu		Про цю систему
 Quit application	WindowMenu		Вийти з програми
 Hide application names	PreferencesWindow		Сховати назви програм
 Applications	PreferencesWindow		Програми
-Show application expander	PreferencesWindow		Показати експандер у меню програми
+Show application expander	PreferencesWindow		Показати експандер списку вікон
 Deskbar preferences…	DeskbarMenu		Налаштування Deskbar...
 Suspend	DeskbarMenu		Призупинити
 Shutdown…	DeskbarMenu		Завершити роботу...
-Demos	B_USER_DESKBAR_DIRECTORY/Demos		Демо
+Demos	B_USER_DESKBAR_DIRECTORY/Demos		Демонстраційні
 Expand new applications	PreferencesWindow		Розкривати список після запуску
 Recent applications:	PreferencesWindow		Недавні програми:
 Recent folders:	PreferencesWindow		Недавні папки:
@@ -46,4 +46,4 @@ Revert	PreferencesWindow		Відкат змін
 Window	PreferencesWindow		Вікно
 Preferences	B_USER_DESKBAR_DIRECTORY/Preferences		Налаштування
 Time preferences…	TimeView		Налаштування часу…
-Desktop applets	B_USER_DESKBAR_DIRECTORY/Desktop applets		Аплети екрану
+Desktop applets	B_USER_DESKBAR_DIRECTORY/Desktop applets		Аплети Робочого стола

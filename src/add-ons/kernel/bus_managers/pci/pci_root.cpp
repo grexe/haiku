@@ -13,60 +13,16 @@
 
 #include <string.h>
 
+#include <AutoDeleterDrivers.h>
+
 #include "pci_private.h"
 #include "pci.h"
+
+#define CHECK_RET(err) {status_t _err = (err); if (_err < B_OK) return _err;}
 
 
 // name of PCI root module
 #define PCI_ROOT_MODULE_NAME "bus_managers/pci/root/driver_v1"
-
-
-device_node* gPCIRootNode = NULL;
-
-
-static float
-pci_root_supports_device(device_node* parent)
-{
-	const char* bus;
-	if (gDeviceManager->get_attr_string(parent, B_DEVICE_BUS, &bus, false) < B_OK)
-		return -1.0f;
-
-#if defined(__riscv)
-	if (strcmp(bus, "fdt") == 0) {
-		const char* compatible;
-		if (gDeviceManager->get_attr_string(parent, "fdt/compatible", &compatible, false) < B_OK)
-			return -1.0f;
-
-		if (strcmp(compatible, "pci-host-ecam-generic") == 0
-			|| strcmp(compatible, "sifive,fu740-pcie") == 0) {
-			return 1.0f;
-		}
-	}
-#elif defined(__arm__) || defined(__aarch64__)
-	if (strcmp(bus, "fdt") == 0) {
-		const char* compatible;
-		if (gDeviceManager->get_attr_string(parent, "fdt/compatible", &compatible, false) < B_OK)
-			return -1.0f;
-
-		if (strcmp(compatible, "pci-host-ecam-generic") == 0)
-			return 1.0f;
-	}
-
-	if (strcmp(bus, "acpi") == 0) {
-		const char* hid;
-		if (gDeviceManager->get_attr_string(parent, ACPI_DEVICE_HID_ITEM, &hid, false) < B_OK)
-			return -1.0f;
-
-		if (strcmp(hid, "PNP0A03") == 0 || strcmp(hid, "PNP0A08") == 0)
-			return 1.0f;
-	}
-#else
-	if (strcmp(bus, "root") == 0)
-		return 1.0f;
-#endif
-
-	return 0.0;
-}
 
 
 static status_t
@@ -91,27 +47,19 @@ pci_root_register_device(device_node* parent)
 }
 
 
-static status_t
-pci_root_register_child_devices(void* cookie)
+static void
+pci_root_traverse(device_node* node, PCIBus* bus)
 {
-	device_node* node = (device_node*)cookie;
-
-	pci_info info;
-	for (int32 i = 0; pci_get_nth_pci_info(i, &info) == B_OK; i++) {
-		uint8 domain;
-		uint8 bus;
-		if (gPCI->ResolveVirtualBus(info.bus, &domain, &bus) != B_OK) {
-			dprintf("ResolveVirtualBus(%u) failed\n", info.bus);
-			continue;
-		}
+	for (PCIDev* dev = bus->child; dev != NULL; dev = dev->next) {
+		const pci_info& info = dev->info;
 
 		device_attr attrs[] = {
 			// info about device
 			{B_DEVICE_BUS, B_STRING_TYPE, {.string = "pci"}},
 
 			// location on PCI bus
-			{B_PCI_DEVICE_DOMAIN, B_UINT8_TYPE, {.ui8 = domain}},
-			{B_PCI_DEVICE_BUS, B_UINT8_TYPE, {.ui8 = bus}},
+			{B_PCI_DEVICE_DOMAIN, B_UINT8_TYPE, {.ui8 = dev->domain}},
+			{B_PCI_DEVICE_BUS, B_UINT8_TYPE, {.ui8 = dev->bus}},
 			{B_PCI_DEVICE_DEVICE, B_UINT8_TYPE, {.ui8 = info.device}},
 			{B_PCI_DEVICE_FUNCTION, B_UINT8_TYPE, {.ui8 = info.function}},
 
@@ -127,9 +75,20 @@ pci_root_register_child_devices(void* cookie)
 			{}
 		};
 
-		gDeviceManager->register_node(node, PCI_DEVICE_MODULE_NAME, attrs,
-			NULL, NULL);
+		gDeviceManager->register_node(node, PCI_DEVICE_MODULE_NAME, attrs, NULL, NULL);
+
+		if (dev->child != NULL)
+			pci_root_traverse(node, dev->child);
 	}
+}
+
+
+static status_t
+pci_root_register_child_devices(void* cookie)
+{
+	domain_data* domainData = (domain_data*)cookie;
+
+	pci_root_traverse(domainData->root_node, domainData->bus);
 
 	return B_OK;
 }
@@ -138,16 +97,23 @@ pci_root_register_child_devices(void* cookie)
 static status_t
 pci_root_init(device_node* node, void** _cookie)
 {
-	*_cookie = node;
+	DeviceNodePutter<&gDeviceManager> pciHostNode(gDeviceManager->get_parent_node(node));
 
-	gPCIRootNode = node;
+	pci_controller_module_info* pciHostModule;
+	void* pciHostDev;
+	CHECK_RET(gDeviceManager->get_driver(pciHostNode.Get(), (driver_module_info**)&pciHostModule, &pciHostDev));
 
 	module_info *module;
 	status_t res = get_module(B_PCI_MODULE_NAME, &module);
 	if (res < B_OK)
 		return res;
 
-	return pci_init_deferred();
+	domain_data* domainData = NULL;
+	CHECK_RET(gPCI->AddController(pciHostModule, pciHostDev, node, &domainData));
+
+	*_cookie = domainData;
+
+	return B_OK;
 }
 
 
@@ -174,7 +140,7 @@ struct pci_root_module_info gPCIRootModule = {
 			pci_root_std_ops
 		},
 
-		pci_root_supports_device,
+		NULL,
 		pci_root_register_device,
 		pci_root_init,
 		NULL,	// uninit

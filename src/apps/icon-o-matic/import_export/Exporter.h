@@ -6,6 +6,8 @@
 #define EXPORTER_H
 
 
+#include <string.h>
+
 #include <Entry.h>
 #include <OS.h>
 
@@ -22,20 +24,30 @@ _END_ICON_NAMESPACE
 
 _USING_ICON_NAMESPACE
 
-
+/*! Base class for all exporters to implement. */
 class Exporter {
  public:
 								Exporter();
 	virtual						~Exporter();
 
+	/*! Export the Document to the specified entry_ref.
+		Spawns a separate thread to do the actual exporting.
+		Uses the virtual Export function defined after this function to do the
+		actual export.
+	*/
 			status_t			Export(Document* document,
 									   const entry_ref& ref);
 
 	virtual	status_t			Export(const Icon* icon,
 									   BPositionIO* stream) = 0;
-
+	/*! Turns the status_t error code returned by \c Export into a string. */
+	virtual const char*			ErrorCodeToString(status_t code)
+									{ return strerror(code); }
 	virtual	const char*			MIMEType() = 0;
 
+	/*! If \a selfDestroy is true, class deletes itself when export thread is
+		finished.
+	*/
 			void				SetSelfDestroy(bool selfDestroy);
 
 			void				WaitForExportThread();

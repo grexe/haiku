@@ -1,6 +1,6 @@
 /*
  * Copyright 2007-2011, Ingo Weinhold, ingo_weinhold@gmx.de.
- * Copyright 2019, Haiku, Inc. All rights reserved.
+ * Copyright 2019-2023, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  */
 
@@ -45,46 +45,6 @@ struct ConditionVariableHashDefinition {
 typedef BOpenHashTable<ConditionVariableHashDefinition> ConditionVariableHash;
 static ConditionVariableHash sConditionVariableHash;
 static rw_spinlock sConditionVariableHashLock;
-
-
-static int
-list_condition_variables(int argc, char** argv)
-{
-	ConditionVariable::ListAll();
-	return 0;
-}
-
-
-static int
-dump_condition_variable(int argc, char** argv)
-{
-	if (argc != 2) {
-		print_debugger_command_usage(argv[0]);
-		return 0;
-	}
-
-	addr_t address = parse_expression(argv[1]);
-	if (address == 0)
-		return 0;
-
-	ConditionVariable* variable = sConditionVariableHash.Lookup((void*)address);
-
-	if (variable == NULL) {
-		// It must be a direct pointer to a condition variable.
-		variable = (ConditionVariable*)address;
-	}
-
-	if (variable != NULL) {
-		variable->Dump();
-
-		set_debug_variable("_cvar", (addr_t)variable);
-		set_debug_variable("_object", (addr_t)variable->Object());
-
-	} else
-		kprintf("no condition variable at or with key %p\n", (void*)address);
-
-	return 0;
-}
 
 
 // #pragma mark - ConditionVariableEntry
@@ -214,6 +174,11 @@ ConditionVariableEntry::Wait(uint32 flags, bigtime_t timeout)
 	if (variable == NULL)
 		return fWaitStatus;
 
+	if ((flags & B_RELATIVE_TIMEOUT) != 0 && timeout <= 0) {
+		_RemoveFromVariable();
+		return B_WOULD_BLOCK;
+	}
+
 	InterruptsLocker _;
 	SpinLocker schedulerLocker(thread_get_current_thread()->scheduler_lock);
 
@@ -233,6 +198,11 @@ ConditionVariableEntry::Wait(uint32 flags, bigtime_t timeout)
 		error = thread_block();
 
 	_RemoveFromVariable();
+
+	// We need to always return the actual wait status, if we received one.
+	if (fWaitStatus <= 0)
+		return fWaitStatus;
+
 	return error;
 }
 
@@ -359,56 +329,58 @@ ConditionVariable::Wait(recursive_lock* lock, uint32 flags, bigtime_t timeout)
 }
 
 
-/*static*/ void
+/*static*/ int32
 ConditionVariable::NotifyOne(const void* object, status_t result)
 {
-	_Notify(object, false, result);
+	return _Notify(object, false, result);
 }
 
 
-/*static*/ void
+/*static*/ int32
 ConditionVariable::NotifyAll(const void* object, status_t result)
 {
-	_Notify(object, true, result);
+	return _Notify(object, true, result);
 }
 
 
-/*static*/ void
+/*static*/ int32
 ConditionVariable::_Notify(const void* object, bool all, status_t result)
 {
 	InterruptsLocker ints;
 	ReadSpinLocker hashLocker(sConditionVariableHashLock);
 	ConditionVariable* variable = sConditionVariableHash.Lookup(object);
 	if (variable == NULL)
-		return;
+		return 0;
 	SpinLocker variableLocker(variable->fLock);
 	hashLocker.Unlock();
 
-	variable->_NotifyLocked(all, result);
+	return variable->_NotifyLocked(all, result);
 }
 
 
-void
+int32
 ConditionVariable::_Notify(bool all, status_t result)
 {
 	InterruptsSpinLocker _(fLock);
-
 	if (!fEntries.IsEmpty()) {
 		if (result > B_OK) {
 			panic("tried to notify with invalid result %" B_PRId32 "\n", result);
 			result = B_ERROR;
 		}
 
-		_NotifyLocked(all, result);
+		return _NotifyLocked(all, result);
 	}
+	return 0;
 }
 
 
 /*! Called with interrupts disabled and the condition variable's spinlock held.
  */
-void
+int32
 ConditionVariable::_NotifyLocked(bool all, status_t result)
 {
+	int32 notified = 0;
+
 	// Dequeue and wake up the blocked threads.
 	while (ConditionVariableEntry* entry = fEntries.RemoveHead()) {
 		Thread* thread = atomic_pointer_get_and_set(&entry->fThread, (Thread*)NULL);
@@ -450,12 +422,19 @@ ConditionVariable::_NotifyLocked(bool all, status_t result)
 			// and spin while waiting for us to do so.
 			if (lastWaitStatus == STATUS_WAITING)
 				thread_unblock_locked(thread, result);
+
+			notified++;
 		}
 
 		if (!all)
 			break;
 	}
+
+	return notified;
 }
+
+
+// #pragma mark -
 
 
 /*static*/ void
@@ -489,6 +468,46 @@ ConditionVariable::Dump() const
 }
 
 
+static int
+list_condition_variables(int argc, char** argv)
+{
+	ConditionVariable::ListAll();
+	return 0;
+}
+
+
+static int
+dump_condition_variable(int argc, char** argv)
+{
+	if (argc != 2) {
+		print_debugger_command_usage(argv[0]);
+		return 0;
+	}
+
+	addr_t address = parse_expression(argv[1]);
+	if (address == 0)
+		return 0;
+
+	ConditionVariable* variable = sConditionVariableHash.Lookup((void*)address);
+
+	if (variable == NULL) {
+		// It must be a direct pointer to a condition variable.
+		variable = (ConditionVariable*)address;
+	}
+
+	if (variable != NULL) {
+		variable->Dump();
+
+		set_debug_variable("_cvar", (addr_t)variable);
+		set_debug_variable("_object", (addr_t)variable->Object());
+
+	} else
+		kprintf("no condition variable at or with key %p\n", (void*)address);
+
+	return 0;
+}
+
+
 // #pragma mark -
 
 
@@ -512,5 +531,20 @@ condition_variable_init()
 	add_debugger_command_etc("cvars", &list_condition_variables,
 		"List condition variables",
 		"\n"
-		"Lists all existing condition variables\n", 0);
+		"Lists all published condition variables\n", 0);
+}
+
+
+ssize_t
+debug_condition_variable_type_strlcpy(ConditionVariable* cvar, char* name, size_t size)
+{
+	const int32 typePointerOffset = offsetof(ConditionVariable, fObjectType);
+
+	const char* pointer;
+	status_t status = debug_memcpy(B_CURRENT_TEAM, &pointer,
+		(int8*)cvar + typePointerOffset, sizeof(const char*));
+	if (status != B_OK)
+		return status;
+
+	return debug_strlcpy(B_CURRENT_TEAM, name, pointer, size);
 }

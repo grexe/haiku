@@ -14,7 +14,6 @@
 
 #include <stdio.h>
 
-#include <PCI_x86.h>
 #include <bus/PCI.h>
 #include <USB3.h>
 #include <KernelExport.h>
@@ -30,7 +29,6 @@
 
 #define USB_MODULE_NAME	"xhci"
 
-static pci_x86_module_info* sPCIx86Module = NULL;
 device_manager_info* gDeviceManager;
 static usb_for_controller_interface* gUSB;
 
@@ -271,30 +269,12 @@ module_dependency module_dependencies[] = {
 };
 
 
-static status_t
-device_std_ops(int32 op, ...)
-{
-	switch (op) {
-		case B_MODULE_INIT:
-			if (get_module(B_PCI_X86_MODULE_NAME, (module_info**)&sPCIx86Module) != B_OK)
-				sPCIx86Module = NULL;
-			return B_OK;
-		case B_MODULE_UNINIT:
-			if (sPCIx86Module != NULL)
-				put_module(B_PCI_X86_MODULE_NAME);
-			return B_OK;
-		default:
-			return B_ERROR;
-	}
-}
-
-
 static usb_bus_interface gXHCIPCIDeviceModule = {
 	{
 		{
 			XHCI_PCI_USB_BUS_MODULE_NAME,
 			0,
-			device_std_ops
+			NULL
 		},
 		NULL,  // supports device
 		NULL,  // register device
@@ -521,13 +501,21 @@ XHCI::XHCI(pci_info *info, 	pci_device_module_info* pci, pci_device* device, Sta
 
 	// Find the right interrupt vector, using MSIs if available.
 	fIRQ = fPCIInfo->u.h0.interrupt_line;
-	if (sPCIx86Module != NULL && sPCIx86Module->get_msi_count(fPCIInfo->bus,
-			fPCIInfo->device, fPCIInfo->function) >= 1) {
+#if 0
+	if (fPci->get_msix_count(fDevice) >= 1) {
 		uint8 msiVector = 0;
-		if (sPCIx86Module->configure_msi(fPCIInfo->bus, fPCIInfo->device,
-				fPCIInfo->function, 1, &msiVector) == B_OK
-			&& sPCIx86Module->enable_msi(fPCIInfo->bus, fPCIInfo->device,
-				fPCIInfo->function) == B_OK) {
+		if (fPci->configure_msix(fDevice, 1, &msiVector) == B_OK
+			&& fPci->enable_msix(fDevice) == B_OK) {
+			TRACE_ALWAYS("using MSI-X\n");
+			fIRQ = msiVector;
+			fUseMSI = true;
+		}
+	} else
+#endif
+	if (fPci->get_msi_count(fDevice) >= 1) {
+		uint8 msiVector = 0;
+		if (fPci->configure_msi(fDevice, 1, &msiVector) == B_OK
+			&& fPci->enable_msi(fDevice) == B_OK) {
 			TRACE_ALWAYS("using message signaled interrupts\n");
 			fIRQ = msiVector;
 			fUseMSI = true;
@@ -577,11 +565,9 @@ XHCI::~XHCI()
 		delete_area(fScratchpadArea[i]);
 	delete_area(fDcbaArea);
 
-	if (fUseMSI && sPCIx86Module != NULL) {
-		sPCIx86Module->disable_msi(fPCIInfo->bus,
-			fPCIInfo->device, fPCIInfo->function);
-		sPCIx86Module->unconfigure_msi(fPCIInfo->bus,
-			fPCIInfo->device, fPCIInfo->function);
+	if (fUseMSI) {
+		fPci->disable_msi(fDevice);
+		fPci->unconfigure_msi(fDevice);
 	}
 }
 
@@ -891,8 +877,8 @@ XHCI::SubmitControlRequest(Transfer *transfer)
 
 		if (!directionIn) {
 			transfer->PrepareKernelAccess();
-			memcpy(descriptor->buffers[0],
-				(uint8 *)transfer->Vector()[0].iov_base, requestData->Length);
+			WriteDescriptor(descriptor, transfer->Vector(),
+				transfer->VectorCount(), transfer->IsPhysical());
 		}
 
 		index++;
@@ -1059,7 +1045,8 @@ XHCI::SubmitNormalRequest(Transfer *transfer)
 			FreeDescriptor(td);
 			return status;
 		}
-		WriteDescriptor(td, transfer->Vector(), transfer->VectorCount());
+		WriteDescriptor(td, transfer->Vector(),
+			transfer->VectorCount(), transfer->IsPhysical());
 	}
 
 	td->transfer = transfer;
@@ -1123,8 +1110,15 @@ XHCI::CancelQueuedTransfers(Pipe *pipe, bool force)
 	// order to avoid a deadlock, we must unlock the endpoint.
 	endpointLocker.Unlock();
 	status_t status = StopEndpoint(false, endpoint);
+	if (status != B_OK && status != B_DEV_STALLED) {
+		// It is possible that the endpoint was stopped by the controller at the
+		// same time our STOP command was in progress, causing a "Context State"
+		// error. In that case, try again; if the endpoint is already stopped,
+		// StopEndpoint will notice this. (XHCI 1.2 § 4.6.9 p137.)
+		status = StopEndpoint(false, endpoint);
+	}
 	if (status == B_DEV_STALLED) {
-		// Only exit from a Halted state is a reset. (XHCI 1.2 § 4.8.3 p163.)
+		// Only exit from a Halted state is a RESET. (XHCI 1.2 § 4.8.3 p163.)
 		TRACE_ERROR("cancel queued transfers: halted endpoint, reset!\n");
 		status = ResetEndpoint(false, endpoint);
 	}
@@ -1243,8 +1237,10 @@ XHCI::CheckDebugTransfer(Transfer *transfer)
 		status_t status = (td->trb_completion_code == COMP_SUCCESS
 			|| td->trb_completion_code == COMP_SHORT_PACKET) ? B_OK : B_ERROR;
 
-		if (status == B_OK && directionIn)
-			ReadDescriptor(td, transfer->Vector(), transfer->VectorCount());
+		if (status == B_OK && directionIn) {
+			ReadDescriptor(td, transfer->Vector(), transfer->VectorCount(),
+				transfer->IsPhysical());
+		}
 
 		FreeDescriptor(td);
 		transfer->SetCallback(NULL, NULL);
@@ -1434,19 +1430,21 @@ XHCI::FreeDescriptor(xhci_td *descriptor)
 
 
 size_t
-XHCI::WriteDescriptor(xhci_td *descriptor, iovec *vector, size_t vectorCount)
+XHCI::WriteDescriptor(xhci_td *descriptor, generic_io_vec *vector, size_t vectorCount, bool physical)
 {
 	size_t written = 0;
 
 	size_t bufIdx = 0, bufUsed = 0;
 	for (size_t vecIdx = 0; vecIdx < vectorCount; vecIdx++) {
-		size_t length = vector[vecIdx].iov_len;
+		size_t length = vector[vecIdx].length;
 
 		while (length > 0 && bufIdx < descriptor->buffer_count) {
 			size_t toCopy = min_c(length, descriptor->buffer_size - bufUsed);
-			memcpy((uint8 *)descriptor->buffers[bufIdx] + bufUsed,
-				(uint8 *)vector[vecIdx].iov_base + (vector[vecIdx].iov_len - length),
+			status_t status = generic_memcpy(
+				(generic_addr_t)descriptor->buffers[bufIdx] + bufUsed, false,
+				vector[vecIdx].base + (vector[vecIdx].length - length), physical,
 				toCopy);
+			ASSERT(status == B_OK);
 
 			written += toCopy;
 			bufUsed += toCopy;
@@ -1464,18 +1462,20 @@ XHCI::WriteDescriptor(xhci_td *descriptor, iovec *vector, size_t vectorCount)
 
 
 size_t
-XHCI::ReadDescriptor(xhci_td *descriptor, iovec *vector, size_t vectorCount)
+XHCI::ReadDescriptor(xhci_td *descriptor, generic_io_vec *vector, size_t vectorCount, bool physical)
 {
 	size_t read = 0;
 
 	size_t bufIdx = 0, bufUsed = 0;
 	for (size_t vecIdx = 0; vecIdx < vectorCount; vecIdx++) {
-		size_t length = vector[vecIdx].iov_len;
+		size_t length = vector[vecIdx].length;
 
 		while (length > 0 && bufIdx < descriptor->buffer_count) {
 			size_t toCopy = min_c(length, descriptor->buffer_size - bufUsed);
-			memcpy((uint8 *)vector[vecIdx].iov_base + (vector[vecIdx].iov_len - length),
-				(uint8 *)descriptor->buffers[bufIdx] + bufUsed, toCopy);
+			status_t status = generic_memcpy(
+				vector[vecIdx].base + (vector[vecIdx].length - length), physical,
+				(generic_addr_t)descriptor->buffers[bufIdx] + bufUsed, false, toCopy);
+			ASSERT(status == B_OK);
 
 			read += toCopy;
 			bufUsed += toCopy;
@@ -2340,6 +2340,8 @@ XHCI::GetPortStatus(uint8 index, usb_port_status* status)
 		else
 			status->status |= PORT_STATUS_POWER;
 	}
+	if (fPortSpeeds[index] == USB_SPEED_SUPERSPEED)
+		status->status |= portStatus & PS_PLS_MASK;
 
 	// build the change
 	if (portStatus & PS_CSC)
@@ -3123,7 +3125,7 @@ XHCI::FinishTransfers()
 				status_t status = transfer->PrepareKernelAccess();
 				if (status == B_OK) {
 					ReadDescriptor(td, transfer->Vector(),
-						transfer->VectorCount());
+						transfer->VectorCount(), transfer->IsPhysical());
 				} else {
 					callbackStatus = status;
 				}

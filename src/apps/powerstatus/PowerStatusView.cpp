@@ -21,6 +21,7 @@
 #include <AboutWindow.h>
 #include <Application.h>
 #include <Bitmap.h>
+#include <Beep.h>
 #include <Catalog.h>
 #include <DataIO.h>
 #include <Deskbar.h>
@@ -32,6 +33,7 @@
 #include <MenuItem.h>
 #include <MessageRunner.h>
 #include <Notification.h>
+#include <NumberFormat.h>
 #include <Path.h>
 #include <PopUpMenu.h>
 #include <Resources.h>
@@ -58,8 +60,11 @@ const uint32 kMsgToggleTime = 'tgtm';
 const uint32 kMsgToggleStatusIcon = 'tgsi';
 const uint32 kMsgToggleExtInfo = 'texi';
 
-const int32 kLowBatteryPercentage = 15;
-const int32 kNoteBatteryPercentage = 30;
+const double kLowBatteryPercentage = 0.15;
+const double kNoteBatteryPercentage = 0.3;
+const double kFullBatteryPercentage = 1.0;
+
+const time_t kLowBatteryTimeLeft = 30 * 60;
 
 
 PowerStatusView::PowerStatusView(PowerStatusDriverInterface* interface,
@@ -112,9 +117,15 @@ PowerStatusView::_Init()
 	fShowTime = false;
 	fShowStatusIcon = true;
 
-	fPercent = 100;
+	fPercent = 1.0;
 	fOnline = true;
 	fTimeLeft = 0;
+
+	fHasNotifiedLowBattery = false;
+
+	add_system_beep_event("Battery critical");
+	add_system_beep_event("Battery low");
+	add_system_beep_event("Battery charged");
 }
 
 
@@ -197,11 +208,11 @@ PowerStatusView::_DrawBattery(BView* view, BRect rect)
 	view->FillRect(BRect(left, floorf(rect.top + rect.Height() / 4) + 1,
 		rect.left - 1, floorf(rect.bottom - rect.Height() / 4)));
 
-	int32 percent = fPercent;
-	if (percent > 100)
-		percent = 100;
-	else if (percent < 0 || !fHasBattery)
-		percent = 0;
+	double percent = fPercent;
+	if (percent > 1.0)
+		percent = 1.0;
+	else if (percent < 0.0 || !fHasBattery)
+		percent = 0.0;
 
 	rect.InsetBy(gap, gap);
 
@@ -215,13 +226,13 @@ PowerStatusView::_DrawBattery(BView* view, BRect rect)
 		}
 
 		BRect unfilled = rect;
-		if (percent > 0)
-			unfilled.left += unfilled.Width() * percent / 100.0;
+		if (percent > 0.0)
+			unfilled.left += unfilled.Width() * percent;
 
 		view->SetHighColor(unfilledColor);
 		view->FillRect(unfilled);
 
-		if (percent > 0) {
+		if (percent > 0.0) {
 			// draw filled area
 			rgb_color fillColor;
 			if (percent <= kLowBatteryPercentage)
@@ -232,7 +243,7 @@ PowerStatusView::_DrawBattery(BView* view, BRect rect)
 				fillColor.set_to(20, 180, 0);
 
 			BRect fill = rect;
-			fill.right = fill.left + fill.Width() * percent / 100.0;
+			fill.right = fill.left + fill.Width() * percent;
 
 			// draw bevel
 			rgb_color bevelLightColor  = tint_color(fillColor, 0.2);
@@ -296,6 +307,7 @@ PowerStatusView::Draw(BRect updateRect)
 {
 	DrawTo(this, Bounds());
 }
+
 
 void
 PowerStatusView::DrawTo(BView* view, BRect rect)
@@ -371,8 +383,14 @@ PowerStatusView::_SetLabel(char* buffer, size_t bufferLength)
 	}
 
 	if (!fShowTime && fPercent >= 0) {
-		snprintf(buffer, bufferLength, "%s%" B_PRId32 "%%%s", open, fPercent,
-			close);
+		BNumberFormat numberFormat;
+		BString data;
+
+		if (numberFormat.FormatPercent(data, fPercent) != B_OK) {
+			data.SetToFormat("%" B_PRId32 "%%", int32(fPercent * 100));
+		}
+
+		snprintf(buffer, bufferLength, "%s%s%s", open, data.String(), close);
 	} else if (fShowTime && fTimeLeft >= 0) {
 		snprintf(buffer, bufferLength, "%s%" B_PRIdTIME ":%02" B_PRIdTIME "%s",
 			open, fTimeLeft / 3600, (fTimeLeft / 60) % 60, close);
@@ -380,11 +398,10 @@ PowerStatusView::_SetLabel(char* buffer, size_t bufferLength)
 }
 
 
-
 void
 PowerStatusView::Update(bool force, bool notify)
 {
-	int32 previousPercent = fPercent;
+	double previousPercent = fPercent;
 	time_t previousTimeLeft = fTimeLeft;
 	bool wasOnline = fOnline;
 	bool hadBattery = fHasBattery;
@@ -392,16 +409,16 @@ PowerStatusView::Update(bool force, bool notify)
 	fHasBattery = fBatteryInfo.full_capacity > 0;
 
 	if (fBatteryInfo.full_capacity > 0 && fHasBattery) {
-		fPercent = (100 * fBatteryInfo.capacity) / fBatteryInfo.full_capacity;
+		fPercent = (double)fBatteryInfo.capacity / fBatteryInfo.full_capacity;
 		fOnline = (fBatteryInfo.state & BATTERY_DISCHARGING) == 0;
 		fTimeLeft = fBatteryInfo.time_left;
 	} else {
-		fPercent = 0;
+		fPercent = 0.0;
 		fOnline = false;
 		fTimeLeft = -1;
 	}
 
-	if (fHasBattery && (fPercent <= 0 || fPercent > 100)) {
+	if (fHasBattery && (fPercent <= 0 || fPercent > 1.0)) {
 		// Just ignore this probe -- it obviously returned invalid values
 		fPercent = previousPercent;
 		fTimeLeft = previousTimeLeft;
@@ -429,12 +446,19 @@ PowerStatusView::Update(bool force, bool notify)
 				close = ")";
 			}
 			if (fHasBattery) {
-				size_t length = snprintf(text, sizeof(text), "%s%" B_PRId32
-					"%%%s", open, fPercent, close);
+				BNumberFormat numberFormat;
+				BString data;
+				size_t length;
+
+				if (numberFormat.FormatPercent(data, fPercent) != B_OK) {
+					data.SetToFormat("%" B_PRId32 "%%", int32(fPercent * 100));
+				}
+
+				length = snprintf(text, sizeof(text), "%s%s%s", open, data.String(), close);
+
 				if (fTimeLeft >= 0) {
-					length += snprintf(text + length, sizeof(text) - length,
-						"\n%" B_PRIdTIME ":%02" B_PRIdTIME, fTimeLeft / 3600,
-						(fTimeLeft / 60) % 60);
+					length += snprintf(text + length, sizeof(text) - length, "\n%" B_PRIdTIME
+						":%02" B_PRIdTIME, fTimeLeft / 3600, (fTimeLeft / 60) % 60);
 				}
 
 				const char* state = NULL;
@@ -478,9 +502,23 @@ PowerStatusView::Update(bool force, bool notify)
 		Invalidate();
 	}
 
-	if (!fOnline && fHasBattery && previousPercent > kLowBatteryPercentage
-			&& fPercent <= kLowBatteryPercentage && notify) {
+	if (fPercent > kLowBatteryPercentage && fTimeLeft > kLowBatteryTimeLeft)
+		fHasNotifiedLowBattery = false;
+
+	bool justTurnedLowBattery = (previousPercent > kLowBatteryPercentage
+			&& fPercent <= kLowBatteryPercentage)
+		|| (fTimeLeft <= kLowBatteryTimeLeft
+			&& previousTimeLeft > kLowBatteryTimeLeft);
+
+	if (!fOnline && notify && fHasBattery
+		&& !fHasNotifiedLowBattery && justTurnedLowBattery) {
 		_NotifyLowBattery();
+		fHasNotifiedLowBattery = true;
+	}
+
+	if (fOnline && fPercent >= kFullBatteryPercentage
+		&& previousPercent < kFullBatteryPercentage) {
+		system_beep("Battery charged");
 	}
 }
 
@@ -573,10 +611,12 @@ PowerStatusView::_NotifyLowBattery()
 		fHasBattery ? B_INFORMATION_NOTIFICATION : B_ERROR_NOTIFICATION);
 
 	if (fHasBattery) {
+		system_beep("Battery low");
 		notification.SetTitle(B_TRANSLATE("Battery low"));
 		notification.SetContent(B_TRANSLATE(
 			"The battery level is getting low, please plug in the device."));
 	} else {
+		system_beep("Battery critical");
 		notification.SetTitle(B_TRANSLATE("Battery critical"));
 		notification.SetContent(B_TRANSLATE(
 			"The battery level is critical, please plug in the device "

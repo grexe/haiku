@@ -1,6 +1,6 @@
 1	turkish	x-vnd.Haiku-SoundRecorder	24440888
 Loop	RecorderWindow		Sürekli
-Cannot find default audio hardware	RecorderWindow		Öntanımlı ses donanımı bulunamıyor
+Cannot find default audio hardware	RecorderWindow		Saptanmış ses donanımı bulunamıyor
 Cannot find the temporary file created to hold the new recording	RecorderWindow		Yeni kaydı içermesi için yaratılan geçici dosya bulunamıyor
 Sample size:	RecorderWindow		Örnek boyut:
 Nothing to play	RecorderWindow		Oynatacak bir şey yok
@@ -23,7 +23,7 @@ Cannot open the temporary file created to hold the new recording	RecorderWindow	
 Input:	RecorderWindow		Girdi:
 Forward	RecorderWindow		İleri sar
 Play	RecorderWindow		Oynat
-SoundRecorder	System name		Ses Kaydedici
+SoundRecorder	System name		Ses Kaydedicisi
 Channels:	RecorderWindow		Kanallar:
  bits	RecorderWindow		 bit
 None	RecorderWindow		Yok

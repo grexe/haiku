@@ -7,7 +7,6 @@
 #include <kdevice_manager.h>
 
 #include <new>
-#include <set>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1769,6 +1768,7 @@ device_node::_GetNextDriverPath(void*& cookie, KPath& _path)
 					_AddPath(*stack, "busses/random");
 					_AddPath(*stack, "busses/virtio");
 					_AddPath(*stack, "bus_managers/pci");
+					_AddPath(*stack, "busses/pci");
 				}
 				break;
 		}
@@ -2487,4 +2487,11 @@ device_manager_init_post_modules(struct kernel_args* args)
 {
 	RecursiveLocker _(sLock);
 	return sRootNode->Reprobe();
+}
+
+
+recursive_lock*
+device_manager_get_lock()
+{
+	return &sLock;
 }

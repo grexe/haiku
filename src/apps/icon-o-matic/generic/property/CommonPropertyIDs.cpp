@@ -30,6 +30,9 @@ name_for_id(int32 id)
 			name = B_TRANSLATE("Name");
 			break;
 
+		case PROPERTY_ALPHA:
+			name = B_TRANSLATE("Alpha");
+			break;
 		case PROPERTY_OPACITY:
 			name = B_TRANSLATE("Opacity");
 			break;
@@ -51,7 +54,7 @@ name_for_id(int32 id)
 			name = B_TRANSLATE("Joins");
 			break;
 		case PROPERTY_MITER_LIMIT:
-			name = B_TRANSLATE("Miter Limit");
+			name = B_TRANSLATE("Miter limit");
 			break;
 		case PROPERTY_STROKE_SHORTEN:
 			name = B_TRANSLATE("Shorten");
@@ -91,7 +94,7 @@ name_for_id(int32 id)
 			break;
 
 		case PROPERTY_DETECT_ORIENTATION:
-			name = B_TRANSLATE("Detect Orient.");
+			name = B_TRANSLATE("Detect orient.");
 			break;
 
 		default:

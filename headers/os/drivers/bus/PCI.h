@@ -38,7 +38,72 @@ typedef struct pci_device_module_info {
 				uint16 *offset);
 	uint8	(*get_powerstate)(pci_device *device);
 	void	(*set_powerstate)(pci_device *device, uint8 state);
+
+	// MSI/MSI-X
+	uint8	(*get_msi_count)(pci_device *device);
+	status_t (*configure_msi)(pci_device *device,
+				uint8 count,
+				uint8 *startVector);
+	status_t (*unconfigure_msi)(pci_device *device);
+
+	status_t (*enable_msi)(pci_device *device);
+	status_t (*disable_msi)(pci_device *device);
+
+	uint8	(*get_msix_count)(pci_device *device);
+	status_t (*configure_msix)(pci_device *device,
+				uint8 count,
+				uint8 *startVector);
+	status_t (*enable_msix)(pci_device *device);
+
 } pci_device_module_info;
+
+
+enum {
+	kPciRangeInvalid      = 0,
+	kPciRangeIoPort       = 1,
+	kPciRangeMmio         = 2,
+	kPciRangeMmio64Bit    = 1 << 0,
+	kPciRangeMmioPrefetch = 1 << 1,
+	kPciRangeMmioEnd      = 6,
+	kPciRangeEnd          = 6,
+};
+
+typedef struct pci_resource_range {
+	uint32 type;
+	phys_addr_t host_addr;
+	phys_addr_t pci_addr;
+	uint64 size;
+} pci_resource_range;
+
+
+typedef struct pci_controller_module_info {
+	driver_module_info info;
+
+	// read PCI config space
+	status_t	(*read_pci_config)(void *cookie,
+				uint8 bus, uint8 device, uint8 function,
+				uint16 offset, uint8 size, uint32 *value);
+
+	// write PCI config space
+	status_t	(*write_pci_config)(void *cookie,
+				uint8 bus, uint8 device, uint8 function,
+				uint16 offset, uint8 size, uint32 value);
+
+	status_t	(*get_max_bus_devices)(void *cookie, int32 *count);
+
+	status_t	(*read_pci_irq)(void *cookie,
+				uint8 bus, uint8 device, uint8 function,
+				uint8 pin, uint8 *irq);
+
+	status_t	(*write_pci_irq)(void *cookie,
+				uint8 bus, uint8 device, uint8 function,
+				uint8 pin, uint8 irq);
+
+	status_t	(*get_range)(void *cookie, uint32 index, pci_resource_range *range);
+
+	status_t	(*finalize)(void *cookie);
+
+} pci_controller_module_info;
 
 
 /* Attributes of PCI device nodes */

@@ -28,7 +28,7 @@ _END_ICON_NAMESPACE
 
 _USING_ICON_NAMESPACE
 
-
+/*! Puts the information from an NSVGimage class into an Icon class. */
 class DocumentBuilder {
  public:
 
@@ -39,7 +39,6 @@ class DocumentBuilder {
 
 
 			status_t			GetIcon(Icon* icon,
-										SVGImporter* importer,
 										const char* fallbackName);
 
  private:

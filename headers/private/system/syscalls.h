@@ -23,6 +23,7 @@ extern "C" {
 
 struct attr_info;
 struct dirent;
+struct event_wait_info;
 struct fd_info;
 struct fd_set;
 struct fs_info;
@@ -74,15 +75,22 @@ extern status_t		_kern_get_safemode_option(const char *parameter,
 extern ssize_t		_kern_wait_for_objects(object_wait_info* infos, int numInfos,
 						uint32 flags, bigtime_t timeout);
 
+extern int			_kern_event_queue_create(int openFlags);
+extern status_t		_kern_event_queue_select(int queue,
+						struct event_wait_info* userInfos, int numInfos);
+extern ssize_t		_kern_event_queue_wait(int queue, struct event_wait_info* infos,
+						int numInfos, uint32 flags, bigtime_t timeout);
+
 /* user mutex functions */
 extern status_t		_kern_mutex_lock(int32* mutex, const char* name,
 						uint32 flags, bigtime_t timeout);
-extern status_t		_kern_mutex_unlock(int32* mutex, uint32 flags);
-extern status_t		_kern_mutex_switch_lock(int32* fromMutex, int32* toMutex,
-						const char* name, uint32 flags, bigtime_t timeout);
+extern status_t		_kern_mutex_unblock(int32* mutex, uint32 flags);
+extern status_t		_kern_mutex_switch_lock(int32* fromMutex, uint32 fromFlags,
+						int32* toMutex, const char* name, uint32 toflags,
+						bigtime_t timeout);
 extern status_t		_kern_mutex_sem_acquire(int32* sem, const char* name,
 						uint32 flags, bigtime_t timeout);
-extern status_t		_kern_mutex_sem_release(int32* sem);
+extern status_t		_kern_mutex_sem_release(int32* sem, uint32 flags);
 
 /* sem functions */
 extern sem_id		_kern_create_sem(int count, const char *name);
@@ -180,12 +188,15 @@ extern int64		_kern_restore_signal_frame(
 extern status_t		_kern_get_thread_info(thread_id id, thread_info *info);
 extern status_t		_kern_get_next_thread_info(team_id team, int32 *cookie,
 						thread_info *info);
-extern status_t		_kern_get_team_info(team_id id, team_info *info);
-extern status_t		_kern_get_next_team_info(int32 *cookie, team_info *info);
+extern status_t		_kern_get_team_info(team_id id, team_info *info,
+						size_t size);
+extern status_t		_kern_get_next_team_info(int32 *cookie, team_info *info,
+						size_t size);
 extern status_t		_kern_get_team_usage_info(team_id team, int32 who,
 						team_usage_info *info, size_t size);
 extern status_t		_kern_get_extended_team_info(team_id teamID, uint32 flags,
 						void* buffer, size_t size, size_t* _sizeNeeded);
+extern int			_kern_get_cpu();
 
 extern status_t		_kern_start_watching_system(int32 object, uint32 flags,
 						port_id port, int32 token);

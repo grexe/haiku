@@ -50,6 +50,7 @@ All rights reserved.
 #include <Region.h>
 #include <Roster.h>
 #include <Resources.h>
+#include <Window.h>
 
 #include "BarApp.h"
 #include "BarMenuBar.h"
@@ -91,6 +92,67 @@ TTeamMenuItem::~TTeamMenuItem()
 	delete fTeam;
 	delete fIcon;
 	free(fSignature);
+}
+
+
+/*!	Vulcan Death Grip and other team mouse button handling
+
+	\returns true if handled, false otherwise
+*/
+bool
+TTeamMenuItem::HandleMouseDown(BPoint where)
+{
+	BMenu* menu = Menu();
+	if (menu == NULL)
+		return false;
+
+	BWindow* window = menu->Window();
+	if (window == NULL)
+		return false;
+
+	BMessage* message = window->CurrentMessage();
+	if (message == NULL)
+		return false;
+
+	int32 modifiers = 0;
+	int32 buttons = 0;
+	message->FindInt32("modifiers", &modifiers);
+	message->FindInt32("buttons", &buttons);
+
+	// check for three finger salute, a.k.a. Vulcan Death Grip
+	if ((modifiers & B_COMMAND_KEY) != 0
+		&& (modifiers & B_CONTROL_KEY) != 0
+		&& (modifiers & B_SHIFT_KEY) != 0) {
+		BMessage appMessage(B_SOME_APP_QUIT);
+		int32 teamCount = fTeam->CountItems();
+		BMessage quitMessage(teamCount == 1 ? B_SOME_APP_QUIT : kRemoveTeam);
+		quitMessage.AddInt32("itemIndex", menu->IndexOf(this));
+		for (int32 index = 0; index < teamCount; index++) {
+			team_id team = (addr_t)fTeam->ItemAt(index);
+			appMessage.AddInt32("be:team", team);
+			quitMessage.AddInt32("team", team);
+
+			kill_team(team);
+		}
+		be_app->PostMessage(&appMessage);
+		TExpandoMenuBar* expando = dynamic_cast<TExpandoMenuBar*>(menu);
+		window->PostMessage(&quitMessage, expando != NULL ? expando : menu);
+		return true;
+	} else if ((modifiers & B_SHIFT_KEY) == 0
+		&& (buttons & B_TERTIARY_MOUSE_BUTTON) != 0) {
+		// launch new team
+		be_roster->Launch(Signature());
+		return true;
+	} else if ((modifiers & B_CONTROL_KEY) != 0) {
+		// control click - show all/hide all shortcut
+		BMessage showMessage((modifiers & B_SHIFT_KEY) != 0
+			? kMinimizeTeam : kBringTeamToFront);
+		showMessage.AddInt32("itemIndex", menu->IndexOf(this));
+		window->PostMessage(&showMessage, menu);
+		return true;
+	}
+
+	return false;
 }
 
 
@@ -144,12 +206,14 @@ TTeamMenuItem::GetContentSize(float* width, float* height)
 	if (fOverrideWidth != -1.0f)
 		*width = fOverrideWidth;
 	else {
-		bool hideLabels = static_cast<TBarApp*>(be_app)->Settings()->hideLabels;
-		float iconSize = static_cast<TBarApp*>(be_app)->IconSize();
-		float iconOnlyWidth = (be_control_look->ComposeSpacing(kIconPadding) * 2) + iconSize;
+		const float iconSize = static_cast<TBarApp*>(be_app)->TeamIconSize();
+		const float iconPadding = be_control_look->ComposeSpacing(kIconPadding);
+		float iconOnlyWidth = iconSize + iconPadding;
+		if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels)
+			iconOnlyWidth += iconPadding; // add an extra icon padding
 
 		if (fBarView->MiniState()) {
-			if (hideLabels)
+			if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels)
 				*width = iconOnlyWidth;
 			else
 				*width = gMinimumWindowWidth - (gDragRegionWidth + kGutter) * 2;
@@ -225,14 +289,15 @@ TTeamMenuItem::DrawContent()
 		} else
 			menu->SetDrawingMode(B_OP_OVER);
 
-		BRect iconBounds = fIcon != NULL ? fIcon->Bounds()
-			: BRect(0, 0, kMinimumIconSize - 1, kMinimumIconSize - 1);
+		BRect iconBounds = fIcon->Bounds();
 		BRect updateRect = iconBounds;
 		BPoint contentLocation = ContentLocation();
 		BPoint drawLocation = contentLocation + BPoint(sHPad, sVPad);
+		const int32 large = be_control_look->ComposeIconSize(B_LARGE_ICON)
+			.IntegerWidth() + 1;
 
 		if (static_cast<TBarApp*>(be_app)->Settings()->hideLabels
-			|| (fBarView->Vertical() && iconBounds.Width() > 32)) {
+			|| (fBarView->Vertical() && iconBounds.Width() > large)) {
 			// determine icon location (centered horizontally)
 			float offsetx = contentLocation.x
 				+ floorf((frame.Width() - iconBounds.Width()) / 2);
@@ -447,7 +512,12 @@ TTeamMenuItem::_Init(BList* team, BBitmap* icon, char* name, char* signature,
 
 	fBarView = static_cast<TBarApp*>(be_app)->BarView();
 
-	BFont font(be_plain_font);
+	// use menu font (parent font not available yet)
+	menu_info info;
+	get_menu_info(&info);
+	BFont font;
+	font.SetFamilyAndStyle(info.f_family, info.f_style);
+	font.SetSize(info.font_size);
 	fLabelWidth = ceilf(font.StringWidth(name));
 	font_height fontHeight;
 	font.GetHeight(&fontHeight);

@@ -74,13 +74,16 @@ cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex, uint32 flags,
 	cond->waiter_count++;
 
 	// make sure the user mutex we use for blocking is locked
-	atomic_or((int32*)&cond->lock, B_USER_MUTEX_LOCKED);
+	atomic_test_and_set((int32*)&cond->lock, B_USER_MUTEX_LOCKED, 0);
 
 	// atomically unlock the mutex and start waiting on the user mutex
 	mutex->owner = -1;
 	mutex->owner_count = 0;
 
+	if ((cond->flags & COND_FLAG_SHARED) != 0)
+		flags |= B_USER_MUTEX_SHARED;
 	status_t status = _kern_mutex_switch_lock((int32*)&mutex->lock,
+		((mutex->flags & MUTEX_FLAG_SHARED) ? B_USER_MUTEX_SHARED : 0),
 		(int32*)&cond->lock, "pthread condition", flags, timeout);
 
 	if (status == B_INTERRUPTED) {
@@ -92,6 +95,7 @@ cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex, uint32 flags,
 	pthread_mutex_lock(mutex);
 
 	cond->waiter_count--;
+
 	// If there are no more waiters, we can change mutexes.
 	if (cond->waiter_count == 0)
 		cond->mutex = NULL;
@@ -106,9 +110,15 @@ cond_signal(pthread_cond_t* cond, bool broadcast)
 	if (cond->waiter_count == 0)
 		return;
 
+	uint32 flags = 0;
+	if (broadcast)
+		flags |= B_USER_MUTEX_UNBLOCK_ALL;
+	if ((cond->flags & COND_FLAG_SHARED) != 0)
+		flags |= B_USER_MUTEX_SHARED;
+
 	// release the condition lock
-	_kern_mutex_unlock((int32*)&cond->lock,
-		broadcast ? B_USER_MUTEX_UNBLOCK_ALL : 0);
+	atomic_and((int32*)&cond->lock, ~(int32)B_USER_MUTEX_LOCKED);
+	_kern_mutex_unblock((int32*)&cond->lock, flags);
 }
 
 

@@ -103,7 +103,8 @@ remap_frame_buffer(framebuffer_info& info, addr_t physicalBase, uint32 width,
 	if (!info.complete_frame_buffer_mapped) {
 		addr_t base = physicalBase;
 		size_t size = bytesPerRow * height;
-		bool remap = !initializing;
+		// TODO: this logic looks suspicious and may need refactoring
+		bool remap = !initializing || frameBuffer == 0;
 
 		if (info.physical_frame_buffer_size != 0) {
 			// we can map the complete frame buffer
@@ -195,6 +196,13 @@ framebuffer_init(framebuffer_info& info)
 	sharedInfo.current_mode.virtual_height = bufferInfo->height;
 	sharedInfo.current_mode.space = get_color_space_for_depth(
 		bufferInfo->depth);
+
+	edid1_info* edidInfo = (edid1_info*)get_boot_item(VESA_EDID_BOOT_INFO,
+		NULL);
+	if (edidInfo != NULL) {
+		sharedInfo.has_edid = true;
+		memcpy(&sharedInfo.edid_info, edidInfo, sizeof(edid1_info));
+	}
 
 	dprintf(DEVICE_NAME ": framebuffer_init() completed successfully!\n");
 	return B_OK;

@@ -51,6 +51,7 @@
 #include <syscalls.h>
 #include <tls.h>
 #include <tracing.h>
+#include <user_mutex.h>
 #include <user_runtime.h>
 #include <user_thread.h>
 #include <usergroup.h>
@@ -440,6 +441,7 @@ Team::Team(team_id id, bool kernel)
 	state = TEAM_STATE_BIRTH;
 	flags = 0;
 	io_context = NULL;
+	user_mutex_context = NULL;
 	realtime_sem_context = NULL;
 	xsi_sem_context = NULL;
 	death_entry = NULL;
@@ -573,6 +575,8 @@ Team::Create(team_id id, const char* name, bool kernel)
 		if (error != B_OK)
 			return NULL;
 	}
+
+	team->start_time = system_time();
 
 	// everything went fine
 	return teamDeleter.Detach();
@@ -1117,7 +1121,7 @@ ProcessGroup::UnsetOrphanedCheck()
 ProcessSession::ProcessSession(pid_t id)
 	:
 	id(id),
-	controlling_tty(-1),
+	controlling_tty(NULL),
 	foreground_group(-1)
 {
 	char lockName[32];
@@ -1765,11 +1769,13 @@ load_image_internal(char**& _flatArgs, size_t flatArgsSize, int32 argCount,
 		return B_NO_MEMORY;
 	BReference<Team> teamReference(team, true);
 
+	BReference<Team> teamLoadingReference;
 	if ((flags & B_WAIT_TILL_LOADED) != 0) {
 		loadingInfo.condition.Init(team, "image load");
 		loadingInfo.condition.Add(&loadingWaitEntry);
 		loadingInfo.result = B_ERROR;
 		team->loading_info = &loadingInfo;
+		teamLoadingReference = teamReference;
 	}
 
 	// get the parent team
@@ -1891,6 +1897,14 @@ load_image_internal(char**& _flatArgs, size_t flatArgsSize, int32 argCount,
 		// going to die (e.g. is killed). In either case the one notifying is
 		// responsible for unsetting `loading_info` in the team structure.
 		loadingWaitEntry.Wait();
+
+		// We must synchronize with the thread that woke us up, to ensure
+		// there are no remaining consumers of the team_loading_info.
+		team->Lock();
+		if (team->loading_info != NULL)
+			panic("team loading wait complete, but loading_info != NULL");
+		team->Unlock();
+		teamLoadingReference.Unset();
 
 		if (loadingInfo.result < B_OK)
 			return loadingInfo.result;
@@ -2014,6 +2028,8 @@ exec_team(const char* path, char**& _flatArgs, size_t flatArgsSize,
 	sem_delete_owned_sems(team);
 	remove_images(team);
 	vfs_exec_io_context(team->io_context);
+	delete_user_mutex_context(team->user_mutex_context);
+	team->user_mutex_context = NULL;
 	delete_realtime_sem_context(team->realtime_sem_context);
 	team->realtime_sem_context = NULL;
 
@@ -2666,7 +2682,7 @@ wait_for_child(pid_t child, uint32 flags, siginfo_t& _info,
 static status_t
 fill_team_info(Team* team, team_info* info, size_t size)
 {
-	if (size != sizeof(team_info))
+	if (size > sizeof(team_info))
 		return B_BAD_VALUE;
 
 	// TODO: Set more informations for team_info
@@ -2689,6 +2705,21 @@ fill_team_info(Team* team, team_info* info, size_t size)
 
 	strlcpy(info->args, team->Args(), sizeof(info->args));
 	info->argc = 1;
+
+	if (size > offsetof(team_info, real_uid)) {
+		info->real_uid = team->real_uid;
+		info->real_gid = team->real_gid;
+		info->group_id = team->group_id;
+		info->session_id = team->session_id;
+
+		if (team->parent != NULL)
+			info->parent = team->parent->id;
+		else
+			info->parent = -1;
+
+		strlcpy(info->name, team->Name(), sizeof(info->name));
+		info->start_time = team->start_time;
+	}
 
 	return B_OK;
 }
@@ -2978,7 +3009,7 @@ team_get_team_struct_locked(team_id id)
 
 
 void
-team_set_controlling_tty(int32 ttyIndex)
+team_set_controlling_tty(void* tty)
 {
 	// lock the team, so its session won't change while we're playing with it
 	Team* team = thread_get_current_thread()->team;
@@ -2989,12 +3020,12 @@ team_set_controlling_tty(int32 ttyIndex)
 	AutoLocker<ProcessSession> sessionLocker(session);
 
 	// set the session's fields
-	session->controlling_tty = ttyIndex;
+	session->controlling_tty = tty;
 	session->foreground_group = -1;
 }
 
 
-int32
+void*
 team_get_controlling_tty()
 {
 	// lock the team, so its session won't change while we're playing with it
@@ -3011,7 +3042,7 @@ team_get_controlling_tty()
 
 
 status_t
-team_set_foreground_process_group(int32 ttyIndex, pid_t processGroupID)
+team_set_foreground_process_group(void* tty, pid_t processGroupID)
 {
 	// lock the team, so its session won't change while we're playing with it
 	Thread* thread = thread_get_current_thread();
@@ -3023,7 +3054,7 @@ team_set_foreground_process_group(int32 ttyIndex, pid_t processGroupID)
 	AutoLocker<ProcessSession> sessionLocker(session);
 
 	// check given TTY -- must be the controlling tty of the calling process
-	if (session->controlling_tty != ttyIndex)
+	if (session->controlling_tty != tty)
 		return ENOTTY;
 
 	// check given process group -- must belong to our session
@@ -3111,14 +3142,14 @@ team_remove_team(Team* team, pid_t& _signalGroup)
 	_signalGroup = -1;
 	bool isSessionLeader = false;
 	if (team->session_id == team->id
-		&& team->group->Session()->controlling_tty >= 0) {
+		&& team->group->Session()->controlling_tty != NULL) {
 		isSessionLeader = true;
 
 		ProcessSession* session = team->group->Session();
 
 		AutoLocker<ProcessSession> sessionLocker(session);
 
-		session->controlling_tty = -1;
+		session->controlling_tty = NULL;
 		_signalGroup = session->foreground_group;
 	}
 
@@ -3288,15 +3319,13 @@ team_delete_team(Team* team, port_id debuggerPort)
 
 	TeamLocker teamLocker(team);
 
-	if (team->loading_info) {
+	if (team->loading_info != NULL) {
 		// there's indeed someone waiting
-		struct team_loading_info* loadingInfo = team->loading_info;
-		team->loading_info = NULL;
-
-		loadingInfo->result = B_ERROR;
+		team->loading_info->result = B_ERROR;
 
 		// wake up the waiting thread
-		loadingInfo->condition.NotifyAll();
+		team->loading_info->condition.NotifyAll();
+		team->loading_info = NULL;
 	}
 
 	// notify team watchers
@@ -3318,6 +3347,7 @@ team_delete_team(Team* team, port_id debuggerPort)
 
 	// free team resources
 
+	delete_user_mutex_context(team->user_mutex_context);
 	delete_realtime_sem_context(team->realtime_sem_context);
 	xsi_sem_undo(team);
 	remove_images(team);
@@ -4333,8 +4363,14 @@ _user_exit_team(status_t returnValue)
 
 	// Stop the thread, if the team is being debugged and that has been
 	// requested.
+	// Note: GCC 13 marks the following call as potentially overflowing, since it thinks team may
+	//       be `nullptr`. This cannot be the case in reality, therefore ignore this specific
+	//       error.
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wstringop-overflow"
 	if ((atomic_get(&team->debug_info.flags) & B_TEAM_DEBUG_PREVENT_EXIT) != 0)
 		user_debug_stop_thread();
+	#pragma GCC diagnostic pop
 
 	// Send this thread a SIGKILL. This makes sure the thread will not return to
 	// userland. The signal handling code forwards the signal to the main
@@ -4352,17 +4388,20 @@ _user_kill_team(team_id team)
 
 
 status_t
-_user_get_team_info(team_id id, team_info* userInfo)
+_user_get_team_info(team_id id, team_info* userInfo, size_t size)
 {
 	status_t status;
 	team_info info;
 
+	if (size > sizeof(team_info))
+		return B_BAD_VALUE;
+
 	if (!IS_USER_ADDRESS(userInfo))
 		return B_BAD_ADDRESS;
 
-	status = _get_team_info(id, &info, sizeof(team_info));
+	status = _get_team_info(id, &info, size);
 	if (status == B_OK) {
-		if (user_memcpy(userInfo, &info, sizeof(team_info)) < B_OK)
+		if (user_memcpy(userInfo, &info, size) < B_OK)
 			return B_BAD_ADDRESS;
 	}
 
@@ -4371,23 +4410,26 @@ _user_get_team_info(team_id id, team_info* userInfo)
 
 
 status_t
-_user_get_next_team_info(int32* userCookie, team_info* userInfo)
+_user_get_next_team_info(int32* userCookie, team_info* userInfo, size_t size)
 {
 	status_t status;
 	team_info info;
 	int32 cookie;
+
+	if (size > sizeof(team_info))
+		return B_BAD_VALUE;
 
 	if (!IS_USER_ADDRESS(userCookie)
 		|| !IS_USER_ADDRESS(userInfo)
 		|| user_memcpy(&cookie, userCookie, sizeof(int32)) < B_OK)
 		return B_BAD_ADDRESS;
 
-	status = _get_next_team_info(&cookie, &info, sizeof(team_info));
+	status = _get_next_team_info(&cookie, &info, size);
 	if (status != B_OK)
 		return status;
 
 	if (user_memcpy(userCookie, &cookie, sizeof(int32)) < B_OK
-		|| user_memcpy(userInfo, &info, sizeof(team_info)) < B_OK)
+		|| user_memcpy(userInfo, &info, size) < B_OK)
 		return B_BAD_ADDRESS;
 
 	return status;

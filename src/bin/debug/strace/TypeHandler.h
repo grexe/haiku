@@ -63,9 +63,10 @@ public:
 	string GetParameterValue(Context &c, Parameter *, const void *);
 	string GetReturnValue(Context &, uint64 value);
 
-private:
+protected:
 	string RenderValue(Context &, unsigned int value) const;
 
+private:
 	const FlagsList &fList;
 };
 
@@ -125,6 +126,7 @@ struct ifreq;
 struct msghdr;
 struct message_args;
 struct pollfd;
+struct sockaddr;
 struct sockaddr_args;
 struct socket_args;
 struct sockopt_args;
@@ -138,6 +140,8 @@ DEFINE_FACTORY(msghdr_ptr, const msghdr *);
 DEFINE_FACTORY(message_args_ptr, message_args *);
 DEFINE_FACTORY(pollfd_ptr, pollfd *);
 DEFINE_FACTORY(siginfo_t_ptr, siginfo_t *);
+DEFINE_FACTORY(sockaddr_ptr, sockaddr *);
+DEFINE_FACTORY(sockaddr_ptr, const sockaddr *);
 DEFINE_FACTORY(sockaddr_args_ptr, sockaddr_args *);
 DEFINE_FACTORY(socket_args_ptr, socket_args *);
 DEFINE_FACTORY(sockopt_args_ptr, sockopt_args *);

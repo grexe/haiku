@@ -41,7 +41,7 @@ All rights reserved.
 
 #include "LockingList.h"
 #include "Model.h"
-#include "SlowContextPopup.h"
+#include "NavMenu.h"
 #include "TaskLoop.h"
 
 
@@ -113,8 +113,8 @@ public:
 
 	virtual void CreatePoseView(Model*);
 
-	virtual void ShowContextMenu(BPoint, const entry_ref*, BView*);
-	virtual uint32 ShowDropContextMenu(BPoint);
+	virtual void ShowContextMenu(BPoint, const entry_ref*);
+	virtual uint32 ShowDropContextMenu(BPoint, BPoseView* source = NULL);
 	virtual void MenusBeginning();
 	virtual void MenusEnded();
 	virtual void MessageReceived(BMessage*);
@@ -289,12 +289,13 @@ protected:
 	BGroupView* fVScrollBarContainer;
 	BGroupView* fCountContainer;
 
+	BPopUpMenu* fContextMenu;
 	BPopUpMenu* fFileContextMenu;
 	BPopUpMenu* fWindowContextMenu;
 	BPopUpMenu* fDropContextMenu;
 	BPopUpMenu* fVolumeContextMenu;
 	BPopUpMenu* fTrashContextMenu;
-	BSlowContextMenu* fDragContextMenu;
+	BPopUpNavMenu* fDragContextMenu;
 	BMenuItem* fMoveToItem;
 	BMenuItem* fCopyToItem;
 	BMenuItem* fCreateLinkItem;
@@ -333,7 +334,6 @@ private:
 
 	static BRect sNewWindRect;
 
-	BPopUpMenu* fContextMenu;
 	BMessage* fDragMessage;
 	BObjectList<BString>* fCachedTypesList;
 	bool fWaitingForRefs;

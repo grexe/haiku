@@ -1,13 +1,17 @@
 /*
  * Copyright 2006-2007, 2011, Stephan Aßmus <superstippi@gmx.de>.
+ * Copyright 2023, Haiku.
  * Distributed under the terms of the MIT License.
+ *
+ * Authors:
+ *		Zardshard
  */
 #ifndef STYLE_LIST_VIEW_H
 #define STYLE_LIST_VIEW_H
 
 
 #include "ListViews.h"
-#include "StyleContainer.h"
+#include "Container.h"
 
 
 class BMenu;
@@ -19,17 +23,19 @@ class ShapeStyleListener;
 class StyleListItem;
 
 _BEGIN_ICON_NAMESPACE
+	class PathSourceShape;
 	class Shape;
-	class ShapeContainer;
-	class ShapeListener;
 	class Style;
 _END_ICON_NAMESPACE
 
 _USING_ICON_NAMESPACE
 
 
-class StyleListView : public SimpleListView, public StyleContainerListener {
+class StyleListView : public SimpleListView, public ContainerListener<Style> {
 public:
+	enum {
+		kSelectionArchiveCode	= 'sstl',
+	};
 								StyleListView(BRect frame, const char* name,
 									BMessage* selectionMessage = NULL,
 									BHandler* target = NULL);
@@ -42,14 +48,8 @@ public:
 
 	virtual	void				MouseDown(BPoint where);
 
-	virtual	void				MakeDragMessage(BMessage* message) const;
-
-	virtual	bool				AcceptDragMessage(
-									const BMessage* message) const;
-	virtual	void				SetDropTargetRect(const BMessage* message,
-									BPoint where);
-	virtual	bool				HandleDropMessage(const BMessage* message,
-									int32 dropIndex);
+	virtual	status_t			ArchiveSelection(BMessage* into, bool deep = true) const;
+	virtual	bool				InstantiateSelection(const BMessage* archive, int32 dropIndex);
 
 	virtual	void				MoveItems(BList& items, int32 toIndex);
 	virtual	void				CopyItems(BList& items, int32 toIndex);
@@ -60,19 +60,19 @@ public:
 	virtual	int32				IndexOfSelectable(Selectable* selectable) const;
 	virtual	Selectable*			SelectableFor(BListItem* item) const;
 
-	// StyleContainerListener interface
-	virtual	void				StyleAdded(Style* style, int32 index);
-	virtual	void				StyleRemoved(Style* style);
+	// ContainerListener<Style> interface
+	virtual	void				ItemAdded(Style* style, int32 index);
+	virtual	void				ItemRemoved(Style* style);
 
 	// StyleListView
 			void				SetMenu(BMenu* menu);
-			void				SetStyleContainer(StyleContainer* container);
-			void				SetShapeContainer(ShapeContainer* container);
+			void				SetStyleContainer(Container<Style>* container);
+			void				SetShapeContainer(Container<Shape>* container);
 			void				SetCommandStack(CommandStack* stack);
 			void				SetCurrentColor(CurrentColor* color);
 
 			void				SetCurrentShape(Shape* shape);
-			Shape*				CurrentShape() const
+			PathSourceShape*	CurrentShape() const
 									{ return fCurrentShape; }
 
 private:
@@ -88,12 +88,12 @@ private:
 
 			BMessage*			fMessage;
 
-			StyleContainer*		fStyleContainer;
-			ShapeContainer*		fShapeContainer;
+			Container<Style>*	fStyleContainer;
+			Container<Shape>*	fShapeContainer;
 			CommandStack*		fCommandStack;
 			CurrentColor*		fCurrentColor;
 
-			Shape*				fCurrentShape;
+			PathSourceShape*	fCurrentShape;
 				// the style item will be marked that
 				// is referenced by this shape
 

@@ -31,7 +31,7 @@ class IconObject : public Observable,
 	virtual	void				SelectedChanged();
 
 	// IconObject
-	virtual	status_t			Unarchive(const BMessage* archive);
+	virtual	status_t			Unarchive(BMessage* archive);
 	virtual status_t			Archive(BMessage* into,
 										bool deep = true) const;
 
@@ -43,6 +43,9 @@ class IconObject : public Observable,
 			const char*			Name() const
 									{ return fName.String(); }
 
+	// TODO: let IconObject control its own manipulators?
+	// This would allow VectorPaths to control their own PathManipulator,
+	// Styles to control their own TransformGradientBox, etc.
  private:
 			BString				fName;
 };

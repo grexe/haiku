@@ -404,7 +404,7 @@ status_t NodeGroup::setStartPosition(
 	Autolock _l(this);
 	
 	D_METHOD((
-		"NodeGroup::setStartPosition(%Ld)\n", start));
+		"NodeGroup::setStartPosition(%lld)\n", start));
 		
 	if(
 		m_transportState == TRANSPORT_RUNNING ||
@@ -466,7 +466,7 @@ status_t NodeGroup::setEndPosition(
 	Autolock _l(this);
 	
 	D_METHOD((
-		"NodeGroup::setEndPosition(%Ld)\n", end));
+		"NodeGroup::setEndPosition(%lld)\n", end));
 
 	if(
 		m_transportState == TRANSPORT_RUNNING ||
@@ -632,10 +632,14 @@ status_t NodeGroup::setTimeSource(
 	for_each(
 		m_nodes.begin(),
 		m_nodes.end(),
+#if __GNUC__ <= 2
 		bind2nd(
 			mem_fun(&NodeRef::_setTimeSource),
 			m_timeSource.node
 		)
+#else
+		[this](NodeRef* nodeRef) { nodeRef->_setTimeSource(m_timeSource.node); }
+#endif
 	);
 	
 //	// try to set as sync node
@@ -680,10 +684,14 @@ status_t NodeGroup::setRunMode(BMediaNode::run_mode mode) {
 	for_each(
 		m_nodes.begin(),
 		m_nodes.end(),
+#if __GNUC__ <= 2
 		bind2nd(
 			mem_fun(&NodeRef::_setRunModeAuto),
 			m_runMode
 		)
+#else
+		[this](NodeRef* ref) { ref->_setRunModeAuto(this->m_runMode); }
+#endif
 //		bound_method(
 //			*this,
 //			&NodeGroup::setRunModeFor)
@@ -1121,13 +1129,13 @@ status_t NodeGroup::_preroll() {
 //				strerror(err)));
 //			return;
 //		}
-////		PRINT(("-   %Ld\n", latency));
+////		PRINT(("-   %lld\n", latency));
 //		
 //		bigtime_t add;
 //		err = BMediaRoster::Roster()->GetInitialLatencyFor(
 //			r->node(),
 //			&add);
-////		PRINT(("-   %Ld\n", add));
+////		PRINT(("-   %lld\n", add));
 //		if(err < B_OK) {
 //			PRINT((
 //				"* calcLatencyFn: GetInitialLatencyFor() failed: %s\n",
@@ -1140,7 +1148,7 @@ status_t NodeGroup::_preroll() {
 //			maxLatency = latency;
 //
 ////		PRINT((
-////			"-   max latency: %Ld\n",
+////			"-   max latency: %lld\n",
 ////			maxLatency));
 //	}
 //};
@@ -1260,7 +1268,11 @@ status_t NodeGroup::_stop() {
 	for_each(
 		m_nodes.begin(),
 		m_nodes.end(),
+#if __GNUC__ <= 2
 		mem_fun(&NodeRef::_stop)
+#else
+		[](NodeRef* ref) { ref->_stop(); }
+#endif
 	);
 
 	// update transport state
@@ -1482,7 +1494,7 @@ void NodeGroup::_cycleInit(
 	assert_locked(this);
 	ASSERT(m_cycleNodes.size() > 0);
 	D_METHOD((
-		"NodeGroup::_cycleInit(%Ld)\n",
+		"NodeGroup::_cycleInit(%lld)\n",
 		startTime));
 
 	// +++++ rescan latencies?

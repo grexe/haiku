@@ -70,8 +70,8 @@ class BPoseView;
 class Model;
 
 // global variables
-static const rgb_color kBlack = {0, 0, 0, 255};
-static const rgb_color kWhite = {255, 255, 255 ,255};
+static const rgb_color kBlack = make_color(0, 0, 0, 255);
+static const rgb_color kWhite = make_color(255, 255, 255 ,255);
 
 const int64 kHalfKBSize = 512;
 const int64 kKBSize = 1024;
@@ -518,7 +518,7 @@ inline void PrintDirToStream(const BDirectory*, const char* = 0) {}
 	if (logFile != 0) {														\
 		thread_info info;													\
 		get_thread_info(find_thread(NULL), &info);							\
-		PrintToLogFile("[t %Ld] \"%s\" (%s:%i) ", system_time(),			\
+		PrintToLogFile("[t %lld] \"%s\" (%s:%i) ", system_time(),			\
 			info.name, __FILE__, __LINE__);									\
 		PrintToLogFile _ARGS_;												\
 		PrintToLogFile("\n");												\

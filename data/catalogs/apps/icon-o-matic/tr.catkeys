@@ -1,201 +1,190 @@
-1	turkish	x-vnd.haiku-icon_o_matic	1805671130
+1	turkish	x-vnd.haiku-icon_o_matic	2572445882
 None	Icon-O-Matic-Properties		Yok
-Rotate Path Indices	Icon-O-Matic-RotatePathIndiciesCmd		Yol belirtecini döndür
+Clean up path	Icon-O-Matic-CleanUpPathCmd		Yolu temizle
+16 × 16	Icon-O-Matic-Menu-Settings	The '×' is the Unicode multiplication sign U+00D7	16 × 16
 Add empty	Icon-O-Matic-ShapesList		Boş ekle
 Opening the icon failed!	Icon-O-Matic-Main		Simge açılamadı!
+Reverse path	Icon-O-Matic-ReversePathCmd		Yolu ters çevir
+Bleep!	Icon-O-Matic-Exporter	Exporter - Continue in error dialog	Bip bip!
 Add with path	Icon-O-Matic-ShapesList		Yol ile ekle
+Paste properties	Icon-O-Matic-Properties		Özellikleri yapıştır
 Copy	Icon-O-Matic-Properties		Kopyala
 Color	Icon-O-Matic-PropertyNames		Renk
 Format	Icon-O-Matic-SavePanel		Biçim
-Move Shapes	Icon-O-Matic-MoveShapesCommand		Şekilleri taşı
 Color	Icon-O-Matic-StyleTypes		Renk
 Select	Icon-O-Matic-Properties		Seç
 Reset transformation	Icon-O-Matic-ShapesList		Dönüşümü sıfırla
 Duplicate	Icon-O-Matic-StylesList		Çoğalt
+32 × 32	Icon-O-Matic-Menu-Settings	The '×' is the Unicode multiplication sign U+00D7	32 × 32
 Rotate	Icon-O-Matic-TransformationBoxStates		Döndür
-Remove Control Points	Icon-O-Matic-RemovePointsCmd		Denetim noktalarını kaldır
 Shorten	Icon-O-Matic-PropertyNames		Kısalt
-Unassign Path	Icon-O-Matic-UnassignPathCmd		Yol atamasını kaldır
+Move {0, plural, one{transformer} other{transformers}}	Icon-O-Matic-MoveTransformersCmd		{0, plural, one{Dönüştürücüyü} other{Dönüştürücüleri}} taşı
 The text you are trying to import is quite long, are you sure?	Icon-O-Matic-StyledTextImport		İçe aktarmaya çalıştığınız metin pek uzun, emin misiniz?
 Paste	Icon-O-Matic-Properties		Yapıştır
-Detect Orient.	Icon-O-Matic-PropertyNames		Yönelimi algıla
-Click on a shape above	Empty transformers list - 1st line		Dönüştürücüleri iliştirmek
+There are too many styles. The HVIF format supports a maximum of 255.	Icon-O-Matic-FlatIconExporter		Pek çok biçem var. HVIF biçimi en çok 255 biçemi destekler.
 Close	Icon-O-Matic-Menu-File		Kapat
 Add rect	Icon-O-Matic-PathsList		Dikdörtgen ekle
 Rotation	Icon-O-Matic-PropertyNames		Döndürme
-Multi Paste Properties	Icon-O-Matic-Properties		Çoklu yapıştır özellikleri
-Bleep!	Exporter - Continue in error dialog		Bip bip!
+Color (#%02x%02x%02x)	Icon-O-Matic-StyledTextImport	Style name after dropping a color	Renk (#%02x%02x%02x)
+BEOS:ICON attribute	Icon-O-Matic-SavePanel		BEOS:ICON özniteliği
 Transform	Icon-O-Matic-PathManipulator		Dönüştür
-Remove Transformer	Icon-O-Matic-RemoveTransformersCmd		Dönüştürücüyü kaldır
-META:ICON Attribute	Icon-O-Matic-SavePanel		META:ICON özniteliği
 Add shape with style	Icon-O-Matic-Menu-Shape		Biçemli şekil ekle
-Assign Path	Icon-O-Matic-AddPathsCmd		Yol ata
-Reset Transformation	Icon-O-Matic-ResetTransformationCmd		Dönüşümü sıfırla
-Transformation	Transformation		Dönüşüm
+Change color	Icon-O-Matic-SetColorCmd		Rengi değiştir
+Remove {0, plural, one{vertex} other{vertices}}	Icon-O-Matic-RemovePointsCmd		{0, plural, one{Tepeciği} other{Tepecikleri}} kaldır
+Unassign path	Icon-O-Matic-UnassignPathCmd		Yol atamasını kaldır
 Remove	Icon-O-Matic-StylesList		Kaldır
 Cancel	Icon-O-Matic-Menu-Settings		Vazgeç
-Assign Style	Icon-O-Matic-AssignStyleCmd		Biçem ata
+PNG set	Icon-O-Matic-SavePanel		PNG ayarlı
 Transformation	Icon-O-Matic-TransformationBoxStates		Dönüşüm
+Move {0, plural, one{path} other{paths}}	Icon-O-Matic-MovePathsCmd		{0, plural, one{Yolu} other{Yolları}} taşı
 Closed	Icon-O-Matic-PropertyNames		Kapalı
-Split Control Point	Icon-O-Matic-SplitPointsCmd		Denetim noktasını ortadan böl
 <nothing to redo>	Icon-O-Matic-Menu-Edit		<yinelenecek bir şey yok>
 Height	Icon-O-Matic-PropertyNames		Yükseklik
-Add Shape	Icon-O-Matic-AddShapesCmd		Şekil ekle
 warning	Icon-O-Matic-SVGExport		uyarı
 File	Icon-O-Matic-Menus		Dosya
-Clean Up Path	Icon-O-Matic-CleanUpPathCmd		Yolu temizle
-Move Style	Icon-O-Matic-MoveStylesCmd		Biçemi taşı
+any of the other lists to	Icon-O-Matic-PropertiesList	Empty property list - 2nd line	burada özelliklerini düzenlemek
 Properties	Icon-O-Matic-Menus		Özellikler
 Path	Icon-O-Matic-PropertyNames		Yol
-Add Control Point	Icon-O-Matic-AddPointCmd		Denetim noktası ekle
 Path	Icon-O-Matic-Menus		Yol
 Stroke	Transformation		Vuruş
 Flip	Icon-O-Matic-PathManipulator		Ters çevir
-Select All	Icon-O-Matic-PathManipulator		Tümünü seç
+edit its properties here.	Icon-O-Matic-PropertiesList	Empty property list - 3rd line	için herhangi bir listeye
+Move pivot	Icon-O-Matic-TransformationBoxStates		Ekseni taşı
 Opacity	Icon-O-Matic-PropertyNames		Opaklık
 OK	Icon-O-Matic-ColorPicker		Tamam
+Multi-set %property%	Icon-O-Matic-Properties	Don't translate %property%	%property% özelliğini çoklu ayarla
 Error: 	Icon-O-Matic-Main		Hata: 
-bad news	Icon-O-Matic-Exporter		kötü haber
+Reset {0, plural, one{transformation} other{transformations}}	Icon-O-Matic-ResetTransformationCmd		{0, plural, one{Dönüşümü} other{Dönüşümleri}} sıfırla
+Assign style	Icon-O-Matic-AssignStyleCmd		Biçem ata
 Saving your document failed!	Icon-O-Matic-Exporter		Belge kaydedilemedi!
 Snap to grid	Icon-O-Matic-Menu-Settings		Izgaraya hizala
 Opening the document failed!	Icon-O-Matic-Main		Belge açılamadı!
-Shape	Icon-O-Matic-Menus		Şekil
+Remove {0, plural, one{style} other{styles}}	Icon-O-Matic-RemoveStylesCmd		{0, plural, one{Biçemi} other{Biçemleri}} kaldır
+One or more of the paths have too many vertices. The HVIF format supports a maximum of 255 vertices per path.	Icon-O-Matic-FlatIconExporter		Bir veya daha çok yolun pek çok tepeciği var. HVIF biçimi yol başına en çok 255 tepecik destekler.
 Add with path & style	Icon-O-Matic-ShapesList		Yol ve biçem ile ekle
+Shape	Icon-O-Matic-Menus		Şekil
+Split {0, plural, one{vertex} other{vertices}}	Icon-O-Matic-SplitPointsCmd		{0, plural, one{Tepeciği} other{Tepecikleri}} böl
 <unavailable>	Icon-O-Matic-StyleTypes		<yok>
+Edit gradient	Icon-O-Matic-SetGradientCmd		Gradyanı düzenle
 Min LOD	Icon-O-Matic-PropertyNames		En düşük ayrıntı düzeyi
-Reverse Path	Icon-O-Matic-ReversePathCmd		Yolu tersine çevir
-Move Transformers	Icon-O-Matic-MoveTransformersCmd		Dönüştürücüleri taşı
+Redo: %action%	Icon-O-Matic-Main		Yinele: %action%
 Add	Icon-O-Matic-TransformersList		Ekle
-Paste Properties	Icon-O-Matic-Properties		Özellik yapıştır
-Undo	Icon-O-Matic-Main		Geri al
 Settings	Icon-O-Matic-Menus		Ayarlar
 Scale X	Icon-O-Matic-PropertyNames		X ölçeği
 Add	Icon-O-Matic-PathsList		Ekle
-Add Styles	Icon-O-Matic-AddStylesCmd		Biçem ekle
+Add {0, plural, one{style} other{styles}}	Icon-O-Matic-AddStylesCmd		{0, plural, one{Biçem} other{Biçemler}} ekle
 Remove	Icon-O-Matic-PathManipulator		Kaldır
 Duplicate	Icon-O-Matic-ShapesList		Çoğalt
+Alpha	Icon-O-Matic-PropertyNames		Alfa
 Contour	Transformation		Kontur
-Perspective	Icon-O-Matic-TransformersList		Perspektif
-Save icon	Dialog title		Simgeyi kaydet
-Move Paths	Icon-O-Matic-MovePathsCmd		Yolları taşı
+Add {0, plural, one{transformer} other{transformers}}	Icon-O-Matic-AddTransformersCmd		{0, plural, one{Dönüşümcü} other{Dönüşümcüler}} ekle
+Miter limit	Icon-O-Matic-PropertyNames		Gönye sınırı
+Insert vertex	Icon-O-Matic-InsertPointCmd		Tepecik ekle
 Rounding	Icon-O-Matic-PropertyNames		Yuvarlatma
 Joins	Icon-O-Matic-PropertyNames		Ek yerleri
+There are too many shapes. The HVIF format supports a maximum of 255.	Icon-O-Matic-FlatIconExporter		Pek çok şekil var. HVIF biçimi en çok 255 şekli destekler.
 Cancel	Icon-O-Matic-ColorPicker		Vazgeç
 Duplicate	Icon-O-Matic-PathsList		Çoğalt
-Remove Shapes	Icon-O-Matic-RemoveShapesCmd		Şekilleri kaldır
+Move {0, plural, one{shape} other{shapes}}	Icon-O-Matic-MoveShapesCommand		{0, plural, one{Şekli} other{Şekilleri}} taşı
 Save	Icon-O-Matic-Menu-Settings		Kaydet
+Click on an object in	Icon-O-Matic-PropertiesList	Empty property list - 1st line	Şuradaki bir nesneye tıkla:
 Export as…	Icon-O-Matic-Menu-File		Dışa aktar…
-Error: 	Icon-O-Matic-Exporter		Hata: 
-Move Path	Icon-O-Matic-MovePathsCmd		Yol taşı
-Remove Paths	Icon-O-Matic-RemovePathsCmd		Yolları kaldır
-Assign Paths	Icon-O-Matic-AddPathsCmd		Yol ata
+Freeze {0, plural, one{shape} other{shapes}}	Icon-O-Matic-FreezeTransformationCmd		{0, plural, one{Şekli} other{Şekilleri}} dondur
+Remove {0, plural, one{shape} other{shapes}}	Icon-O-Matic-RemoveShapesCmd		{0, plural, one{Şekli} other{Şekilleri}} kaldır
+Undo: %action%	Icon-O-Matic-Main		Geri al: %action%
 Diamond	Icon-O-Matic-StyleTypes		Elmas
-Add Style	Icon-O-Matic-AddStylesCmd		Biçem ekle
-Nudge Control Points	Icon-O-Matic-NudgePointsCommand		Denetim noktalarını yokla
-Move Styles	Icon-O-Matic-MoveStylesCmd		Biçemleri taşı
 Don't save	Icon-O-Matic-Menu-Settings		Kaydetme
 Add shape with path	Icon-O-Matic-Menu-Shape		Yol içeren şekil ekle
+Bummer	Icon-O-Matic-Main	Cancel button - error alert	Tüh
 Translation X	Icon-O-Matic-PropertyNames		X çevirisi
-Flip Control Points	Icon-O-Matic-FlipPointsCmd		Denetim noktalarını ters çevir
-Add Transformers	Icon-O-Matic-AddTransformersCmd		Dönüştürücüler ekle
-BEOS:ICON Attribute	Icon-O-Matic-SavePanel		BEOS:ICON özniteliği
+Multi-paste properties	Icon-O-Matic-Properties		Çoklu yapıştır özellikleri
 Icon-O-Matic might not have interpreted all data from the SVG when it was loaded. By overwriting the original file, this information would now be lost.	Icon-O-Matic-SVGExport		Icon-O-Matic, SVG dosyasından okuduğu veriyi yorumlayamamış olabilir. Özgün dosyanın üzerine yazarak bu veriyi tümüyle kaybedebilirsiniz.
 Rotate indices backwards	Icon-O-Matic-PathsList		Belirticileri geriye doğru döndür
 Overwrite	Icon-O-Matic-SVGExport		Üzerine yaz
-Modify Control Point	Icon-O-Matic-ChangePointCmd		Denetim noktasını değiştir
+Add {0, plural, one{shape} other{shapes}}	Icon-O-Matic-AddShapesCmd		{0, plural, one{Şekil} other{Şekiller}} ekle
 Cancel	Icon-O-Matic-SVGExport		Vazgeç
 Open…	Icon-O-Matic-Menu-File		Aç…
-Redo	Icon-O-Matic-Main		Yinele
-Change Color	Icon-O-Matic-SetColorCmd		Renk değiştir
+Remove {0, plural, one{transformer} other{transformers}}	Icon-O-Matic-RemoveTransformersCmd		{0, plural, one{Dönüşümcüyü} other{Dönüşümcüleri}} kaldır
+Click on a shape above	Icon-O-Matic-TransformersList	Empty transformers list - 1st line	Yukarıdaki bir şekle tıkla
 Remove	Icon-O-Matic-ShapesList		Kaldır
+Multi-paste	Icon-O-Matic-Properties		Çoklu yapıştır
+Bad news	Title of error alert		Kötü haber
+HVIF source code	Icon-O-Matic-SavePanel		HVIF kaynak kodu
 Drop shapes	Icon-O-Matic-ShapesList		Şekilleri bırak
-PNG Set	Icon-O-Matic-SavePanel		PNG kümesi
-to attach transformers.	Empty transformers list - 2nd line		için bir şekle tıklayın.
+Save icon	Icon-O-Matic-SavePanel	Dialog title	Simgeyi kaydet
+Assign {0, plural, one{path} other{paths}}	Icon-O-Matic-AddPathsCmd		{0, plural, one{Yol} other{Yollar}} ata
+Remove {0, plural, one{item} other{items}}	Icon-O-Matic-RemoveItemsCmd		{0, plural, one{Ögeyi} other{Ögeleri}} kaldır
 Linear	Icon-O-Matic-StyleTypes		Doğrusal
-any of the other lists to	Empty property list - 2nd line		özelliklerini düzenlemek
-Nudge Control Point	Icon-O-Matic-NudgePointsCommand		Denetim noktalarını yokla
-Flip Control Point	Icon-O-Matic-FlipPointsCmd		Denetim noktasını ters çevir
-Add Paths	Icon-O-Matic-AddPathsCmd		Yol ekle
-Color (#%02x%02x%02x)	Style name after dropping a color		Renk (#%02x%02x%02x)
+Move {0, plural, one{item} other{items}}	Icon-O-Matic-MoveItemsCmd		{0, plural, one{Ögeyi} other{Ögeleri}} taşı
+Add vertex	Icon-O-Matic-AddPointCmd		Tepecik ekle
 Clean up	Icon-O-Matic-PathsList		Temizle
-Remove Style	Icon-O-Matic-RemoveStylesCmd		Biçem kaldır
 Split	Icon-O-Matic-PathManipulator		Ortadan böl
 Move	Icon-O-Matic-TransformationBoxStates		Taşı
-Reset Transformations	Icon-O-Matic-ResetTransformationCmd		Dönüşümleri sıfırla
-Split Control Points	Icon-O-Matic-SplitPointsCmd		Denetim noktalarını ortadan böl
-Remove Control Point	Icon-O-Matic-RemovePointsCmd		Denetim noktasını kaldır
+There are too many paths. The HVIF format supports a maximum of 255.	Icon-O-Matic-FlatIconExporter		Pek çok yol var. HVIF biçimi en çok 255 yolu destekler.
 Conic	Icon-O-Matic-StyleTypes		Konik
 Name	Icon-O-Matic-PropertyNames		Ad
-Multi paste	Icon-O-Matic-Properties		Çoklu yapıştır
-Add Shapes	Icon-O-Matic-AddShapesCmd		Şekil ekle
 Reset transformation	Icon-O-Matic-StylesList		Dönüşümü sıfırla
-Add Transformer	Icon-O-Matic-AddTransformersCmd		Dönüştürücü ekle
 Reverse	Icon-O-Matic-PathsList		Geri
-Move Pivot	Icon-O-Matic-TransformationBoxStates		Ekseni taşı
 Remove	Icon-O-Matic-PathsList		Kaldır
-Remove Transformers	Icon-O-Matic-RemoveTransformersCmd		Dönüştürücüleri kaldır
+64 × 64	Icon-O-Matic-Menu-Settings	The '×' is the Unicode multiplication sign U+00D7	64 × 64
+Load error	Icon-O-Matic-SVGImport		Yükleme hatası
 Style type	Icon-O-Matic-StyleTypes		Biçem türü
 Quit	Icon-O-Matic-Menu-File		Çık
-Remove Styles	Icon-O-Matic-RemoveStylesCmd		Biçemleri kaldır
+One or more of the shapes have too many transformers. The HVIF format supports a maximum of 255 transformers per shape.	Icon-O-Matic-FlatIconExporter		Bir veya daha çok şeklin pek çok dönüştürücüsü var. HVIF biçimi şekil başına en çok 255 dönüştürücüyü destekler.
 Gradient	Icon-O-Matic-StyleTypes		Gradyan
-bad news	Title of error alert		kötü haber
-Insert Control Point	Icon-O-Matic-InsertPointCmd		Denetim noktası ekle
+Color (#%02x%02x%02x)	Icon-O-Matic-Main	Style name after dropping a color	Renk (#%02x%02x%02x)
+Detect orient.	Icon-O-Matic-PropertyNames		Yönü belirleyin.
+Add {0, plural, one{path} other{paths}}	Icon-O-Matic-AddPathsCmd		{0, plural, one{Yol} other{Yollar}} ekle
+One or more of the shapes has too many paths. The HVIF format supports a maximum of 255 paths per shape.	Icon-O-Matic-FlatIconExporter		Bir veya daha çok şeklin pek çok yolu var. HVIF biçimi şekil başına en çok 255 yolu destekler.
 Add shape with path & style	Icon-O-Matic-Menu-Shape		Yol ve biçem içeren şekil ekle
-Move Shape	Icon-O-Matic-MoveShapesCommand		Şekli taşı
 Radial	Icon-O-Matic-StyleTypes		Radyal
 Text too long	Icon-O-Matic-StyledTextImport		Metin çok uzun
 Caps	Icon-O-Matic-PropertyNames		Bykh
 OK	Icon-O-Matic-SVGImport		Tamam
+Import text	Icon-O-Matic-StyledTextImport		Metin içe aktar
 Append…	Icon-O-Matic-Menu-File		İliştir…
 Scale Y	Icon-O-Matic-PropertyNames		Y ölçeği
-Export icon	Dialog title		Simgeyi dışa aktar
-Color (#%02x%02x%02x)	Icon-O-Matic-StyledTextImport		Renk (#%02x%02x%02x)
-Edit Gradient	Icon-O-Matic-SetGradientCmd		Gradyanı düzenle
-Set 	Set (property name)		Ayarla: 
+Export icon	Icon-O-Matic-SavePanel	Dialog title	Simgeyi dışa aktar
+Rotate path indices	Icon-O-Matic-RotatePathIndiciesCmd		Yol indislerini döndür
+Add {0, plural, one{item} other{items}}	Icon-O-Matic-AddItemsCmd		{0, plural, one{Öge} other{Ögeler}} ekle
 Rotate indices forwards	Icon-O-Matic-PathsList		Belirticileri ileri doğru döndür
-Click on an object in	Empty property list - 1st line		Listelerdeki nesnelerin
 Save	Icon-O-Matic-Menu-File		Kaydet
-No	Icon-O-Matic-StyledTextImport		Hayır
+Cancel	Icon-O-Matic-StyledTextImport		Vazgeç
 Add circle	Icon-O-Matic-PathsList		Daire ekle
 Freeze transformation	Icon-O-Matic-ShapesList		Dönüşümü dondur
-Freeze Shapes	Icon-O-Matic-FreezeTransformationCmd		Şekilleri dondur
-Miter Limit	Icon-O-Matic-PropertyNames		Gönye limiti
+META:ICON attribute	Icon-O-Matic-SavePanel		META:ICON özniteliği
 Untitled	Icon-O-Matic-Main		Adsız
 Max LOD	Icon-O-Matic-PropertyNames		En yüksek ayrıntı düzeyi
-Add Path	Icon-O-Matic-AddPathsCmd		Yol ekle
 Save changes to current icon before closing?	Icon-O-Matic-Menu-Settings		Kapatmadan önce değişiklikler kaydedilsin mi?
 Failed to open the file '%s' as an SVG document.\n\n	Icon-O-Matic-SVGImport		'%s' dosyası bir SVG belgesi olarak açılamadı.\n\n
-load error	Icon-O-Matic-SVGImport		yükleme hatası
-Transformation	Icon-O-Matic-TransformersList		Dönüşüm
 Save as…	Icon-O-Matic-Menu-File		Farklı kaydet…
 Swatches	Icon-O-Matic-Menus		Örnekler
 <modify path>	Icon-O-Matic-PathCmd		<yol düzenle>
-HVIF Source Code	Icon-O-Matic-SavePanel		HVIF kaynak kodu
+Set %property%	Icon-O-Matic-Properties	Don't translate %property%	Ayarla: %property%
 Icon-O-Matic	System name		Icon-O-Matic
 <nothing to undo>	Icon-O-Matic-Menu-Edit		<geri alınacak bir şey yok>
+Remove {0, plural, one{path} other{paths}}	Icon-O-Matic-RemovePathsCmd		{0, plural, one{Yolu} other{Yolları}} kaldır
 Add	Icon-O-Matic-StylesList		Ekle
 Translation Y	Icon-O-Matic-PropertyNames		Y çevirisi
-Freeze Shape	Icon-O-Matic-FreezeTransformationCmd		Şekli dondur
+Modify vertex	Icon-O-Matic-ChangePointCmd		Tepeciği düzenle
+Move {0, plural, one{style} other{styles}}	Icon-O-Matic-MoveStylesCmd		{0, plural, one{Biçemi} other{Biçemleri}} taşı
 Scale	Icon-O-Matic-TransformationBoxStates		Ölçek
-Remove Shape	Icon-O-Matic-RemoveShapesCmd		Şekli kaldır
 All	Icon-O-Matic-Properties		Tümü
 Transformer	Icon-O-Matic-Menus		Dönüştürücü
+Flip {0, plural, one{vertex} other{vertices}}	Icon-O-Matic-FlipPointsCmd		{0, plural, one{Tepeciği} other{Tepecikleri}} ters döndür
 Invert selection	Icon-O-Matic-Properties		Seçimi ters çevir
+to attach transformers.	Icon-O-Matic-TransformersList	Empty transformers list - 2nd line	dönüşümcüleri iliştirmek için.
 <unkown property>	Icon-O-Matic-PropertyNames		<bilinmeyen özellik>
 Pick a color	Icon-O-Matic-ColorPicker		Renk seçin
-Multi Set 	Multi Set (property name)		Çoklu set 
 Settings…	Icon-O-Matic-SavePanel		Ayarlar…
+Select all	Icon-O-Matic-PathManipulator		Tümünü seç
 Add with style	Icon-O-Matic-ShapesList		Biçem ile ekle
 New	Icon-O-Matic-Menu-File		Yeni
-Yes	Icon-O-Matic-StyledTextImport		Evet
-Remove Path	Icon-O-Matic-RemovePathsCmd		Yolu kaldır
+Nudge {0, plural, one{vertex} other{vertices}}	Icon-O-Matic-NudgePointsCommand		{0, plural, one{Tepeciği} other{Tepecikleri}} yokla
 Gradient type	Icon-O-Matic-StyleTypes		Gradyan türü
-Move Transformer	Icon-O-Matic-MoveTransformersCmd		Dönüştürücüyü taşı
-Perspective	Transformation		Perspektif
 Export	Icon-O-Matic-Menu-File		Dışa aktar
 Width	Icon-O-Matic-PropertyNames		Genişlik
-Bummer	Cancel button - error alert		Hay aksi
+Add reference image	Icon-O-Matic-ShapesList		Başvuru görsel ekle
 Style	Icon-O-Matic-Menus		Biçem
-edit it's properties here.	Empty property list - 3rd line		için üzerine tıklayın.
 Off	Icon-O-Matic-Menu-Settings		Kapalı
 Edit	Icon-O-Matic-Menus		Düzen

@@ -1,6 +1,10 @@
 /*
  * Copyright 2006-2012, Stephan Aßmus <superstippi@gmx.de>.
+ * Copyright 2023, Haiku.
  * All rights reserved. Distributed under the terms of the MIT License.
+ *
+ * Authors:
+ *		Zardshard
  */
 
 
@@ -25,12 +29,12 @@
 #include "CommandStack.h"
 #include "GradientTransformable.h"
 #include "MoveStylesCommand.h"
+#include "PathSourceShape.h"
 #include "RemoveStylesCommand.h"
 #include "Style.h"
 #include "Observer.h"
 #include "ResetTransformationCommand.h"
 #include "Shape.h"
-#include "ShapeContainer.h"
 #include "Selection.h"
 #include "Util.h"
 
@@ -196,7 +200,7 @@ private:
 
 
 class ShapeStyleListener : public ShapeListener,
-	public ShapeContainerListener {
+	public ContainerListener<Shape> {
 public:
 	ShapeStyleListener(StyleListView* listView)
 		:
@@ -225,18 +229,18 @@ public:
 		fListView->_SetStyleMarked(newStyle, true);
 	}
 
-	// ShapeContainerListener interface
-	virtual void ShapeAdded(Shape* shape, int32 index)
+	// ContainerListener<Shape> interface
+	virtual void ItemAdded(Shape* shape, int32 index)
 	{
 	}
 
-	virtual void ShapeRemoved(Shape* shape)
+	virtual void ItemRemoved(Shape* shape)
 	{
 		fListView->SetCurrentShape(NULL);
 	}
 
 	// ShapeStyleListener
-	void SetShape(Shape* shape)
+	void SetShape(PathSourceShape* shape)
 	{
 		if (fShape == shape)
 			return;
@@ -250,14 +254,14 @@ public:
 			fShape->AddListener(this);
 	}
 
-	Shape* CurrentShape() const
+	PathSourceShape* CurrentShape() const
 	{
 		return fShape;
 	}
 
 private:
-	StyleListView*	fListView;
-	Shape*			fShape;
+	StyleListView*		fListView;
+	PathSourceShape*	fShape;
 };
 
 
@@ -432,48 +436,31 @@ StyleListView::MouseDown(BPoint where)
 }
 
 
-void
-StyleListView::MakeDragMessage(BMessage* message) const
+status_t
+StyleListView::ArchiveSelection(BMessage* into, bool deep) const
 {
-	SimpleListView::MakeDragMessage(message);
-	message->AddPointer("container", fStyleContainer);
+	into->what = StyleListView::kSelectionArchiveCode;
+
 	int32 count = CountSelectedItems();
 	for (int32 i = 0; i < count; i++) {
 		StyleListItem* item = dynamic_cast<StyleListItem*>(
 			ItemAt(CurrentSelection(i)));
 		if (item != NULL) {
-			message->AddPointer("style", (void*)item->style);
 			BMessage archive;
 			if (item->style->Archive(&archive, true) == B_OK)
-				message->AddMessage("style archive", &archive);
+				into->AddMessage("style", &archive);
 		} else
-			break;
+			return B_ERROR;
 	}
+	return B_OK;
 }
 
 
 bool
-StyleListView::AcceptDragMessage(const BMessage* message) const
+StyleListView::InstantiateSelection(const BMessage* archive, int32 dropIndex)
 {
-	return SimpleListView::AcceptDragMessage(message);
-}
-
-
-void
-StyleListView::SetDropTargetRect(const BMessage* message, BPoint where)
-{
-	SimpleListView::SetDropTargetRect(message, where);
-}
-
-
-bool
-StyleListView::HandleDropMessage(const BMessage* message, int32 dropIndex)
-{
-	// Let SimpleListView handle drag-sorting (when drag came from ourself)
-	if (SimpleListView::HandleDropMessage(message, dropIndex))
-		return true;
-
-	if (fCommandStack == NULL || fStyleContainer == NULL)
+	if (archive->what != StyleListView::kSelectionArchiveCode
+		|| fCommandStack == NULL || fStyleContainer == NULL)
 		return false;
 
 	// Drag may have come from another instance, like in another window.
@@ -482,13 +469,13 @@ StyleListView::HandleDropMessage(const BMessage* message, int32 dropIndex)
 	int index = 0;
 	BList styles;
 	while (true) {
-		BMessage archive;
-		if (message->FindMessage("style archive", index, &archive) != B_OK)
+		BMessage styleArchive;
+		if (archive->FindMessage("style", index, &styleArchive) != B_OK)
 			break;
-		Style* style = new(std::nothrow) Style(&archive);
+		Style* style = new(std::nothrow) Style(&styleArchive);
 		if (style == NULL)
 			break;
-		
+
 		if (!styles.AddItem(style)) {
 			delete style;
 			break;
@@ -501,8 +488,8 @@ StyleListView::HandleDropMessage(const BMessage* message, int32 dropIndex)
 	if (count == 0)
 		return false;
 
-	AddStylesCommand* command = new(std::nothrow) AddStylesCommand(
-		fStyleContainer, (Style**)styles.Items(), count, dropIndex);
+	AddCommand<Style>* command = new(std::nothrow) AddCommand<Style>(
+		fStyleContainer, (Style**)styles.Items(), count, true, dropIndex);
 
 	if (command == NULL) {
 		for (int32 i = 0; i < count; i++)
@@ -559,9 +546,8 @@ StyleListView::CopyItems(BList& items, int32 toIndex)
 		styles[i] = item ? new (nothrow) Style(*item->style) : NULL;
 	}
 
-	AddStylesCommand* command
-		= new (nothrow) AddStylesCommand(fStyleContainer,
-										 styles, count, toIndex);
+	AddCommand<Style>* command
+		= new (nothrow) AddCommand<Style>(fStyleContainer, styles, count, true, toIndex);
 	if (!command) {
 		for (int32 i = 0; i < count; i++)
 			delete styles[i];
@@ -579,19 +565,12 @@ StyleListView::RemoveItemList(BList& items)
 		return;
 
 	int32 count = items.CountItems();
-	Style* styles[count];
-	for (int32 i = 0; i < count; i++) {
-		StyleListItem* item = dynamic_cast<StyleListItem*>(
-			(BListItem*)items.ItemAtFast(i));
-		if (item)
-			styles[i] = item->style;
-		else
-			styles[i] = NULL;
-	}
+	int32 indices[count];
+	for (int32 i = 0; i < count; i++)
+		indices[i] = IndexOf((BListItem*)items.ItemAtFast(i));
 
 	RemoveStylesCommand* command
-		= new (nothrow) RemoveStylesCommand(fStyleContainer,
-											styles, count);
+		= new (nothrow) RemoveStylesCommand(fStyleContainer, indices, count);
 	fCommandStack->Perform(command);
 }
 
@@ -639,7 +618,7 @@ StyleListView::SelectableFor(BListItem* item) const
 
 
 void
-StyleListView::StyleAdded(Style* style, int32 index)
+StyleListView::ItemAdded(Style* style, int32 index)
 {
 	// NOTE: we are in the thread that messed with the
 	// StyleContainer, so no need to lock the
@@ -656,7 +635,7 @@ StyleListView::StyleAdded(Style* style, int32 index)
 
 
 void
-StyleListView::StyleRemoved(Style* style)
+StyleListView::ItemRemoved(Style* style)
 {
 	// NOTE: we are in the thread that messed with the
 	// StyleContainer, so no need to lock the
@@ -710,7 +689,7 @@ StyleListView::SetMenu(BMenu* menu)
 
 
 void
-StyleListView::SetStyleContainer(StyleContainer* container)
+StyleListView::SetStyleContainer(Container<Style>* container)
 {
 	if (fStyleContainer == container)
 		return;
@@ -729,14 +708,14 @@ StyleListView::SetStyleContainer(StyleContainer* container)
 	fStyleContainer->AddListener(this);
 
 	// sync
-	int32 count = fStyleContainer->CountStyles();
+	int32 count = fStyleContainer->CountItems();
 	for (int32 i = 0; i < count; i++)
-		_AddStyle(fStyleContainer->StyleAtFast(i), i);
+		_AddStyle(fStyleContainer->ItemAtFast(i), i);
 }
 
 
 void
-StyleListView::SetShapeContainer(ShapeContainer* container)
+StyleListView::SetShapeContainer(Container<Shape>* container)
 {
 	if (fShapeContainer == container)
 		return;
@@ -769,11 +748,13 @@ StyleListView::SetCurrentColor(CurrentColor* color)
 void
 StyleListView::SetCurrentShape(Shape* shape)
 {
-	if (fCurrentShape == shape)
+	PathSourceShape* pathSourceShape = dynamic_cast<PathSourceShape*>(shape);
+
+	if (fCurrentShape == pathSourceShape)
 		return;
 
-	fCurrentShape = shape;
-	fShapeListener->SetShape(shape);
+	fCurrentShape = pathSourceShape;
+	fShapeListener->SetShape(pathSourceShape);
 
 	_UpdateMarks();
 }

@@ -219,20 +219,6 @@ trim_device(das_driver_info* device, fs_trim_data* trimData)
 }
 
 
-static int
-log2(uint32 x)
-{
-	int y;
-
-	for (y = 31; y >= 0; --y) {
-		if (x == ((uint32)1 << y))
-			break;
-	}
-
-	return y;
-}
-
-
 static status_t
 do_io(void* cookie, IOOperation* operation)
 {
@@ -322,56 +308,6 @@ das_free(void* cookie)
 	sSCSIPeripheral->handle_free(handle->scsi_periph_handle);
 	free(handle);
 	return B_OK;
-}
-
-
-static status_t
-das_read(void* cookie, off_t pos, void* buffer, size_t* _length)
-{
-	das_handle* handle = (das_handle*)cookie;
-	size_t length = *_length;
-
-	IORequest request;
-	status_t status = request.Init(pos, (addr_t)buffer, length, false, 0);
-	if (status != B_OK)
-		return status;
-
-	status = handle->info->io_scheduler->ScheduleRequest(&request);
-	if (status != B_OK)
-		return status;
-
-	status = request.Wait(0, 0);
-	if (status == B_OK)
-		*_length = length;
-	else
-		dprintf("das_read(): request.Wait() returned: %s\n", strerror(status));
-
-	return status;
-}
-
-
-static status_t
-das_write(void* cookie, off_t pos, const void* buffer, size_t* _length)
-{
-	das_handle* handle = (das_handle*)cookie;
-	size_t length = *_length;
-
-	IORequest request;
-	status_t status = request.Init(pos, (addr_t)buffer, length, true, 0);
-	if (status != B_OK)
-		return status;
-
-	status = handle->info->io_scheduler->ScheduleRequest(&request);
-	if (status != B_OK)
-		return status;
-
-	status = request.Wait(0, 0);
-	if (status == B_OK)
-		*_length = length;
-	else
-		dprintf("das_write(): request.Wait() returned: %s\n", strerror(status));
-
-	return status;
 }
 
 
@@ -474,12 +410,6 @@ das_set_capacity(das_driver_info* info, uint64 capacity, uint32 blockSize, uint3
 {
 	TRACE("das_set_capacity(device = %p, capacity = %" B_PRIu64
 		", blockSize = %" B_PRIu32 ")\n", info, capacity, blockSize);
-
-	// get log2, if possible
-	uint32 blockShift = log2(blockSize);
-
-	if ((1UL << blockShift) != blockSize)
-		blockShift = 0;
 
 	info->capacity = capacity;
 
@@ -704,8 +634,8 @@ struct device_module_info sSCSIDiskDevice = {
 	das_open,
 	das_close,
 	das_free,
-	das_read,
-	das_write,
+	NULL,	// read
+	NULL,	// write
 	das_io,
 	das_ioctl,
 

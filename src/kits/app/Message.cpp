@@ -684,11 +684,11 @@ BMessage::_PrintToStream(const char* indent) const
 					break;
 
 				case B_INT64_TYPE:
-					print_type<int64>("int64(0x%Lx or %Ld)\n", pointer);
+					print_type<int64>("int64(0x%Lx or %lld)\n", pointer);
 					break;
 
 				case B_UINT64_TYPE:
-					print_type<uint64>("uint64(0x%Lx or %Ld)\n", pointer);
+					print_type<uint64>("uint64(0x%Lx or %lld)\n", pointer);
 					break;
 
 				case B_BOOL_TYPE:
@@ -2648,6 +2648,7 @@ BMessage::Set##typeName(const char* name, const type& value)				\
 DEFINE_SET_GET_BY_REFERENCE_FUNCTIONS(BPoint, Point, B_POINT_TYPE);
 DEFINE_SET_GET_BY_REFERENCE_FUNCTIONS(BRect, Rect, B_RECT_TYPE);
 DEFINE_SET_GET_BY_REFERENCE_FUNCTIONS(BSize, Size, B_SIZE_TYPE);
+DEFINE_SET_GET_BY_REFERENCE_FUNCTIONS(BAlignment, Alignment, B_ALIGNMENT_TYPE);
 
 #undef DEFINE_SET_GET_BY_REFERENCE_FUNCTIONS
 

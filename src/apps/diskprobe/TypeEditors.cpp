@@ -689,7 +689,7 @@ NumberEditor::_Format(char *buffer)
 			return B_OK;
 		case B_INT64_TYPE:
 		case B_OFF_T_TYPE:
-			strcpy(buffer, "%Ld");
+			strcpy(buffer, "%lld");
 			return B_OK;
 		case B_UINT64_TYPE:
 			strcpy(buffer, "%Lu");
@@ -1079,7 +1079,8 @@ ImageView::_UpdateImage()
 				colorSpace = B_TRANSLATE("Unknown format");
 				break;
 		}
-		snprintf(buffer, sizeof(buffer), "%s, %g x %g, %s", type,
+		snprintf(buffer, sizeof(buffer), B_TRANSLATE_COMMENT("%s, %g × %g, %s",
+			"The '×' is the Unicode multiplication sign U+00D7"), type,
 			fBitmap->Bounds().Width() + 1, fBitmap->Bounds().Height() + 1,
 			colorSpace);
 		fDescriptionView->SetText(buffer);

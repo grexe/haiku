@@ -130,7 +130,7 @@ void ValControlDigitSegment::setValue(
 //	int64 nLowPow = m_scaleFactor ? (int64)pow(10.0, abs(m_scaleFactor)) : 1;
 //	int64 nHighPow = (int64)pow(10.0, m_digitCount);
 //
-////	printf("  lowPow %Ld, highPow %Ld\n", nLowPow, nHighPow);
+////	printf("  lowPow %lld, highPow %lld\n", nLowPow, nHighPow);
 //
 //	double dfTemp = bMult ? dfValue * nLowPow : dfValue / nLowPow;
 ////	printf("  -> %.8lf\n", dfTemp);
@@ -149,9 +149,9 @@ void ValControlDigitSegment::setValue(
 //	else
 //		nLocal = (int64)dfTemp;
 //
-////	printf("  -> %Ld\n", nLocal);
+////	printf("  -> %lld\n", nLocal);
 //	nLocal %= nHighPow;
-////	printf("  -> %Ld\n", nLocal);
+////	printf("  -> %lld\n", nLocal);
 //
 //	if(nLocal != m_value || m_negative != m_bWasNegative) {
 //		m_value = nLocal;
@@ -367,7 +367,7 @@ ValControlDigitSegment::ValControlDigitSegment(BMessage* pArchive) :
 	m_digitPadding(0.0) {
 
 	// #/digits
-	status_t err = pArchive->FindInt16("digits", (int16*)&m_digitCount);
+	status_t err __attribute__((unused)) = pArchive->FindInt16("digits", (int16*)&m_digitCount);
 	ASSERT(err == B_OK);
 
 	// current value

@@ -113,7 +113,7 @@ local textDocumentSources =
 
 local applicationSources =
 	App.cpp
-	BarberPole.cpp
+	AccessToken.cpp
 	BitmapView.cpp
 	Captcha.cpp
 	CreateUserDetail.cpp
@@ -125,6 +125,7 @@ local applicationSources =
 	IconTarPtr.cpp
 	IncrementViewCounterProcess.cpp
 	JobStateListener.cpp
+	JwtTokenHelper.cpp
 	LanguageModel.cpp
 	LinkView.cpp
 	LinkedBitmapView.cpp
@@ -202,6 +203,7 @@ local applicationSources =
 	PackageUtils.cpp
 	RepositoryUrlUtils.cpp
 	StorageUtils.cpp
+	StringUtils.cpp
 	LoggingUrlProtocolListener.cpp
 
 	# package_daemon

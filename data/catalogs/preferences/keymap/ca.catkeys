@@ -1,4 +1,4 @@
-1	catalan; valencian	x-vnd.Haiku-Keymap	2850776429
+1	catalan; valencian	x-vnd.Haiku-Keymap	2618211193
 Key	Modifier keys window	As in a computer keyboard key	Tecla
 Japanese	KeymapNames		Japonès
 US	KeymapNames		EUA
@@ -21,17 +21,18 @@ Turkish (Type-F)	KeymapNames		Turc (Tipus-F)
 Serbian (Cyrillic)	KeymapNames		Sèrbi (Cyrillic)
 Belgian (point)	KeymapNames		Belga (punt)
 Finnish	KeymapNames		Acaba
-Num lock	Keyboard Layout View		Bloqueig numèric
+Num lock	Keyboard Layout View		Blocatge numèric
 Switch shortcut keys to Windows/Linux mode	Keymap window		Canvia les tecles de drecera al mode de Windows / Linux
 Spanish (Dvorak)	KeymapNames		Espanyol (Dvorak)
 Option	Keyboard Layout View	Option key	Opció
-Scroll lock	Keyboard Layout View		Bloqueig de desplaçament
+Scroll lock	Keyboard Layout View		Blocatge de desplaçament
 US-International	KeymapNames		US-Internacional
 Right option	Keyboard Layout View		Opció dreta
 Turkish (Type-Q)	KeymapNames		Turc (Tipus-Q)
 Revert	Modifier keys window		Reverteix
+Caps:	Modifier keys window	Caps key role name	Maj.:
 Slovak	KeymapNames		Eslovac
-CAPS LOCK	Keyboard Layout View		BLOQUEIG DE MAJÚSCULES
+CAPS LOCK	Keyboard Layout View		BLOCATGE DE MAJÚSCULES
 Colemak	KeymapNames		Colemak
 Dvorak (programmer's)	KeymapNames		Dvorak (del programador)
 PRINT	Keyboard Layout View		IMPRIMEIX
@@ -91,7 +92,7 @@ Belarusian	KeymapNames		Bielorús
 Warning: left and right key roles do not match	Modifier keys window		Avís: les funcions de la tecla esquerra i dreta no coincideixen.
 Circumflex trigger	Keymap window		Accent circumflex
 Fizzbook NL2	KeyboardLayoutNames		Fizzbook NL2
-Caps lock	Keyboard Layout View		Bloqueig de majúscules
+Caps lock	Keyboard Layout View		Blocatge de majúscules
 Left shift	Keyboard Layout View		Maj. de l'esquerra
 Russian (Yawert)	KeymapNames		Rus (Yawert)
 ThinkPad X100e International	KeyboardLayoutNames		ThinkPad X100e Internacional
@@ -149,12 +150,13 @@ ThinkPad International	KeyboardLayoutNames		ThinkPad Internacional
 Apple Aluminum Extended (US)	KeyboardLayoutNames		Apple Aluminum Extended (US)
 Switch shortcut keys	Keymap window		Canvia les tecles de drecera
 Right command	Keyboard Layout View		Comandament dret
-NUM LOCK	Keyboard Layout View		BLOQUEIG NÚM.
+NUM LOCK	Keyboard Layout View		BLOCATGE NÚM.
 MENU	Keyboard Layout View		MENÚ
 Belgian (comma)	KeymapNames		Belga (coma)
 Norwegian	KeymapNames		Noruec
 Font	Keymap window		Tipus de lletra
 Danish	KeymapNames		Danès
+Caps key	Modifier keys window	Label of key above Shift, usually Caps Lock	Tecla de majúscules
 Generic 104-key	KeyboardLayoutNames		Genèric de 104 tecles
 Shift key	Modifier keys window	Label of key above Ctrl, usually Shift	Tecla de majúscules
 Russian	KeymapNames		Rus

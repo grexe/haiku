@@ -1,9 +1,10 @@
 /*
- * Copyright 2006, Haiku. All rights reserved.
+ * Copyright 2006, 2023, Haiku. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
  *		Stephan Aßmus <superstippi@gmx.de>
+ *		Zardshard
  */
 
 #include "MessageExporter.h"
@@ -13,12 +14,13 @@
 #include <Message.h>
 #include <TypeConstants.h>
 
+#include "Container.h"
 #include "Defines.h"
 #include "Icon.h"
-#include "PathContainer.h"
+#include "PathSourceShape.h"
+#include "ReferenceImage.h"
 #include "Shape.h"
 #include "Style.h"
-#include "StyleContainer.h"
 #include "Transformer.h"
 #include "VectorPath.h"
 
@@ -39,15 +41,15 @@ MessageExporter::Export(const Icon* icon, BPositionIO* stream)
 	status_t ret = B_OK;
 	BMessage archive;
 
-	PathContainer* paths = icon->Paths();
-	StyleContainer* styles = icon->Styles();
+	const Container<VectorPath>* paths = icon->Paths();
+	const Container<Style>* styles = icon->Styles();
 
 	// paths
 	if (ret == B_OK) {
 		BMessage allPaths;
-		int32 count = paths->CountPaths();
+		int32 count = paths->CountItems();
 		for (int32 i = 0; i < count; i++) {
-			VectorPath* path = paths->PathAtFast(i);
+			VectorPath* path = paths->ItemAtFast(i);
 			BMessage pathArchive;
 			ret = _Export(path, &pathArchive);
 			if (ret < B_OK)
@@ -64,9 +66,9 @@ MessageExporter::Export(const Icon* icon, BPositionIO* stream)
 	// styles
 	if (ret == B_OK) {
 		BMessage allStyles;
-		int32 count = styles->CountStyles();
+		int32 count = styles->CountItems();
 		for (int32 i = 0; i < count; i++) {
-			Style* style = styles->StyleAtFast(i);
+			Style* style = styles->ItemAtFast(i);
 			BMessage styleArchive;
 			ret = _Export(style, &styleArchive);
 			if (ret < B_OK)
@@ -83,10 +85,10 @@ MessageExporter::Export(const Icon* icon, BPositionIO* stream)
 	// shapes
 	if (ret == B_OK) {
 		BMessage allShapes;
-		ShapeContainer* shapes = icon->Shapes();
-		int32 count = shapes->CountShapes();
+		const Container<Shape>* shapes = icon->Shapes();
+		int32 count = shapes->CountItems();
 		for (int32 i = 0; i < count; i++) {
-			Shape* shape = shapes->ShapeAtFast(i);
+			Shape* shape = shapes->ItemAtFast(i);
 			BMessage shapeArchive;
 			ret = _Export(shape, paths, styles, &shapeArchive);
 			if (ret < B_OK)
@@ -146,30 +148,44 @@ MessageExporter::_Export(const Style* style, BMessage* into) const
 // _Export
 status_t
 MessageExporter::_Export(const Shape* shape,
-						 const PathContainer* globalPaths,
-						 const StyleContainer* globalStyles,
+						 const Container<VectorPath>* globalPaths,
+						 const Container<Style>* globalStyles,
 						 BMessage* into) const
 {
-	// NOTE: when the same path is used in two different
-	// documents, and these are to be merged, each path
-	// having a "globally unique" id would make it possible
-	// to reference the same path across documents...
-	// For now, we simply use the index of the path in the
-	// globalPaths container.
+	status_t ret = B_OK;
 
-	// index of used style
-	Style* style = shape->Style();
-	status_t ret = into->AddInt32("style ref", globalStyles->IndexOf(style));
+	const PathSourceShape* pathSourceShape = dynamic_cast<const PathSourceShape*>(shape);
+	if (pathSourceShape != NULL) {
+		ret = into->AddInt32("type", PathSourceShape::archive_code);
 
-	// indices of used paths
-	if (ret == B_OK) {
-		int32 count = shape->Paths()->CountPaths();
-		for (int32 i = 0; i < count; i++) {
-			VectorPath* path = shape->Paths()->PathAtFast(i);
-			ret = into->AddInt32("path ref", globalPaths->IndexOf(path));
-			if (ret < B_OK)
-				break;
+		// NOTE: when the same path is used in two different
+		// documents, and these are to be merged, each path
+		// having a "globally unique" id would make it possible
+		// to reference the same path across documents...
+		// For now, we simply use the index of the path in the
+		// globalPaths container.
+
+		// index of used style
+		if (ret == B_OK) {
+			Style* style = pathSourceShape->Style();
+			ret = into->AddInt32("style ref", globalStyles->IndexOf(style));
 		}
+
+		// indices of used paths
+		if (ret == B_OK) {
+			int32 count = pathSourceShape->Paths()->CountItems();
+			for (int32 i = 0; i < count; i++) {
+				VectorPath* path = pathSourceShape->Paths()->ItemAtFast(i);
+				ret = into->AddInt32("path ref", globalPaths->IndexOf(path));
+				if (ret < B_OK)
+					break;
+			}
+		}
+	}
+
+	const ReferenceImage* referenceImage = dynamic_cast<const ReferenceImage*>(shape);
+	if (referenceImage != NULL) {
+		ret = into->AddInt32("type", ReferenceImage::archive_code);
 	}
 
 	// Shape properties

@@ -283,7 +283,7 @@ static status_t
 bfs_get_vnode(fs_volume* _volume, ino_t id, fs_vnode* _node, int* _type,
 	uint32* _flags, bool reenter)
 {
-	//FUNCTION_START(("ino_t = %Ld\n", id));
+	//FUNCTION_START(("ino_t = %lld\n", id));
 	Volume* volume = (Volume*)_volume->private_volume;
 
 	// first inode may be after the log area, we don't go through
@@ -497,6 +497,11 @@ bfs_write_pages(fs_volume* _volume, fs_vnode* _node, void* _cookie,
 static status_t
 bfs_io(fs_volume* _volume, fs_vnode* _node, void* _cookie, io_request* request)
 {
+#if KDEBUG_RW_LOCK_DEBUG
+	// bfs_io depends on read-locks being implicitly transferrable across threads.
+	return B_UNSUPPORTED;
+#endif
+
 	Volume* volume = (Volume*)_volume->private_volume;
 	Inode* inode = (Inode*)_node->private_node;
 
@@ -534,7 +539,7 @@ bfs_get_file_map(fs_volume* _volume, fs_vnode* _node, off_t offset, size_t size,
 	block_run run;
 	off_t fileOffset;
 
-	//FUNCTION_START(("offset = %Ld, size = %lu\n", offset, size));
+	//FUNCTION_START(("offset = %lld, size = %lu\n", offset, size));
 
 	while (true) {
 		status_t status = inode->FindBlockRun(offset, run, fileOffset);
@@ -599,7 +604,7 @@ bfs_lookup(fs_volume* _volume, fs_vnode* _directory, const char* file,
 
 	status = tree->Find((uint8*)file, (uint16)strlen(file), _vnodeID);
 	if (status != B_OK) {
-		//PRINT(("bfs_walk() could not find %Ld:\"%s\": %s\n", directory->BlockNumber(), file, strerror(status)));
+		//PRINT(("bfs_walk() could not find %lld:\"%s\": %s\n", directory->BlockNumber(), file, strerror(status)));
 		if (status == B_ENTRY_NOT_FOUND)
 			entry_cache_add_missing(volume->ID(), directory->ID(), file);
 

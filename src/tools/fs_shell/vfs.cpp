@@ -1464,7 +1464,6 @@ dir_vnode_to_path(struct vnode *vnode, char *buffer, fssh_size_t bufferSize)
 		char nameBuffer[sizeof(struct fssh_dirent) + FSSH_B_FILE_NAME_LENGTH];
 		char *name = &((struct fssh_dirent *)nameBuffer)->d_name[0];
 		struct vnode *parentVnode;
-		fssh_vnode_id parentID;
 
 		// lookup the parent vnode
 		status = lookup_dir_entry(vnode, "..", &parentVnode);
@@ -1480,7 +1479,6 @@ dir_vnode_to_path(struct vnode *vnode, char *buffer, fssh_size_t bufferSize)
 		if (mountPoint) {
 			put_vnode(parentVnode);
 			parentVnode = mountPoint;
-			parentID = parentVnode->id;
 		}
 
 		bool hitRoot = (parentVnode == vnode);
@@ -1803,7 +1801,7 @@ common_file_io_vec_pages(int fd, const fssh_file_io_vec *fileVecs,
 		fssh_off_t fileOffset = fileVec.offset;
 		fssh_off_t fileLeft = fssh_min_c((uint64_t)fileVec.length, (uint64_t)bytesLeft);
 
-		TRACE(("FILE VEC [%lu] length %Ld\n", fileVecIndex, fileLeft));
+		TRACE(("FILE VEC [%lu] length %lld\n", fileVecIndex, fileLeft));
 
 		// process the complete fileVec
 		while (fileLeft > 0) {
@@ -1881,7 +1879,7 @@ extern "C" fssh_status_t
 fssh_new_vnode(fssh_fs_volume *volume, fssh_vnode_id vnodeID,
 	void *privateNode, fssh_fs_vnode_ops *ops)
 {
-	FUNCTION(("new_vnode(volume = %p (%ld), vnodeID = %Ld, node = %p)\n",
+	FUNCTION(("new_vnode(volume = %p (%ld), vnodeID = %lld, node = %p)\n",
 		volume, volume->id, vnodeID, privateNode));
 
 	if (privateNode == NULL)
@@ -3120,7 +3118,7 @@ file_open_entry_ref(fssh_mount_id mountID, fssh_vnode_id directoryID, const char
 	if (name == NULL || *name == '\0')
 		return FSSH_B_BAD_VALUE;
 
-	FUNCTION(("file_open_entry_ref(ref = (%ld, %Ld, %s), openMode = %d)\n",
+	FUNCTION(("file_open_entry_ref(ref = (%ld, %lld, %s), openMode = %d)\n",
 		mountID, directoryID, name, openMode));
 
 	// get the vnode matching the entry_ref
@@ -3194,7 +3192,7 @@ file_read(struct file_descriptor *descriptor, fssh_off_t pos, void *buffer, fssh
 {
 	struct vnode *vnode = descriptor->u.vnode;
 
-	FUNCTION(("file_read: buf %p, pos %Ld, len %p = %ld\n", buffer, pos, length, *length));
+	FUNCTION(("file_read: buf %p, pos %lld, len %p = %ld\n", buffer, pos, length, *length));
 	return FS_CALL(vnode, read, descriptor->cookie, pos, buffer, length);
 }
 
@@ -3204,7 +3202,7 @@ file_write(struct file_descriptor *descriptor, fssh_off_t pos, const void *buffe
 {
 	struct vnode *vnode = descriptor->u.vnode;
 
-	FUNCTION(("file_write: buf %p, pos %Ld, len %p\n", buffer, pos, length));
+	FUNCTION(("file_write: buf %p, pos %lld, len %p\n", buffer, pos, length));
 	return FS_CALL(vnode, write, descriptor->cookie, pos, buffer, length);
 }
 
@@ -3214,7 +3212,7 @@ file_seek(struct file_descriptor *descriptor, fssh_off_t pos, int seekType)
 {
 	fssh_off_t offset;
 
-	FUNCTION(("file_seek(pos = %Ld, seekType = %d)\n", pos, seekType));
+	FUNCTION(("file_seek(pos = %lld, seekType = %d)\n", pos, seekType));
 	// ToDo: seek should fail for pipes and FIFOs...
 
 	switch (seekType) {
@@ -3265,7 +3263,7 @@ dir_create_entry_ref(fssh_mount_id mountID, fssh_vnode_id parentID, const char *
 	if (name == NULL || *name == '\0')
 		return FSSH_B_BAD_VALUE;
 
-	FUNCTION(("dir_create_entry_ref(dev = %ld, ino = %Ld, name = '%s', perms = %d)\n", mountID, parentID, name, perms));
+	FUNCTION(("dir_create_entry_ref(dev = %ld, ino = %lld, name = '%s', perms = %d)\n", mountID, parentID, name, perms));
 
 	status = get_vnode(mountID, parentID, &vnode, kernel);
 	if (status < FSSH_B_OK)
@@ -3652,7 +3650,7 @@ common_lock_node(int fd, bool kernel)
 
 	// We need to set the locking atomically - someone
 	// else might set one at the same time
-#if LONG_MAX == INT_MAX
+#if UINTPTR_MAX == UINT64_MAX
 	if (fssh_atomic_test_and_set64((int64_t *)&vnode->mandatory_locked_by,
 			(fssh_addr_t)descriptor, 0) != 0)
 #else
@@ -3680,7 +3678,7 @@ common_unlock_node(int fd, bool kernel)
 
 	// We need to set the locking atomically - someone
 	// else might set one at the same time
-#ifdef __x86_64__
+#if UINTPTR_MAX == UINT64_MAX
 	if (fssh_atomic_test_and_set64((int64_t *)&vnode->mandatory_locked_by,
 			0, (fssh_addr_t)descriptor) != (int64_t)descriptor)
 #else
@@ -4129,7 +4127,7 @@ attr_read(struct file_descriptor *descriptor, fssh_off_t pos, void *buffer, fssh
 {
 	struct vnode *vnode = descriptor->u.vnode;
 
-	FUNCTION(("attr_read: buf %p, pos %Ld, len %p = %ld\n", buffer, pos, length, *length));
+	FUNCTION(("attr_read: buf %p, pos %lld, len %p = %ld\n", buffer, pos, length, *length));
 	if (!HAS_FS_CALL(vnode, read_attr))
 		return FSSH_EOPNOTSUPP;
 
@@ -4142,7 +4140,7 @@ attr_write(struct file_descriptor *descriptor, fssh_off_t pos, const void *buffe
 {
 	struct vnode *vnode = descriptor->u.vnode;
 
-	FUNCTION(("attr_write: buf %p, pos %Ld, len %p\n", buffer, pos, length));
+	FUNCTION(("attr_write: buf %p, pos %lld, len %p\n", buffer, pos, length));
 	if (!HAS_FS_CALL(vnode, write_attr))
 		return FSSH_EOPNOTSUPP;
 

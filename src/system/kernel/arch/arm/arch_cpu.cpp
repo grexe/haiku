@@ -14,17 +14,11 @@
 
 #include <arch/cpu.h>
 #include <boot/kernel_args.h>
-#include <commpage.h>
-#include <elf.h>
 
 
 status_t
 arch_cpu_preboot_init_percpu(kernel_args *args, int curr_cpu)
 {
-	// The current thread must be NULL for all CPUs till we have threads.
-	// Some boot code relies on this.
-	arch_thread_set_current_thread(NULL);
-
 	return B_OK;
 }
 
@@ -56,9 +50,6 @@ arch_cpu_init_post_vm(kernel_args *args)
 status_t
 arch_cpu_init_post_modules(kernel_args *args)
 {
-	// add the functions to the commpage image
-	image_id image = get_commpage_image();
-
 	return B_OK;
 }
 
@@ -80,26 +71,6 @@ arch_cpu_sync_icache(void *address, size_t len)
 	uint32 Rd = 0;
 	asm volatile ("mcr p15, 0, %[c7format], c7, c5, 0"
 		: : [c7format] "r" (Rd) );
-}
-
-
-void
-arch_cpu_memory_read_barrier(void)
-{
-	// TODO: check if we need more here
-	// (or just call the inline version?)
-	// cf. headers/private/kernel/arch/arm/arch_atomic.h
-	asm volatile ("" : : : "memory");
-}
-
-
-void
-arch_cpu_memory_write_barrier(void)
-{
-	// TODO: check if we need more here
-	// (or just call the inline version?)
-	// cf. headers/private/kernel/arch/arm/arch_atomic.h
-	asm volatile ("" : : : "memory");
 }
 
 

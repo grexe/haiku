@@ -80,6 +80,7 @@ respective holders. All rights reserved.
 #include "Attributes.h"
 #include "Bitmaps.h"
 #include "Commands.h"
+#include "FindPanel.h"
 #include "FSUndoRedo.h"
 #include "FSUtils.h"
 #include "InfoWindow.h"
@@ -358,13 +359,13 @@ TrackerCopyLoopControl::FileError(const char* message, const char* name,
 	buffer.ReplaceFirst("%error", strerror(error));
 
 	if (allowContinue) {
-		BAlert* alert = new BAlert("", buffer.String(),	B_TRANSLATE("Cancel"),
+		BAlert* alert = new BAlert("", buffer.String(), B_TRANSLATE("Cancel"),
 			B_TRANSLATE("OK"), 0, B_WIDTH_AS_USUAL, B_STOP_ALERT);
 		alert->SetShortcut(0, B_ESCAPE);
 		return alert->Go() != 0;
 	}
 
-	BAlert* alert = new BAlert("", buffer.String(),	B_TRANSLATE("Cancel"), 0, 0,
+	BAlert* alert = new BAlert("", buffer.String(), B_TRANSLATE("Cancel"), 0, 0,
 		B_WIDTH_AS_USUAL, B_STOP_ALERT);
 	alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
 	alert->Go();
@@ -769,20 +770,128 @@ ConfirmChangeIfWellKnownDirectory(const BEntry* entry, DestructiveAction action,
 }
 
 
+status_t
+EditModelName(const Model* model, const char* name, size_t length)
+{
+	if (model == NULL || name == NULL || name[0] == '\0' || length <= 0)
+		return B_BAD_VALUE;
+
+	BEntry entry(model->EntryRef());
+	status_t result = entry.InitCheck();
+	if (result != B_OK)
+		return result;
+
+	// TODO: use model-flavor specific virtuals for these special renamings
+
+	if (model->HasLocalizedName() || model->IsDesktop() || model->IsRoot()
+		|| model->IsTrash() || model->IsVirtualDirectory()) {
+		result = B_NOT_ALLOWED;
+	} else if (model->IsQuery()) {
+		// write to query parameter
+		BModelWriteOpener opener(const_cast<Model*>(model));
+		ASSERT(model->Node());
+		MoreOptionsStruct::SetQueryTemporary(model->Node(), false);
+
+		RenameUndo undo(entry, name);
+		result = entry.Rename(name);
+		if (result != B_OK)
+			undo.Remove();
+	} else if (model->IsVolume()) {
+		// write volume name
+		BVolume volume(model->NodeRef()->device);
+		result = volume.InitCheck();
+		if (result == B_OK && volume.IsReadOnly())
+			result = B_READ_ONLY_DEVICE;
+		if (result == B_OK) {
+			RenameVolumeUndo undo(volume, name);
+			result = volume.SetName(name);
+			if (result != B_OK)
+				undo.Remove();
+		}
+	} else {
+		BVolume volume(model->NodeRef()->device);
+		result = volume.InitCheck();
+		if (result == B_OK && volume.IsReadOnly())
+			result = B_READ_ONLY_DEVICE;
+		if (result == B_OK)
+			result = ShouldEditRefName(model->EntryRef(), name, length);
+		if (result == B_OK) {
+			RenameUndo undo(entry, name);
+			result = entry.Rename(name);
+			if (result != B_OK)
+				undo.Remove();
+		}
+	}
+
+	return result;
+}
+
+
+status_t
+ShouldEditRefName(const entry_ref* ref, const char* name, size_t length)
+{
+	if (ref == NULL || name == NULL || name[0] == '\0' || length <= 0)
+		return B_BAD_VALUE;
+
+	BEntry entry(ref);
+	if (entry.InitCheck() != B_OK)
+		return B_NO_INIT;
+
+	// check if name is too long
+	if (length >= B_FILE_NAME_LENGTH) {
+		BString text;
+		if (entry.IsDirectory())
+			text = B_TRANSLATE("The entered folder name is too long.");
+		else
+			text = B_TRANSLATE("The entered file name is too long.");
+
+		BAlert* alert = new BAlert("", text, B_TRANSLATE("OK"),
+			0, 0, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
+		alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
+		alert->Go();
+
+		return B_NAME_TOO_LONG;
+	}
+
+	// same name
+	if (strcmp(name, ref->name) == 0)
+		return B_OK;
+
+	// user declined rename in system directory
+	if (!ConfirmChangeIfWellKnownDirectory(&entry, kRename))
+		return B_CANCELED;
+
+	// entry must have a parent directory
+	BDirectory parent;
+	if (entry.GetParent(&parent) != B_OK)
+		return B_ERROR;
+
+	// check for name conflict
+	if (parent.Contains(name)) {
+		BString text(B_TRANSLATE("An item named '%filename%' already exists."));
+		text.ReplaceFirst("%filename%", name);
+
+		BAlert* alert = new BAlert("", text, B_TRANSLATE("OK"),
+			0, 0, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
+		alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
+		alert->Go();
+
+		return B_NAME_IN_USE;
+	}
+
+	// success
+	return B_OK;
+}
+
+
 static status_t
 InitCopy(CopyLoopControl* loopControl, uint32 moveMode,
 	BObjectList<entry_ref>* srcList, BVolume* dstVol, BDirectory* destDir,
 	entry_ref* destRef, bool preflightNameCheck, bool needSizeCalculation,
 	int32* collisionCount, ConflictCheckResult* preflightResult)
 {
-	if (dstVol->IsReadOnly()) {
-		BAlert* alert = new BAlert("",
-			B_TRANSLATE("You can't move or copy items to read-only volumes."),
-			B_TRANSLATE("Cancel"), 0, 0, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
-		alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
-		alert->Go();
-		return B_ERROR;
-	}
+	if (dstVol->IsReadOnly())
+		return B_READ_ONLY_DEVICE;
 
 	int32 numItems = srcList->CountItems();
 	int32 askOnceOnly = kNotConfirmed;
@@ -1308,7 +1417,7 @@ LowLevelCopy(BEntry* srcEntry, StatStruct* srcStat, BDirectory* destDir,
 
 	size_t bufsize = kMinBufferSize;
 	if ((off_t)bufsize < srcStat->st_size) {
-		//	File bigger than the buffer size: determine an optimal buffer size
+		// File bigger than the buffer size: determine an optimal buffer size
 		system_info sinfo;
 		get_system_info(&sinfo);
 		size_t freesize = static_cast<size_t>(
@@ -1940,8 +2049,8 @@ MoveEntryToTrash(BEntry* entry, BPoint* loc, Undo &undo)
 
 		// if it's a volume, try to unmount
 		if (dir.IsRootDirectory()) {
-			BVolume	volume(nodeRef.device);
-			BVolume	boot;
+			BVolume volume(nodeRef.device);
+			BVolume boot;
 
 			BVolumeRoster().GetBootVolume(&boot);
 			if (volume == boot) {
@@ -2060,7 +2169,7 @@ PreFlightNameCheck(BObjectList<entry_ref>* srcList, const BDirectory* destDir,
 	// single collision case will be handled as a "Prompt" case by CheckName
 	if (*collisionCount > 1) {
 		const char* verb = (moveMode == kMoveSelectionTo)
-			? B_TRANSLATE("moving")	: B_TRANSLATE("copying");
+			? B_TRANSLATE("moving") : B_TRANSLATE("copying");
 		BString replaceMsg(B_TRANSLATE_NOCOLLECT(kReplaceManyStr));
 		replaceMsg.ReplaceAll("%verb", verb);
 
@@ -2159,7 +2268,7 @@ CheckName(uint32 moveMode, const BEntry* sourceEntry,
 		return B_OK;
 	}
 
-	if (moveMode == kCreateLink	|| moveMode == kCreateRelativeLink) {
+	if (moveMode == kCreateLink || moveMode == kCreateRelativeLink) {
 		// if we are creating link in the same directory, the conflict will
 		// be handled later by giving the link a unique name
 		sourceEntry->GetParent(&srcDirectory);
@@ -2192,7 +2301,7 @@ CheckName(uint32 moveMode, const BEntry* sourceEntry,
 			? B_TRANSLATE("You cannot replace a file with a folder or a "
 				"symbolic link.")
 			: B_TRANSLATE("You cannot replace a folder or a symbolic link "
-				"with a file."), B_TRANSLATE("OK"),	0, 0, B_WIDTH_AS_USUAL,
+				"with a file."), B_TRANSLATE("OK"), 0, 0, B_WIDTH_AS_USUAL,
 			B_WARNING_ALERT);
 		alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
 		alert->Go();

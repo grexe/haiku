@@ -5,6 +5,7 @@ AddSubDirSupportedPlatforms libbe_test ;
 # source directories
 local sourceDirs =
 	flat_icon
+	generic
 	message
 	shape
 	style
@@ -44,26 +45,26 @@ for architectureObject in [ MultiArchSubDirSetup ] {
 			MessageImporter.cpp
 
 			# shape
-			PathContainer.cpp
+			PathSourceShape.cpp
+			ReferenceImage.cpp
 			Shape.cpp
-			ShapeContainer.cpp
 			VectorPath.cpp
 
 			# style
 			GradientTransformable.cpp
 			Style.cpp
-			StyleContainer.cpp
 
 			# transformable
 			Transformable.cpp
 
 			# transformer
 			AffineTransformer.cpp
+			CompoundStyleTransformer.cpp
 			ContourTransformer.cpp
 			PathSource.cpp
 			PerspectiveTransformer.cpp
 			StrokeTransformer.cpp
-			Transformer.cpp
+			StyleTransformer.cpp
 			TransformerFactory.cpp
 
 			Icon.cpp

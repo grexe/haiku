@@ -24,11 +24,17 @@
 #define CPSR_F				0x40
 #define CPSR_I				0x80
 
+#define SCTLR_HIGH_VECTORS	0x00002000
+
 #define FSR_WNR				0x800
 #define FSR_LPAE			0x200
 
 #define FSR_FS_ALIGNMENT_FAULT		0x01
+#define FSR_FS_ACCESS_FLAG_FAULT	0x06
 #define FSR_FS_PERMISSION_FAULT_L1	0x0d
 #define FSR_FS_PERMISSION_FAULT_L2	0x0f
+
+#define FSR_FS_MASK			0x040f
+#define FSR_LPAE_MASK		0x0200
 
 #endif	/* _SYSTEM_ARCH_ARM_DEFS_H */

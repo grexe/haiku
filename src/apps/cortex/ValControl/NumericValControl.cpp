@@ -232,7 +232,7 @@ NumericValControl::value() const
 //			ASSERT(digitSegment);
 //
 //			PRINT((
-//				"\t...segment %d: %d digits at %d: %Ld\n",
+//				"\t...segment %d: %d digits at %d: %lld\n",
 //				n-1,
 //				digitSegment->digitCount(),
 //				digitSegment->scaleFactor(),
@@ -288,7 +288,7 @@ NumericValControl::setValue(double value, bool setParam)
 	value = (double)fixed / scaleFactor;
 	
 //	PRINT((
-//		" -> %.12f, %Ld\n", value, fixed));
+//		" -> %.12f, %lld\n", value, fixed));
 
 	_SetValueFixed(fixed);
 		
@@ -373,7 +373,7 @@ NumericValControl::offsetSegmentValue(ValControlDigitSegment* segment,
 {
 
 //	PRINT((
-//		"### offsetSegmentValue(): %Ld\n",
+//		"### offsetSegmentValue(): %lld\n",
 //		offset));
 		
 	int64 segmentFactor = (int64)pow(10, fFractionalDigits + segment->scaleFactor());
@@ -445,20 +445,19 @@ NumericValControl::updateParameter(double value)
 //	bigtime_t tpNow = system_time();
 
 	// store value
-	status_t err;
 	switch (fParam->ValueType()) {
 		case B_FLOAT_TYPE:
 		{	// +++++ left-channel hack
 			float fValue[2];
 			fValue[0] = value;
 			fValue[1] = value;
-			err = fParam->SetValue((void*)&fValue, sizeof(float)*2, 0LL);
+			fParam->SetValue((void*)&fValue, sizeof(float)*2, 0LL);
 			break;
 		}
 		
 		case B_DOUBLE_TYPE: {
 			double fValue = value;
-			err = fParam->SetValue((void*)&fValue, sizeof(double), 0LL);
+			fParam->SetValue((void*)&fValue, sizeof(double), 0LL);
 			break;
 		}
 	}			
@@ -566,7 +565,7 @@ NumericValControl::_ValueFixed() const {
 			ASSERT(digitSegment);
 
 //			PRINT((
-//				"\t...segment %d: %d digits at %d: %Ld\n",
+//				"\t...segment %d: %d digits at %d: %lld\n",
 //				n-1,
 //				digitSegment->digitCount(),
 //				digitSegment->scaleFactor(),
@@ -576,7 +575,7 @@ NumericValControl::_ValueFixed() const {
 				scaleBase + digitSegment->scaleFactor());
 //				
 //			PRINT((
-//				"\t-> %Ld\n\n", acc));
+//				"\t-> %lld\n\n", acc));
 		}
 	}
 	
@@ -590,7 +589,7 @@ void
 NumericValControl::_SetValueFixed(int64 fixed)
 {
 //	PRINT((
-//		"### NumericValControl::_SetValueFixed(%Ld)\n", fixed));
+//		"### NumericValControl::_SetValueFixed(%lld)\n", fixed));
 
 	// constrain
 	if (fixed > fMaxFixed)
@@ -621,14 +620,14 @@ NumericValControl::_SetValueFixed(int64 fixed)
 				scaleBase + digitSegment->scaleFactor() + digitSegment->digitCount());
 					
 //			PRINT((
-//				"\t  [] %Ld\n", hiCut));
+//				"\t  [] %lld\n", hiCut));
 
 			// shift value
 			int64 segmentValue = hiCut / (int64)pow(10,
 				scaleBase + digitSegment->scaleFactor());
 		
 //			PRINT((
-//				"\t  -> %Ld\n\n", segmentValue));
+//				"\t  -> %lld\n\n", segmentValue));
 
 			digitSegment->setValue(segmentValue, fixed < 0);
 		}

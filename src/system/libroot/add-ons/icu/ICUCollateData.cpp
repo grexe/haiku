@@ -6,6 +6,7 @@
 
 #include "ICUCollateData.h"
 
+#include <assert.h>
 #include <string.h>
 #include <strings.h>
 #include <wchar.h>
@@ -114,17 +115,18 @@ ICUCollateData::Strcoll(const char* a, const char* b, int& result)
 
 
 status_t
-ICUCollateData::Strxfrm(char* out, const char* in, size_t size, size_t& outSize)
+ICUCollateData::Strxfrm(char* out, const char* in,
+	size_t outSize, size_t& requiredSize)
 {
 	if (in == NULL) {
-		outSize = 0;
+		requiredSize = 0;
 		return B_OK;
 	}
 
 	if (fCollator == NULL || strcmp(fPosixLocaleName, "POSIX") == 0) {
 		// handle POSIX here as the collator ICU uses for that (english) is
 		// incompatible in too many ways
-		outSize = strlcpy(out, in, size);
+		requiredSize = strlcpy(out, in, outSize);
 		for (const char* inIter = in; *inIter != 0; ++inIter) {
 			if (*inIter < 0)
 				return B_BAD_VALUE;
@@ -136,7 +138,14 @@ ICUCollateData::Strxfrm(char* out, const char* in, size_t size, size_t& outSize)
 	if (_ToUnicodeString(in, unicodeIn) != B_OK)
 		return B_BAD_VALUE;
 
-	outSize = fCollator->getSortKey(unicodeIn, (uint8_t*)out, size);
+	requiredSize = fCollator->getSortKey(unicodeIn, (uint8_t*)out, outSize);
+
+	// Do not include terminating NULL byte in the required-size.
+	if (requiredSize > 0) {
+		if (outSize >= requiredSize)
+			assert(out[requiredSize - 1] == '\0');
+		requiredSize--;
+	}
 
 	return B_OK;
 }
@@ -205,6 +214,13 @@ ICUCollateData::Wcsxfrm(wchar_t* out, const wchar_t* in, size_t outSize,
 	// convert 1-byte characters to 4-byte wide characters:
 	for (size_t i = 0; i < outSize; ++i)
 		out[outSize - 1 - i] = buffer[outSize - 1 - i];
+
+	// Do not include terminating NULL character in the required-size.
+	if (requiredSize > 0) {
+		if (outSize >= requiredSize)
+			assert(out[requiredSize - 1] == 0);
+		requiredSize--;
+	}
 
 	return B_OK;
 }

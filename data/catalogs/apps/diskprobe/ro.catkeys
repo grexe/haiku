@@ -1,4 +1,4 @@
-1	romanian	x-vnd.Haiku-DiskProbe	2944605311
+1	romanian	x-vnd.Haiku-DiskProbe	1130290771
 Raw editor	AttributeWindow		Editor brut
 Remove	AttributeWindow		Elimină
 Close	ProbeView		Închide
@@ -29,7 +29,9 @@ Open file…	FileWindow		Deschide fișier…
 32 bit unsigned pointer:	TypeEditors		Indicator fără semn pe 32 de biți:
 DiskProbe request	DiskProbe		Cerere DiskProbe
 Hex	ProbeView	A menu item, as short as possible, noun is recommended if it is shorter than adjective.	Hex
+Block %lld (0x%Lx)	ProbeView		Blocul %lld (0x%Lx)
 Writing to the file failed:\n%s\n\nAll changes will be lost when you quit.	ProbeView		Scrierea în fișier a eșuat:\n%s\n\nToate modificările vor fi pierdute când ieșiți.
+Native: %lld (0x%0*Lx)	ProbeView		Nativ: %lld (0x%0*Lx)
 Examine device:	OpenWindow		Examinează dispozitivul:
 Number editor	TypeEditors		Editor de numere
 Icon	TypeEditors		Pictogramă
@@ -37,11 +39,9 @@ Attribute	ProbeView		Atribut
 Don't save	ProbeView		Nu salva
 Undo	ProbeView		Refă
 Flattened bitmap	TypeEditors		Bitmap aplatizat
-Block %Ld (0x%Lx)	ProbeView		Bloc %Ld (0x%Lx)
 Cancel	OpenWindow		Anulează
 Unknown format	TypeEditors		Format necunoscut
 File: 	ProbeView		Fișier: 
-Swapped: %Ld (0x%0*Lx)	ProbeView		Interschimbat: %Ld (0x%0*Lx)
 Stop	ProbeView		Oprește
 Cancel	ProbeView		Anulează
 Could not open \"%s\":\n%s	DiskProbe	Opening of entry reference buffer for a DiskProbe request Alert message. The name of entry reference and error message is shown.	Nu s-a putut deschide \„%s\”:\n%s
@@ -91,7 +91,6 @@ Type editor	ProbeView		Editor de tip
 File	FileWindow		Fișier
 Grayscale	TypeEditors		Scală de gri
 32 bit	TypeEditors		32 de biți
-Native: %Ld (0x%0*Lx)	ProbeView		Nativ: %Ld (0x%0*Lx)
 Device	ProbeView		Dispozitiv
 Close	AttributeWindow		Închide
 Type editor	AttributeWindow		Editor de tip
@@ -118,7 +117,9 @@ Could not read image	TypeEditors	Image means here a picture file, not a disk ima
 DiskProbe request	ProbeView		Cerere DiskProbe
 Double precision floating-point value:	TypeEditors		Valoare în virgulă mobilă de dublă precizie:
 Image	TypeEditors	This is the type of view	Imagine
+Swapped: %lld (0x%0*Lx)	ProbeView		Schimbat: %lld (0x%0*Lx)
 Save changes before closing?	ProbeView		Salvați modificările înainte de a închide?
+%s, %g × %g, %s	TypeEditors	The '×' is the Unicode multiplication sign U+00D7	%s, %g × %g, %s
 PNG format	TypeEditors		Format PNG
 Number	TypeEditors	This is the type of editor	Număr
 Edit	ProbeView		Editare

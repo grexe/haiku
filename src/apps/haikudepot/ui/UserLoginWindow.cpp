@@ -32,6 +32,7 @@
 #include "Logger.h"
 #include "Model.h"
 #include "ServerHelper.h"
+#include "StringUtils.h"
 #include "TabView.h"
 #include "UserUsageConditions.h"
 #include "UserUsageConditionsWindow.h"
@@ -138,6 +139,9 @@ UserLoginWindow::UserLoginWindow(BWindow* parent, BRect frame, Model& model)
 	fNicknameField = new BTextControl(B_TRANSLATE("Nickname:"), "", NULL);
 	fPasswordField = new BTextControl(B_TRANSLATE("Password:"), "", NULL);
 	fPasswordField->TextView()->HideTyping(true);
+
+	for (uint32 i = 0; i <= ' '; i++)
+		fNicknameField->TextView()->DisallowChar(i);
 
 	fNewNicknameField = new BTextControl(B_TRANSLATE("Nickname:"), "",
 		NULL);
@@ -475,8 +479,9 @@ UserLoginWindow::_SetWorkerThread(thread_id thread)
 void
 UserLoginWindow::_Authenticate()
 {
-	_Authenticate(UserCredentials(
-		fNicknameField->Text(), fPasswordField->Text()));
+	BString username = fNicknameField->Text();
+	StringUtils::InSituStripSpaceAndControl(username);
+	_Authenticate(UserCredentials(username, fPasswordField->Text()));
 }
 
 
@@ -518,14 +523,14 @@ void
 UserLoginWindow::_AuthenticateThread(UserCredentials& userCredentials)
 {
 	BMessage responsePayload;
-	WebAppInterface interface = fModel.GetWebAppInterface();
-	status_t status = interface.AuthenticateUser(
+	WebAppInterface* interface = fModel.GetWebAppInterface();
+	status_t status = interface->AuthenticateUser(
 		userCredentials.Nickname(), userCredentials.PasswordClear(),
 		responsePayload);
 	BString token;
 
 	if (status == B_OK) {
-		int32 errorCode = interface.ErrorCodeFromResponse(responsePayload);
+		int32 errorCode = WebAppInterface::ErrorCodeFromResponse(responsePayload);
 
 		if (errorCode == ERROR_CODE_NONE)
 			_UnpackAuthenticationToken(responsePayload, token);
@@ -648,7 +653,7 @@ UserLoginWindow::_TakeUpCredentialsAndQuit(const UserCredentials& credentials)
 {
 	{
 		AutoLocker<BLocker> locker(fModel.Lock());
-		fModel.SetAuthorization(credentials.Nickname(),
+		fModel.SetCredentials(credentials.Nickname(),
 			credentials.PasswordClear(), true);
 	}
 
@@ -815,9 +820,8 @@ status_t
 UserLoginWindow::_CreateAccountUserUsageConditionsSetupThread(
 	UserUsageConditions& userUsageConditions)
 {
-	WebAppInterface interface = fModel.GetWebAppInterface();
-	status_t result = interface.RetrieveUserUsageConditions(
-		NULL, userUsageConditions);
+	WebAppInterface* interface = fModel.GetWebAppInterface();
+	status_t result = interface->RetrieveUserUsageConditions(NULL, userUsageConditions);
 
 	if (result != B_OK) {
 		AppUtils::NotifySimpleError(
@@ -836,9 +840,8 @@ status_t
 UserLoginWindow::_CreateAccountPasswordRequirementsSetupThread(
 	PasswordRequirements& passwordRequirements)
 {
-	WebAppInterface interface = fModel.GetWebAppInterface();
-	status_t result = interface.RetrievePasswordRequirements(
-		passwordRequirements);
+	WebAppInterface* interface = fModel.GetWebAppInterface();
+	status_t result = interface->RetrievePasswordRequirements(passwordRequirements);
 
 	if (result != B_OK) {
 		AppUtils::NotifySimpleError(
@@ -856,10 +859,10 @@ UserLoginWindow::_CreateAccountPasswordRequirementsSetupThread(
 status_t
 UserLoginWindow::_CreateAccountCaptchaSetupThread(Captcha& captcha)
 {
-	WebAppInterface interface = fModel.GetWebAppInterface();
+	WebAppInterface* interface = fModel.GetWebAppInterface();
 	BMessage responsePayload;
 
-	status_t status = interface.RequestCaptcha(responsePayload);
+	status_t status = interface->RequestCaptcha(responsePayload);
 
 // check for transport related errors.
 
@@ -873,7 +876,7 @@ UserLoginWindow::_CreateAccountCaptchaSetupThread(Captcha& captcha)
 // check for server-generated errors.
 
 	if (status == B_OK) {
-		if (interface.ErrorCodeFromResponse(responsePayload)
+		if (WebAppInterface::ErrorCodeFromResponse(responsePayload)
 				!= ERROR_CODE_NONE) {
 			ServerHelper::AlertTransportError(&responsePayload);
 			status = B_ERROR;
@@ -1307,11 +1310,11 @@ UserLoginWindow::_CreateAccountThreadEntry(void* data)
 void
 UserLoginWindow::_CreateAccountThread(CreateUserDetail* detail)
 {
-	WebAppInterface interface = fModel.GetWebAppInterface();
+	WebAppInterface* interface = fModel.GetWebAppInterface();
 	BMessage responsePayload;
 	BMessenger messenger(this);
 
-	status_t status = interface.CreateUser(
+	status_t status = interface->CreateUser(
 		detail->Nickname(),
 		detail->PasswordClear(),
 		detail->Email(),
@@ -1325,7 +1328,7 @@ UserLoginWindow::_CreateAccountThread(CreateUserDetail* detail)
 		"There was a puzzling response from the web service.");
 
 	if (status == B_OK) {
-		int32 errorCode = interface.ErrorCodeFromResponse(responsePayload);
+		int32 errorCode = WebAppInterface::ErrorCodeFromResponse(responsePayload);
 
 		switch (errorCode) {
 			case ERROR_CODE_NONE:

@@ -1,6 +1,5 @@
-1	turkish	x-vnd.Haiku-MediaConverter	1833571229
+1	turkish	x-vnd.Haiku-MediaConverter	1249914255
 Input file not recognized as Audio or Video	MediaConverter		Girdi dosyası ses veya görüntü değil
-%u x %u, %.2ffps	MediaFileInfo	Width x Height, fps	%u x %u, %.2ffps
 Source files	MediaConverter		Kaynak dosyaları
 Error writing video frame %lld	MediaConverter		Video çerçevesi %lld yazılırken hata
 Audio quality: %s	MediaConverter		Ses kalitesi: %s
@@ -8,7 +7,7 @@ Error converting '%filename'	MediaConverter		'%filename' dönüştürülürken h
 Selected directory not found. Defaulting to /boot/home	MediaConverter		Seçili dizin bulunamadı. Yerine /boot/home kullanılacak.
 Conversion completed	MediaConverter		Dönüştürme tamamlandı
 Audio:	MediaConverter-FileInfo		Ses:
-MediaConverter+:SaveDirectory	MediaConverter		Ortam Dönüştürücü+:KaydetmeDizini
+MediaConverter+:SaveDirectory	MediaConverter		Ortam Dönüştürücüsü+:KaydetmeDizini
 Error creating video.	MediaConverter		Video oluşturulurken hata.
 Cancelling	MediaConverter		İptal ediliyor
 None available	Audio codecs		Kullanılabilir bir tane yok
@@ -56,7 +55,7 @@ Quit	Menu		Çık
 {0, plural, one{# byte} other{# bytes}}	MediaFileInfo		{0, plural, other{# bayt}}
 Writing audio track: %s complete	MediaConverter		Ses izi yazılıyor: %s tamamlandı
 Duration:	MediaConverter-FileInfo		Uzunluk:
-MediaConverter	System name		Ortam Dönüştürücü
+MediaConverter	System name		Ortam Dönüştürücüsü
 Writing video track: %s complete	MediaConverter		Video izi yazılıyor: %s tamamlandı
 Error launching: %strError%	MediaConverter		Başlatılırken hata: %strError%
 Error writing audio frame %lld	MediaConverter		Ses çerçevesi %lld yazılırken hata
@@ -66,6 +65,7 @@ Video quality not supported	MediaConverter		Video kalitesi desteklenmiyor
 Select this folder	MediaConverter		Bu klasörü seç
 %.1f kHz %ld channel	MediaFileInfo		%.1f kHz %ld kanal
 Understood	MediaConverter		Anlaşıldı
+%u × %u, %.2ffps	MediaFileInfo	Width × Height, fps;The '×' is the Unicode multiplication sign U+00D7	%u × %u, %.2ffps
 %d bit 	MediaFileInfo		%d bit 
 No video	Video codecs list		Video yok
 Continue	MediaConverter		Sürdür

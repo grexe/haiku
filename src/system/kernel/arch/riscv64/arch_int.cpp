@@ -257,7 +257,7 @@ SendSignal(debug_exception_type type, uint32 signalNumber, int32 signalCode,
 		struct sigaction action;
 		Thread* thread = thread_get_current_thread();
 
-		DoStackTrace(Fp(), 0);
+		//DoStackTrace(Fp(), 0);
 
 		enable_interrupts();
 
@@ -334,9 +334,6 @@ SetAccessedFlags(addr_t addr, bool isWrite)
 				!= (PAGE_ACCESSED | PAGE_MODIFIED)
 		) {
 			map->SetFlags(addr, PAGE_ACCESSED | PAGE_MODIFIED);
-/*
-			dprintf("SetAccessedFlags(%#" B_PRIxADDR ", %d)\n", addr, isWrite);
-*/
 			return true;
 		}
 	} else {
@@ -345,9 +342,6 @@ SetAccessedFlags(addr_t addr, bool isWrite)
 			&& (PAGE_ACCESSED & pageFlags) == 0
 		) {
 			map->SetFlags(addr, PAGE_ACCESSED);
-/*
-			dprintf("SetAccessedFlags(%#" B_PRIxADDR ", %d)\n", addr, isWrite);
-*/
 			return true;
 		}
 	}

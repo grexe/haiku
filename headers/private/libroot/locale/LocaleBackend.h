@@ -102,12 +102,14 @@ struct LocaleTimeDataBridge {
 
 
 struct TimeConversionDataBridge {
+	static const int32 		kTZNameLength = 64;
+
 private:
 	int						localDaylight;
 	long					localTimezone;
 	char*					localTZName[2];
-	char					localTZName0[64];
-	char					localTZName1[64];
+	char					localTZName0[kTZNameLength];
+	char					localTZName1[kTZNameLength];
 
 public:
 	int*					addrOfDaylight;
@@ -167,8 +169,8 @@ public:
 
 	virtual	status_t			Strcoll(const char* a, const char* b,
 									int& out) = 0;
-	virtual status_t			Strxfrm(char* out, const char* in, size_t size,
-									size_t& outSize) = 0;
+	virtual status_t			Strxfrm(char* out, const char* in,
+									size_t outSize, size_t& requiredSize) = 0;
 	virtual	status_t			Wcscoll(const wchar_t* a, const wchar_t* b,
 									int& out) = 0;
 	virtual status_t			Wcsxfrm(wchar_t* out, const wchar_t* in,

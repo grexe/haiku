@@ -47,9 +47,9 @@ thread_id load_image_etc(int32 argCount, const char* const* args,
 
 void team_set_job_control_state(Team* team, job_control_state newState,
 			Signal* signal);
-void team_set_controlling_tty(int32 index);
-int32 team_get_controlling_tty();
-status_t team_set_foreground_process_group(int32 ttyIndex, pid_t processGroup);
+void team_set_controlling_tty(void* tty);
+void* team_get_controlling_tty();
+status_t team_set_foreground_process_group(void *tty, pid_t processGroup);
 uid_t team_geteuid(team_id id);
 
 status_t start_watching_team(team_id team, void (*hook)(team_id, void *),
@@ -80,8 +80,8 @@ pid_t _user_process_info(pid_t process, int32 which);
 pid_t _user_setpgid(pid_t process, pid_t group);
 pid_t _user_setsid(void);
 
-status_t _user_get_team_info(team_id id, team_info *info);
-status_t _user_get_next_team_info(int32 *cookie, team_info *info);
+status_t _user_get_team_info(team_id id, team_info *info, size_t size);
+status_t _user_get_next_team_info(int32 *cookie, team_info *info, size_t size);
 status_t _user_get_team_usage_info(team_id team, int32 who,
 			team_usage_info *info, size_t size);
 status_t _user_get_extended_team_info(team_id teamID, uint32 flags,

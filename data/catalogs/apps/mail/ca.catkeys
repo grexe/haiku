@@ -1,4 +1,4 @@
-1	catalan; valencian	x-vnd.Be-MAIL	3128433901
+1	catalan; valencian	x-vnd.Be-MAIL	262401742
 Set to Saved	Mail		Estableix com a desat
 Your main text contains %ld unencodable characters. Perhaps a different character set would work better? Hit Send to send it anyway (a substitute character will be used in place of the unencodable ones), or choose Cancel to go back and try fixing it up.	Mail		El vostre text principal conté %ld caràcters no codificables. Potser amb un conjunt de caràcters diferent funcionaria millor? Premeu Envia per enviar-ho tanmateix (se substituiran per altres els caràcters que no es puguin codificar), o bé trieu Cancel·la per tornar enrere i intentar esmenar-ho.
 Text wrapping:	Mail		Ajustament de línia:
@@ -37,11 +37,10 @@ Same recipient	Mail		El mateix destinatari
 Previous message	Mail		Missatge anterior
 (Address unavailable)	Mail		(L'adreça no està disponible)
 Mail	System name		Correu
-Enclosure: %name% (Type: %type%)	Mail	Don't translate the variables %name% and %type%.	Annex: %name% (Tipus: %type%)
 Copy link location	Mail		Copia la ubicació de l'enllaç
-Attachments: 	Mail		Fitxers adjunts: 
-Remove enclosure	Mail		Suprimeix l'annex
+Add attachment…	Mail		Afegeix-hi un adjunt...
 Next	Mail		Següent
+Attachments:	Mail		Adjunts:
 Show icons only	Mail		Mostra només les icones
 Subject:	Mail		Assumpte:
 OK	Mail		D'acord
@@ -58,6 +57,7 @@ Reply to sender	Mail		Respon al remitent
 \\n - Newline	Mail		\\n - Línia nova
 Copy	Mail		Copia
 Add signature	Mail		Afegeix-hi una signatura
+Attachment: %name% (Type: %type%)	Mail	Don't translate the variables %name% and %type%.	Adjunt: %name% (Tipus: %type%)
 %n - Full name	Mail		%n - Nom complet
 Signature	Mail		Signatura
 Use default account	Mail		Usa el compte per defecte
@@ -97,7 +97,6 @@ Need Tracker to move items to trash	Mail		Cal el Rastrejador per moure elements 
 The mail_daemon could not be started:\n\t	Mail		No s'ha pogut iniciar el dimoni del correu:\n\t
 <no account found>	Mail		<no s'ha trobat cap compte>
 Mail couldn't find its dictionary.	Mail		El Correu no ha pogut trobar el diccionari.
-Mail preferences	Mail		Preferències del correu
 helpful message	Mail		missatge d'ajuda
  Read 	Mail		 Llegeix 
 Font:	Mail		Tipus de lletra:
@@ -108,8 +107,10 @@ Start now	Mail		Comença ara
 (Name unavailable)	Mail		(El nom no està disponible)
 Move to trash	Mail		Mou a la paperera
 <none>	Mail		<cap>
+Mail settings	Mail		Paràmetres del correu
 %d - Date	Mail		%d - Data
 Check spelling	Mail		Revisa'n l'ortografia
+Status:	Mail		Estat:
 Redo	Mail		Refés
 Leave as '%s'	Mail		Deixa-ho com a "%s'"
 Print…	Mail		Imprimeix…
@@ -165,4 +166,3 @@ Couldn't open this signature. Sorry.	Mail		No s'ha pogut obrir aquesta signatura
 Revert	Mail		Reverteix
 Unknown	Mail		Desconegut
 Increase quote level	Mail		Augmenta el nivell de citació
-Add enclosure…	Mail		Afegeix-hi un annex...

@@ -197,8 +197,7 @@ void
 BSpinner::SetMinValue(int32 min)
 {
 	fMinValue = min;
-	if (fValue < fMinValue)
-		SetValue(fMinValue);
+	SetValue(Value());
 }
 
 
@@ -206,8 +205,7 @@ void
 BSpinner::SetMaxValue(int32 max)
 {
 	fMaxValue = max;
-	if (fValue > fMaxValue)
-		SetValue(fMaxValue);
+	SetValue(Value());
 }
 
 

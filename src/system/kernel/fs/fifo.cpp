@@ -615,16 +615,15 @@ Inode::NotifyEndClosed(bool writer)
 				request->Notify();
 
 			if (fReadSelectSyncPool)
-				notify_select_event_pool(fReadSelectSyncPool, B_SELECT_READ);
+				notify_select_event_pool(fReadSelectSyncPool, B_SELECT_DISCONNECTED);
+
 		}
 	} else {
 		// Last reader is gone. Wake up all writers.
 		fWriteCondition.NotifyAll();
 
-		if (fWriteSelectSyncPool) {
-			notify_select_event_pool(fWriteSelectSyncPool, B_SELECT_WRITE);
+		if (fWriteSelectSyncPool)
 			notify_select_event_pool(fWriteSelectSyncPool, B_SELECT_ERROR);
-		}
 	}
 }
 
@@ -698,10 +697,12 @@ Inode::Select(uint8 event, selectsync* sync, int openMode)
 {
 	bool writer = true;
 	select_sync_pool** pool;
-	if (event == B_SELECT_READ || (openMode & O_RWMASK) == O_RDONLY) {
+	// B_SELECT_READ can happen on write-only opened fds, so restrain B_SELECT_READ to O_RDWR
+	if ((event == B_SELECT_READ && (openMode & O_RWMASK) == O_RDWR)
+		|| (openMode & O_RWMASK) == O_RDONLY) {
 		pool = &fReadSelectSyncPool;
 		writer = false;
-	} else if ((openMode & O_RWMASK) == O_WRONLY) {
+	} else if ((openMode & O_RWMASK) == O_RDWR || (openMode & O_RWMASK) == O_WRONLY) {
 		pool = &fWriteSelectSyncPool;
 	} else
 		return B_NOT_ALLOWED;
@@ -711,14 +712,13 @@ Inode::Select(uint8 event, selectsync* sync, int openMode)
 
 	// signal right away, if the condition holds already
 	if (writer) {
-		if ((event == B_SELECT_WRITE
-				&& (fBuffer.Writable() > 0 || fReaderCount == 0))
+		if ((event == B_SELECT_WRITE && fBuffer.Writable() > 0)
 			|| (event == B_SELECT_ERROR && fReaderCount == 0)) {
 			return notify_select_event(sync, event);
 		}
 	} else {
-		if (event == B_SELECT_READ
-				&& (fBuffer.Readable() > 0 || fWriterCount == 0)) {
+		if ((event == B_SELECT_READ && fBuffer.Readable() > 0)
+			|| (event == B_SELECT_DISCONNECTED && fWriterCount == 0)) {
 			return notify_select_event(sync, event);
 		}
 	}
@@ -731,9 +731,10 @@ status_t
 Inode::Deselect(uint8 event, selectsync* sync, int openMode)
 {
 	select_sync_pool** pool;
-	if (event == B_SELECT_READ || (openMode & O_RWMASK) == O_RDONLY) {
+	if ((event == B_SELECT_READ && (openMode & O_RWMASK) == O_RDWR)
+		|| (openMode & O_RWMASK) == O_RDONLY) {
 		pool = &fReadSelectSyncPool;
-	} else if ((openMode & O_RWMASK) == O_WRONLY) {
+	} else if ((openMode & O_RWMASK) == O_RDWR || (openMode & O_RWMASK) == O_WRONLY) {
 		pool = &fWriteSelectSyncPool;
 	} else
 		return B_NOT_ALLOWED;

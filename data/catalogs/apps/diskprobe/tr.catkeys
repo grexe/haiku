@@ -1,4 +1,4 @@
-1	turkish	x-vnd.Haiku-DiskProbe	2944605311
+1	turkish	x-vnd.Haiku-DiskProbe	1130290771
 Raw editor	AttributeWindow		Raw düzenleyicisi
 Remove	AttributeWindow		Kaldır
 Close	ProbeView		Kapat
@@ -21,15 +21,17 @@ Print…	ProbeView		Yazdır…
 New…	FileWindow		Yeni…
 what: '%.4s'\n\n	TypeEditors	'What' is a message specifier that defines the type of the message.	ne: '%.4s'\n\n
 OK	DiskProbe		Tamam
-DiskProbe	System name		DiskProbe
+DiskProbe	System name		Disk Sondası
 Back	ProbeView		Geri
 Device: 	ProbeView		Aygıt: 
 Base	ProbeView	A menu item, the number that is basis for a system of calculation. The base 10 system is a decimal system. This is in the same menu window than 'Font size' and 'BlockSize'	Sayı sistemi
 Open file…	FileWindow		Dosya aç…
 32 bit unsigned pointer:	TypeEditors		32 bit imzalanmamış işaretleyici:
-DiskProbe request	DiskProbe		DiskProbe isteği
+DiskProbe request	DiskProbe		Disk Sondası isteği
 Hex	ProbeView	A menu item, as short as possible, noun is recommended if it is shorter than adjective.	Onaltılık
+Block %lld (0x%Lx)	ProbeView		Blok %lld (0x%Lx)
 Writing to the file failed:\n%s\n\nAll changes will be lost when you quit.	ProbeView		Dosyaya yazma başarısız oldu:\n%s\n\nÇıktığınız zaman tüm değişiklikler kaybolacaktır.
+Native: %lld (0x%0*Lx)	ProbeView		Yerel: %lld (0x%0*Lx)
 Examine device:	OpenWindow		Aygıtı incele:
 Number editor	TypeEditors		Sayı düzenleyicisi
 Icon	TypeEditors		Simge
@@ -37,11 +39,9 @@ Attribute	ProbeView		Öznitelik
 Don't save	ProbeView		Kaydetme
 Undo	ProbeView		Geri al
 Flattened bitmap	TypeEditors		Düzleştirilmiş biteşlem
-Block %Ld (0x%Lx)	ProbeView		Blok: %Ld (0x%Lx)
 Cancel	OpenWindow		Vazgeç
 Unknown format	TypeEditors		Bilinmeyen biçim
 File: 	ProbeView		Dosya: 
-Swapped: %Ld (0x%0*Lx)	ProbeView		Takas edildi: %Ld (0x%0*Lx)
 Stop	ProbeView		Durdur
 Cancel	ProbeView		Vazgeç
 Could not open \"%s\":\n%s	DiskProbe	Opening of entry reference buffer for a DiskProbe request Alert message. The name of entry reference and error message is shown.	\"%s\" açılamadı:\n%s
@@ -53,7 +53,7 @@ Redo	ProbeView		Yinele
 Floating-point value:	TypeEditors		Kayan nokta değeri:
 Cancel	AttributeWindow		Vazgeç
 16 bit signed value:	TypeEditors		16 bit imzalanmış değer:
-DiskProbe request	AttributeWindow		DiskProbe isteği
+DiskProbe request	AttributeWindow		Disk Sondası isteği
 Next	ProbeView		Sonraki
 64 bit signed offset:	TypeEditors		64 bit imzalanmış ofset:
 32 bit signed value:	TypeEditors		32 bit imzalanmış değer:
@@ -91,7 +91,6 @@ Type editor	ProbeView		Tür düzenleyicisi
 File	FileWindow		Dosya
 Grayscale	TypeEditors		Gri tonlu
 32 bit	TypeEditors		32 bit
-Native: %Ld (0x%0*Lx)	ProbeView		Yerel: %Ld (0x%0*Lx)
 Device	ProbeView		Aygıt
 Close	AttributeWindow		Kapat
 Type editor	AttributeWindow		Tür düzenleyicisi
@@ -115,10 +114,12 @@ Block	ProbeView		Blok
 Find again	ProbeView		Yeniden bul
 View	ProbeView	This is the last menubar item 'File Edit Block View'	Görüntü
 Could not read image	TypeEditors	Image means here a picture file, not a disk image.	Görsel okunamadı
-DiskProbe request	ProbeView		DiskProbe isteği
+DiskProbe request	ProbeView		Disk Sondası isteği
 Double precision floating-point value:	TypeEditors		Çifte kesinlikli kayan noktalı değer:
 Image	TypeEditors	This is the type of view	Görsel
+Swapped: %lld (0x%0*Lx)	ProbeView		Takas edilen: %lld (0x%0*Lx)
 Save changes before closing?	ProbeView		Kapatmadan önce değişiklikler kaydedilsin mi?
+%s, %g × %g, %s	TypeEditors	The '×' is the Unicode multiplication sign U+00D7	%s, %g × %g, %s
 PNG format	TypeEditors		PNG biçimi
 Number	TypeEditors	This is the type of editor	Sayı
 Edit	ProbeView		Düzen

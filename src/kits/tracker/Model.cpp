@@ -426,8 +426,8 @@ Model::OpenNodeCommon(bool writable)
 		SetupBaseType();
 
 	switch (fBaseType) {
-		case kPlainNode:
 		case kExecutableNode:
+		case kPlainNode:
 		case kQueryNode:
 		case kQueryTemplateNode:
 		case kVirtualDirectoryNode:
@@ -437,11 +437,11 @@ Model::OpenNodeCommon(bool writable)
 				(uint32)(writable ? O_RDWR : O_RDONLY));
 			break;
 
+		case kDesktopNode:
 		case kDirectoryNode:
-		case kVolumeNode:
 		case kRootNode:
 		case kTrashNode:
-		case kDesktopNode:
+		case kVolumeNode:
 			if (!IsNodeOpen())
 				fNode = new BDirectory(&fEntryRef);
 
@@ -1009,7 +1009,7 @@ Model::IsDropTarget(const Model* forDocument, bool traverse) const
 Model::CanHandleResult
 Model::CanHandleDrops() const
 {
-	if (IsDirectory()) {
+	if (IsDirectory() || IsVirtualDirectory()) {
 		// directories take anything
 		// resolve permissions here
 		return kCanHandle;

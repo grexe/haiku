@@ -63,7 +63,6 @@ private:
 			friend struct HelpCommand;
 
 private:
-	static	status_t			_InputLoopEntry(void* data);
 			status_t			_InputLoop();
 
 			status_t			_RegisterCommands();
@@ -78,7 +77,7 @@ private:
 									const CommandEntry* command2);
 
 private:
-			CliContext			fContext;
+			CliContext*			fContext;
 			CommandList			fCommands;
 			sem_id				fShowSemaphore;
 			bool				fShown;

@@ -26,12 +26,23 @@
 #include "Variable.h"
 
 
-CliDumpMemoryCommand::CliDumpMemoryCommand()
+CliDumpMemoryCommand::CliDumpMemoryCommand(int itemSize,
+	const char* itemSizeNoun, int displayWidth)
 	:
-	CliCommand("dump contents of debugged team's memory",
-		"%s [\"]address|expression[\"] [num]\n"
-		"Reads and displays the contents of memory at the target address.")
+	CliCommand(NULL, NULL),
+	itemSize(itemSize),
+	displayWidth(displayWidth)
 {
+	// BString manages the lifetime of the const char* put in fSummary and fUsage
+	fSummaryString.SetToFormat("dump contents of debugged team's memory in %s-sized increments",
+		itemSizeNoun);
+	fUsageString.SetToFormat("%%s [\"]address|expression[\"] [num]\n"
+		"Reads and displays the contents of memory at the target address in %d-byte increments",
+		itemSize);
+
+	fSummary = fSummaryString.String();
+	fUsage = fUsageString.String();
+
 	// TODO: this should be retrieved via some indirect helper rather
 	// than instantiating the specific language directly.
 	fLanguage = new(std::nothrow) CppLanguage();
@@ -59,61 +70,13 @@ CliDumpMemoryCommand::Execute(int argc, const char* const* argv,
 		return;
 	}
 
-	ExpressionInfo* info = context.GetExpressionInfo();
-
-	target_addr_t address = 0;
-	info->SetTo(argv[1]);
-
-	context.GetUserInterfaceListener()->ExpressionEvaluationRequested(
-		fLanguage, info);
-	context.WaitForEvents(CliContext::EVENT_EXPRESSION_EVALUATED);
-	if (context.IsTerminating())
+	target_addr_t address;
+	if (context.EvaluateExpression(argv[1], fLanguage, address) != B_OK)
 		return;
 
-	BString errorMessage;
-	ExpressionResult* result = context.GetExpressionValue();
-	if (result != NULL) {
-		if (result->Kind() == EXPRESSION_RESULT_KIND_PRIMITIVE) {
-			Value* value = result->PrimitiveValue();
-			BVariant variantValue;
-			value->ToVariant(variantValue);
-			if (variantValue.Type() == B_STRING_TYPE)
-				errorMessage.SetTo(variantValue.ToString());
-			else
-				address = variantValue.ToUInt64();
-		}
-	} else
-		errorMessage = strerror(context.GetExpressionResult());
-
-	if (!errorMessage.IsEmpty()) {
-		printf("Unable to evaluate expression: %s\n",
-			errorMessage.String());
+	TeamMemoryBlock* block = NULL;
+	if (context.GetMemoryBlock(address, block) != B_OK)
 		return;
-	}
-
-	int32 itemSize = 0;
-	int32 displayWidth = 0;
-
-	// build the format string
-	if (strcmp(argv[0], "db") == 0) {
-		itemSize = 1;
-		displayWidth = 16;
-	} else if (strcmp(argv[0], "ds") == 0) {
-		itemSize = 2;
-		displayWidth = 8;
-	} else if (strcmp(argv[0], "dw") == 0) {
-		itemSize = 4;
-		displayWidth = 4;
-	} else if (strcmp(argv[0], "dl") == 0) {
-		itemSize = 8;
-		displayWidth = 2;
-	} else if (strcmp(argv[0], "string") == 0) {
-		itemSize = 1;
-		displayWidth = -1;
-	} else {
-		printf("dump called in an invalid way!\n");
-		return;
-	}
 
 	int32 num = 0;
 	if (argc == 3) {
@@ -127,44 +90,8 @@ CliDumpMemoryCommand::Execute(int argc, const char* const* argv,
 	if (num <= 0)
 		num = displayWidth;
 
-	TeamMemoryBlock* block = context.CurrentBlock();
-	if (block == NULL || !block->Contains(address)) {
-		context.GetUserInterfaceListener()->InspectRequested(address,
-			&context);
-		context.WaitForEvents(CliContext::EVENT_TEAM_MEMORY_BLOCK_RETRIEVED);
-		if (context.IsTerminating())
-			return;
-		block = context.CurrentBlock();
-	}
-
-	if (!strcmp(argv[0], "string")) {
-		printf("%p \"", (char*)address);
-
-		target_addr_t offset = address;
-		char c;
-		while (block->Contains(offset)) {
-			c = *(block->Data() + offset - block->BaseAddress());
-
-			if (c == '\0')
-				break;
-			if (c == '\n')
-				printf("\\n");
-			else if (c == '\t')
-				printf("\\t");
-			else {
-				if (!isprint(c))
-					c = '.';
-
-				printf("%c", c);
-			}
-			++offset;
-		}
-
-		printf("\"\n");
-	} else {
-		BString output;
-		UiUtils::DumpMemory(output, 0, block, address, itemSize, displayWidth,
-			num);
-		printf("%s\n", output.String());
-	}
+	BString output;
+	UiUtils::DumpMemory(output, 0, block, address, itemSize, displayWidth,
+		num);
+	printf("%s\n", output.String());
 }

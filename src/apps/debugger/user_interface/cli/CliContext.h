@@ -12,6 +12,7 @@
 #include <histedit.h>
 
 #include <Locker.h>
+#include <Looper.h>
 
 #include "ExpressionInfo.h"
 #include "Team.h"
@@ -19,6 +20,7 @@
 #include "ValueNodeContainer.h"
 
 
+class SourceLanguage;
 class StackFrame;
 class StackTrace;
 class Team;
@@ -30,27 +32,28 @@ class ValueNodeManager;
 class CliContext : private Team::Listener,
 	public TeamMemoryBlock::Listener,
 	public ExpressionInfo::Listener,
-	private ValueNodeContainer::Listener {
+	private ValueNodeContainer::Listener,
+	public BLooper {
 public:
 			enum {
-				EVENT_QUIT							= 0x01,
-				EVENT_USER_INTERRUPT				= 0x02,
-				EVENT_THREAD_ADDED					= 0x04,
-				EVENT_THREAD_REMOVED				= 0x08,
-				EVENT_THREAD_STOPPED				= 0x10,
-				EVENT_THREAD_STACK_TRACE_CHANGED	= 0x20,
-				EVENT_VALUE_NODE_CHANGED			= 0x40,
-				EVENT_TEAM_MEMORY_BLOCK_RETRIEVED	= 0x80,
-				EVENT_EXPRESSION_EVALUATED			= 0x100,
-				EVENT_DEBUG_REPORT_CHANGED			= 0x200,
-				EVENT_CORE_FILE_CHANGED				= 0x400
+				MSG_QUIT							= 'quit',
+				MSG_USER_INTERRUPT					= 'uint',
+				MSG_THREAD_ADDED					= 'thad',
+				MSG_THREAD_REMOVED					= 'thar',
+				MSG_THREAD_STATE_CHANGED			= 'tsch',
+				MSG_THREAD_STACK_TRACE_CHANGED		= 'tstc',
+				MSG_VALUE_NODE_CHANGED				= 'vnch',
+				MSG_TEAM_MEMORY_BLOCK_RETRIEVED		= 'tmbr',
+				MSG_EXPRESSION_EVALUATED			= 'exev',
+				MSG_DEBUG_REPORT_CHANGED			= 'drch',
+				MSG_CORE_FILE_CHANGED				= 'cfch'
 			};
 
 public:
 								CliContext();
 								~CliContext();
 
-			status_t			Init(Team* team,
+			status_t			Init(::Team* team,
 									UserInterfaceListener* listener);
 			void				Cleanup();
 
@@ -58,9 +61,11 @@ public:
 
 			bool				IsTerminating() const	{ return fTerminating; }
 
+	virtual	void				MessageReceived(BMessage* message);
+
 			// service methods for the input loop thread follow
 
-			Team*				GetTeam() const	{ return fTeam; }
+			::Team*				GetTeam() const	{ return fTeam; }
 			UserInterfaceListener* GetUserInterfaceListener() const
 									{ return fListener; }
 			ValueNodeManager*	GetValueNodeManager() const
@@ -68,23 +73,20 @@ public:
 			StackTrace*			GetStackTrace() const
 									{ return fCurrentStackTrace; }
 
-			Thread*				CurrentThread() const { return fCurrentThread; }
+			::Thread*			CurrentThread() const { return fCurrentThread; }
 			thread_id			CurrentThreadID() const;
-			void				SetCurrentThread(Thread* thread);
+			void				SetCurrentThread(::Thread* thread);
 			void				PrintCurrentThread();
 
 			int32				CurrentStackFrameIndex() const
 									{ return fCurrentStackFrameIndex; }
 			void				SetCurrentStackFrameIndex(int32 index);
 
-			TeamMemoryBlock*	CurrentBlock() const { return fCurrentBlock; }
+			status_t			EvaluateExpression(const char * expression,
+									SourceLanguage* language, target_addr_t& address);
 
-			ExpressionInfo*		GetExpressionInfo() const
-									{ return fExpressionInfo; }
-			status_t			GetExpressionResult() const
-									{ return fExpressionResult; }
-			ExpressionResult*	GetExpressionValue() const
-									{ return fExpressionValue; }
+			status_t			GetMemoryBlock(target_addr_t address,
+									TeamMemoryBlock*& block);
 
 			const char*			PromptUser(const char* prompt);
 			void				AddLineToInputHistory(const char* line);
@@ -92,8 +94,7 @@ public:
 			void				QuitSession(bool killTeam);
 
 			void				WaitForThreadOrUser();
-			void				WaitForEvents(int32 eventMask);
-			void				ProcessPendingEvents();
+			void				WaitForEvent(uint32 event);
 
 private:
 			struct Event;
@@ -131,29 +132,23 @@ private:
 	virtual	void				ValueNodeValueChanged(ValueNode* node);
 
 private:
-			void				_QueueEvent(Event* event);
-
-			void				_PrepareToWaitForEvents(uint32 eventMask);
-			uint32				_WaitForEvents();
-			void				_SignalInputLoop(uint32 events);
-
 	static	const char*			_GetPrompt(EditLine* editLine);
+			void				_WaitForEvent(uint32 event);
 
 private:
-			BLocker				fLock;
-			Team*				fTeam;
+	mutable	BLocker				fLock;
+			::Team*				fTeam;
 			UserInterfaceListener* fListener;
 			ValueNodeManager*	fNodeManager;
 			EditLine*			fEditLine;
 			History*			fHistory;
 			const char*			fPrompt;
-			sem_id				fBlockingSemaphore;
-			uint32				fInputLoopWaitingForEvents;
-			uint32				fEventsOccurred;
-			bool				fInputLoopWaiting;
+			sem_id				fWaitForEventSemaphore;
+			uint32				fEventOccurred;
 	volatile bool				fTerminating;
 
-			Thread*				fCurrentThread;
+			BReference< ::Thread>	fStoppedThread;
+			::Thread*			fCurrentThread;
 			StackTrace*			fCurrentStackTrace;
 			int32				fCurrentStackFrameIndex;
 			TeamMemoryBlock*	fCurrentBlock;
@@ -161,8 +156,6 @@ private:
 			ExpressionInfo*		fExpressionInfo;
 			status_t			fExpressionResult;
 			ExpressionResult*	fExpressionValue;
-
-			EventList			fPendingEvents;
 };
 
 

@@ -51,13 +51,13 @@ SharedLibrary libuserlandfs_haiku_kernel.so
 	:
 	<nogrist>userlandfs_server
 	be	# for BLocker only
-	[ TargetLibsupc++ ]
+	[ TargetLibsupc++ ] [ TargetLibstdc++ ]
 ;
 
 
 SEARCH on [ FGristFiles
 		Notifications.cpp
-	] = [ FDirName $(HAIKU_TOP) src system kernel ] ;
+	] = [ FDirName $(HAIKU_TOP) src system kernel events ] ;
 
 SEARCH on [ FGristFiles
 		block_cache.cpp

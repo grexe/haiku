@@ -52,14 +52,13 @@ All rights reserved.
 #include <NodeInfo.h>
 #include <Path.h>
 #include <StringFormat.h>
+#include <StringForSize.h>
 #include <SupportDefs.h>
 #include <TextView.h>
 #include <Volume.h>
 #include <VolumeRoster.h>
 
 #include "Attributes.h"
-#include "FindPanel.h"
-#include "FSUndoRedo.h"
 #include "FSUtils.h"
 #include "Model.h"
 #include "OpenWithWindow.h"
@@ -76,14 +75,6 @@ All rights reserved.
 
 const int32 kGenericReadBufferSize = 1024;
 
-const char* kSizeFormats[] = {
-	"%.2f %s",
-	"%.1f %s",
-	"%.f %s",
-	"%.f%s",
-	0
-};
-
 
 bool NameAttributeText::sSortFolderNamesFirst = false;
 bool RealNameAttributeText::sSortFolderNamesFirst = false;
@@ -94,65 +85,37 @@ float
 TruncFileSizeBase(BString* outString, int64 value, const View* view,
 	float width)
 {
-	// ToDo: If slow, replace float divisions with shifts
-	//       if fast enough, try fitting more decimal places.
-
-	// ToDo: Update string_for_size() in libshared to be able to
-	//       handle this case.
-
-	BString buffer;
-
 	// format file size value
 	if (value == kUnknownSize) {
 		*outString = "-";
 		return view->StringWidth("-");
-	} else if (value < kKBSize) {
-		static BStringFormat format(B_TRANSLATE(
-			"{0, plural, one{# byte} other{# bytes}}"));
-		format.Format(buffer, value);
-		if (view->StringWidth(buffer.String()) > width)
-			buffer.SetToFormat(B_TRANSLATE("%Ld B"), value);
-	} else {
-		const char* suffix;
-		float doubleValue;
-		if (value >= kTBSize) {
-			suffix = B_TRANSLATE("TiB");
-			doubleValue = (double)value / kTBSize;
-		} else if (value >= kGBSize) {
-			suffix = B_TRANSLATE("GiB");
-			doubleValue = (double)value / kGBSize;
-		} else if (value >= kMBSize) {
-			suffix = B_TRANSLATE("MiB");
-			doubleValue = (double)value / kMBSize;
-		} else {
-			ASSERT(value >= kKBSize);
-			suffix = B_TRANSLATE("KiB");
-			doubleValue = (double)value / kKBSize;
+	}
+
+	char sizeBuffer[128];
+	BString buffer = string_for_size(value, sizeBuffer, sizeof(sizeBuffer));
+
+	if (value < kKBSize) {
+		if (view->StringWidth(buffer.String()) > width) {
+			buffer.SetToFormat(B_TRANSLATE_COMMENT("%lld B",
+				"The filesize symbol for byte"), value);
 		}
-
-		for (int32 index = 0; ; index++) {
-			if (kSizeFormats[index] == 0)
-				break;
-
-			buffer.SetToFormat(kSizeFormats[index], doubleValue, suffix);
-			// strip off an insignificant zero so we don't get readings
-			// such as 1.00
-			char* period = 0;
-			for (char* tmp = const_cast<char*>(buffer.String()); *tmp != '\0';
-					tmp++) {
-				if (*tmp == '.')
-					period = tmp;
-			}
-			if (period && period[1] && period[2] == '0')
-				// move the rest of the string over the insignificant zero
-				for (char* tmp = &period[2]; *tmp; tmp++)
-					*tmp = tmp[1];
-
-			float resultWidth = view->StringWidth(buffer);
-			if (resultWidth <= width) {
-				*outString = buffer.String();
-				return resultWidth;
-			}
+	} else {
+		// strip off an insignificant zero so we don't get readings
+		// such as 1.00
+		char* period = 0;
+		for (char* tmp = const_cast<char*>(buffer.String()); *tmp != '\0'; tmp++) {
+			if (*tmp == '.')
+				period = tmp;
+		}
+		if (period && period[1] && period[2] == '0') {
+			// move the rest of the string over the insignificant zero
+			for (char* tmp = &period[2]; *tmp; tmp++)
+				*tmp = tmp[1];
+		}
+		float resultWidth = view->StringWidth(buffer);
+		if (resultWidth <= width) {
+			*outString = buffer.String();
+			return resultWidth;
 		}
 	}
 
@@ -496,8 +459,7 @@ WidgetAttributeText::AttrAsString(const Model* model, BString* outString,
 bool
 WidgetAttributeText::IsEditable() const
 {
-	return fColumn->Editable()
-		&& !BVolume(fModel->StatBuf()->st_dev).IsReadOnly();
+	return fColumn->Editable();
 }
 
 
@@ -815,58 +777,16 @@ NameAttributeText::SetUpEditing(BTextView* textView)
 bool
 NameAttributeText::CommitEditedTextFlavor(BTextView* textView)
 {
-	const char* text = textView->Text();
+	if (textView == NULL)
+		return false;
+
+	const char* name = textView->Text();
+	size_t length = (size_t)textView->TextLength();
 
 	BEntry entry(fModel->EntryRef());
-	if (entry.InitCheck() != B_OK)
-		return false;
-
-	BDirectory	parent;
-	if (entry.GetParent(&parent) != B_OK)
-		return false;
-
-	bool removeExisting = false;
-	if (parent.Contains(text)) {
-		BAlert* alert = new BAlert("",
-			B_TRANSLATE("That name is already taken. "
-			"Please type another one."),
-			B_TRANSLATE("Replace other file"),
-			B_TRANSLATE("OK"),
-			NULL, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
-		alert->SetShortcut(0, 'r');
-		if (alert->Go())
-			return false;
-
-		removeExisting = true;
-	}
-
-	// TODO:
-	// use model-flavor specific virtuals for all of these special
-	// renamings
-	status_t result;
-	if (fModel->IsVolume()) {
-		BVolume	volume(fModel->NodeRef()->device);
-		result = volume.InitCheck();
-		if (result == B_OK) {
-			RenameVolumeUndo undo(volume, text);
-
-			result = volume.SetName(text);
-			if (result != B_OK)
-				undo.Remove();
-		}
-	} else {
-		if (fModel->IsQuery()) {
-			BModelWriteOpener opener(fModel);
-			ASSERT(fModel->Node());
-			MoreOptionsStruct::SetQueryTemporary(fModel->Node(), false);
-		}
-
-		RenameUndo undo(entry, text);
-
-		result = entry.Rename(text, removeExisting);
-		if (result != B_OK)
-			undo.Remove();
-	}
+	status_t result = entry.InitCheck();
+	if (result == B_OK)
+		result = EditModelName(fModel, name, length);
 
 	return result == B_OK;
 }
@@ -882,8 +802,7 @@ NameAttributeText::SetSortFolderNamesFirst(bool enabled)
 bool
 NameAttributeText::IsEditable() const
 {
-	return StringAttributeText::IsEditable()
-		&& !fModel->HasLocalizedName();
+	return StringAttributeText::IsEditable();
 }
 
 
@@ -893,7 +812,7 @@ NameAttributeText::IsEditable() const
 RealNameAttributeText::RealNameAttributeText(const Model* model,
 	const BColumn* column)
 	:
-	StringAttributeText(model, column)
+	NameAttributeText(model, column)
 {
 }
 
@@ -945,68 +864,6 @@ RealNameAttributeText::SetUpEditing(BTextView* textView)
 
 	textView->SetMaxBytes(B_FILE_NAME_LENGTH);
 	textView->SetText(fFullValueText.String(), fFullValueText.Length());
-}
-
-
-bool
-RealNameAttributeText::CommitEditedTextFlavor(BTextView* textView)
-{
-	const char* text = textView->Text();
-
-	BEntry entry(fModel->EntryRef());
-	if (entry.InitCheck() != B_OK)
-		return false;
-
-	BDirectory	parent;
-	if (entry.GetParent(&parent) != B_OK)
-		return false;
-
-	bool removeExisting = false;
-	if (parent.Contains(text)) {
-		BAlert* alert = new BAlert("",
-			B_TRANSLATE("That name is already taken. "
-			"Please type another one."),
-			B_TRANSLATE("Replace other file"),
-			B_TRANSLATE("OK"),
-			NULL, B_WIDTH_AS_USUAL, B_WARNING_ALERT);
-
-		alert->SetShortcut(0, 'r');
-
-		if (alert->Go())
-			return false;
-
-		removeExisting = true;
-	}
-
-	// TODO:
-	// use model-flavor specific virtuals for all of these special
-	// renamings
-	status_t result;
-	if (fModel->IsVolume()) {
-		BVolume volume(fModel->NodeRef()->device);
-		result = volume.InitCheck();
-		if (result == B_OK) {
-			RenameVolumeUndo undo(volume, text);
-
-			result = volume.SetName(text);
-			if (result != B_OK)
-				undo.Remove();
-		}
-	} else {
-		if (fModel->IsQuery()) {
-			BModelWriteOpener opener(fModel);
-			ASSERT(fModel->Node());
-			MoreOptionsStruct::SetQueryTemporary(fModel->Node(), false);
-		}
-
-		RenameUndo undo(entry, text);
-
-		result = entry.Rename(text, removeExisting);
-		if (result != B_OK)
-			undo.Remove();
-	}
-
-	return result == B_OK;
 }
 
 

@@ -467,7 +467,7 @@ static status_t
 xfs_free_dir_cookie(fs_volume *_volume, fs_vnode *_node, void *_cookie)
 {
 	delete (DirectoryIterator*)_cookie;
-	return B_NOT_SUPPORTED;
+	return B_OK;
 }
 
 
@@ -476,10 +476,6 @@ xfs_open_attr_dir(fs_volume *_volume, fs_vnode *_node, void **_cookie)
 {
 	Inode* inode = (Inode*)_node->private_node;
 	TRACE("%s()\n", __FUNCTION__);
-
-	// Attributes are only on files
-	if (!inode->IsFile())
-		return B_NOT_SUPPORTED;
 
 	Attribute* iterator = Attribute::Init(inode);
 	if (iterator == NULL)

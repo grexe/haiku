@@ -1701,8 +1701,16 @@ _dump_thread_info(Thread *thread, bool shortInfo)
 				}
 
 				case THREAD_BLOCK_TYPE_CONDITION_VARIABLE:
-					kprintf("cvar      %p   ", thread->wait.object);
+				{
+					char name[5];
+					ssize_t length = debug_condition_variable_type_strlcpy(
+						(ConditionVariable*)thread->wait.object, name, sizeof(name));
+					if (length > 0)
+						kprintf("cvar:%*s %p   ", 4, name, thread->wait.object);
+					else
+						kprintf("cvar      %p   ", thread->wait.object);
 					break;
+				}
 
 				case THREAD_BLOCK_TYPE_SNOOZE:
 					kprintf("%*s", B_PRINTF_POINTER_WIDTH + 15, "");
@@ -1726,6 +1734,10 @@ _dump_thread_info(Thread *thread, bool shortInfo)
 
 				case THREAD_BLOCK_TYPE_OTHER:
 					kprintf("other%*s", B_PRINTF_POINTER_WIDTH + 10, "");
+					break;
+
+				case THREAD_BLOCK_TYPE_OTHER_OBJECT:
+					kprintf("other     %p   ", thread->wait.object);
 					break;
 
 				default:
@@ -1813,6 +1825,10 @@ _dump_thread_info(Thread *thread, bool shortInfo)
 
 			case THREAD_BLOCK_TYPE_OTHER:
 				kprintf("other (%s)\n", (char*)thread->wait.object);
+				break;
+
+			case THREAD_BLOCK_TYPE_OTHER_OBJECT:
+				kprintf("other (%p)\n", thread->wait.object);
 				break;
 
 			default:
@@ -2226,9 +2242,10 @@ thread_exit(void)
 	while (info != NULL) {
 		select_sync* sync = info->sync;
 
+		select_info* next = info->next;
 		notify_select_events(info, B_EVENT_INVALID);
-		info = info->next;
 		put_select_sync(sync);
+		info = next;
 	}
 
 	// notify listeners
@@ -2603,7 +2620,7 @@ select_thread(int32 id, struct select_info* info, bool kernel)
 		thread->select_infos = info;
 
 		// we need a sync reference
-		atomic_add(&info->sync->ref_count, 1);
+		acquire_select_sync(info->sync);
 	}
 
 	return B_OK;
@@ -3780,7 +3797,13 @@ _user_block_thread(uint32 flags, bigtime_t timeout)
 		return waitStatus;
 
 	// nope, so wait
+	// Note: GCC 13 marks the following call as potentially overflowing, since it thinks `thread`
+	//       may be `nullptr`. This cannot be the case in reality, therefore ignore this specific
+	//       error.
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wstringop-overflow"
 	thread_prepare_to_block(thread, flags, THREAD_BLOCK_TYPE_USER, NULL);
+	#pragma GCC diagnostic pop
 
 	threadLocker.Unlock();
 
@@ -3891,4 +3914,12 @@ _user_setrlimit(int resource, const struct rlimit *userResourceLimit)
 		return B_BAD_ADDRESS;
 
 	return common_setrlimit(resource, &resourceLimit);
+}
+
+
+int
+_user_get_cpu()
+{
+	Thread* thread = thread_get_current_thread();
+	return thread->cpu->cpu_num;
 }

@@ -556,10 +556,9 @@ TFilePanel::SetTo(const entry_ref* ref)
 	if (entry.InitCheck() != B_OK || !entry.IsDirectory())
 		return;
 
-	SwitchDirMenuTo(&setToRef);
-
 	PoseView()->SetIsDesktop(isDesktop);
-	fPoseView->SwitchDir(&setToRef);
+	PoseView()->SwitchDir(&setToRef);
+	SwitchDirMenuTo(&setToRef);
 
 	AddShortcut('H', B_COMMAND_KEY, new BMessage(kSwitchToHome));
 		// our shortcut got possibly removed because the home
@@ -579,13 +578,6 @@ void
 TFilePanel::SetClientObject(BFilePanel* panel)
 {
 	fClientObject = panel;
-}
-
-
-bool
-TFilePanel::IsOpenButtonAlwaysEnabled() const
-{
-	return !fIsSavePanel && (fNodeFlavors & B_DIRECTORY_NODE) != 0;
 }
 
 
@@ -614,9 +606,8 @@ TFilePanel::AdjustButton()
 					buttonText = B_TRANSLATE("Open");
 				} else {
 					// insert the name of the selected model into
-					// the text field
+					// the text field, do not alter focus
 					textControl->SetText(model->Name());
-					textControl->MakeFocus(true);
 				}
 			}
 		} else
@@ -637,20 +628,24 @@ TFilePanel::AdjustButton()
 				// selection mode then we don't disable button ever
 				if ((modelFlavor == B_DIRECTORY_NODE
 						|| linkFlavor == B_DIRECTORY_NODE)
-					&& count == 1)
-				  break;
+					&& count == 1) {
+					break;
+				}
 
 				if ((fNodeFlavors & modelFlavor) == 0
 					&& (fNodeFlavors & linkFlavor) == 0) {
-		    		enabled = false;
+					enabled = false;
 					break;
 				}
 			}
+		} else if ((fNodeFlavors & B_DIRECTORY_NODE) != 0) {
+			// No selection, but the current directory could be opened.
+			enabled = true;
 		}
 	}
 
 	button->SetLabel(buttonText.String());
-	button->SetEnabled(IsOpenButtonAlwaysEnabled() || enabled);
+	button->SetEnabled(enabled);
 }
 
 
@@ -700,8 +695,6 @@ TFilePanel::Init(const BMessage*)
 	fBackView->AddChild(fMenuBar);
 
 	// add directory menu and menufield
-	fDirMenu = new BDirMenu(0, this, kSwitchDirectory, "refs");
-
 	font_height ht;
 	be_plain_font->GetHeight(&ht);
 	const float f_height = ht.ascent + ht.descent + ht.leading;
@@ -713,16 +706,14 @@ TFilePanel::Init(const BMessage*)
 	rect.right = rect.left + (spacing * 50);
 	rect.bottom = rect.top + (f_height > 22 ? f_height : 22);
 
-	fDirMenuField = new BMenuField(rect, "DirMenuField", "", fDirMenu);
+	fDirMenuField = new BMenuField(rect, "DirMenuField", "", NULL);
 	fDirMenuField->MenuBar()->SetFont(be_plain_font);
 	fDirMenuField->SetDivider(0);
 	fDirMenuField->MenuBar()->SetMaxContentWidth(rect.Width() - 26.0f);
 		// Make room for the icon
 
-	fDirMenuField->MenuBar()->RemoveItem((int32)0);
-	fDirMenu->SetMenuBar(fDirMenuField->MenuBar());
-		// the above is a weird call from BDirMenu
-		// ToDo: clean up
+	fDirMenu = new BDirMenu(fDirMenuField->MenuBar(),
+		this, kSwitchDirectory, "refs");
 
 	BEntry entry(TargetModel()->EntryRef());
 	if (entry.InitCheck() == B_OK)
@@ -800,7 +791,7 @@ TFilePanel::Init(const BMessage*)
 	AddShortcut('H', B_COMMAND_KEY, new BMessage(kSwitchToHome));
 	AddShortcut('A', B_COMMAND_KEY | B_SHIFT_KEY,
 		new BMessage(kShowSelectionWindow));
-	AddShortcut('A', B_COMMAND_KEY, new BMessage(B_SELECT_ALL), PoseView());
+	AddShortcut('A', B_COMMAND_KEY, new BMessage(B_SELECT_ALL), this);
 	AddShortcut('S', B_COMMAND_KEY, new BMessage(kInvertSelection),
 		PoseView());
 	AddShortcut('Y', B_COMMAND_KEY, new BMessage(kResizeToFit), PoseView());
@@ -874,7 +865,10 @@ TFilePanel::Init(const BMessage*)
 	PoseView()->UpdateScrollRange();
 	PoseView()->ScrollTo(B_ORIGIN);
 
-	if (fTextControl) {
+	// Focus on text control initially, but do not alter focus afterwords
+	// because pose view focus is needed for Cut/Copy/Paste to work.
+
+	if (fIsSavePanel && fTextControl != NULL) {
 		fTextControl->MakeFocus();
 		fTextControl->TextView()->SelectAll();
 	} else
@@ -978,19 +972,31 @@ TFilePanel::AddFileContextMenus(BMenu* menu)
 		new BMessage(kGetInfo), 'I'));
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit name"),
 		new BMessage(kEditItem), 'E'));
+
 	menu->AddItem(new BMenuItem(TrackerSettings().DontMoveFilesToTrash()
 		? B_TRANSLATE("Delete")
 		: B_TRANSLATE("Move to Trash"),
 		new BMessage(kMoveToTrash), 'T'));
 	menu->AddSeparatorItem();
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Cut"),
-		new BMessage(B_CUT), 'X'));
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Copy"),
-		new BMessage(B_COPY), 'C'));
-	//menu->AddItem(pasteItem = new BMenuItem("Paste", new BMessage(B_PASTE),
-	//	'V'));
+
+	BMenuItem* cutItem = new BMenuItem(B_TRANSLATE("Cut"),
+		new BMessage(B_CUT), 'X');
+	menu->AddItem(cutItem);
+	BMenuItem* copyItem = new BMenuItem(B_TRANSLATE("Copy"),
+		new BMessage(B_COPY), 'C');
+	menu->AddItem(copyItem);
+#if CUT_COPY_PASTE_IN_CONTEXT_MENU
+	BMenuItem* pasteItem = new BMenuItem(B_TRANSLATE("Paste"),
+		new BMessage(B_PASTE), 'V');
+	menu->AddItem(pasteItem);
+#endif
 
 	menu->SetTargetForItems(PoseView());
+	cutItem->SetTarget(this);
+	copyItem->SetTarget(this);
+#if CUT_COPY_PASTE_IN_CONTEXT_MENU
+	pasteItem->SetTarget(this);
+#endif
 }
 
 
@@ -1004,14 +1010,16 @@ TFilePanel::AddVolumeContextMenus(BMenu* menu)
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit name"),
 		new BMessage(kEditItem), 'E'));
 	menu->AddSeparatorItem();
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Cut"), new BMessage(B_CUT),
-		'X'));
-	menu->AddItem(new BMenuItem(B_TRANSLATE("Copy"),
-		new BMessage(B_COPY), 'C'));
-	//menu->AddItem(pasteItem = new BMenuItem("Paste", new BMessage(B_PASTE),
-	//	'V'));
+
+#if CUT_COPY_PASTE_IN_CONTEXT_MENU
+	BMenuItem* pasteItem = new BMenuItem(B_TRANSLATE("Paste"),
+		new BMessage(B_PASTE), 'V');
+#endif
 
 	menu->SetTargetForItems(PoseView());
+#if CUT_COPY_PASTE_IN_CONTEXT_MENU
+	pasteItem->SetTarget(this);
+#endif
 }
 
 
@@ -1024,10 +1032,12 @@ TFilePanel::AddWindowContextMenus(BMenu* menu)
 	menu->AddItem(item);
 	menu->AddSeparatorItem();
 
+#if CUT_COPY_PASTE_IN_CONTEXT_MENU
 	item = new BMenuItem(B_TRANSLATE("Paste"), new BMessage(B_PASTE), 'V');
-	item->SetTarget(PoseView());
+	item->SetTarget(this);
 	menu->AddItem(item);
 	menu->AddSeparatorItem();
+#endif
 
 	item = new BMenuItem(B_TRANSLATE("Select" B_UTF8_ELLIPSIS),
 		new BMessage(kShowSelectionWindow), 'A', B_SHIFT_KEY);
@@ -1036,7 +1046,7 @@ TFilePanel::AddWindowContextMenus(BMenu* menu)
 
 	item = new BMenuItem(B_TRANSLATE("Select all"),
 		new BMessage(B_SELECT_ALL), 'A');
-	item->SetTarget(PoseView());
+	item->SetTarget(this);
 	menu->AddItem(item);
 
 	item = new BMenuItem(B_TRANSLATE("Invert selection"),
@@ -1060,13 +1070,23 @@ TFilePanel::AddDropContextMenus(BMenu*)
 void
 TFilePanel::MenusBeginning()
 {
-	int32 count = PoseView()->SelectionList()->CountItems();
+	if (fMenuBar == NULL)
+		return;
 
-	EnableNamedMenuItem(fMenuBar, kNewFolder, !TargetModel()->IsRoot());
+	if (CurrentMessage() != NULL && CurrentMessage()->what == B_MOUSE_DOWN) {
+		// don't commit active pose if only a keyboard shortcut is
+		// invoked - this would prevent Cut/Copy/Paste from working
+		PoseView()->CommitActivePose();
+	}
+
+	int32 selectCount = PoseView()->CountSelected();
+
+	EnableNamedMenuItem(fMenuBar, kNewFolder, !TargetModel()->IsRoot()
+		&& !PoseView()->TargetVolumeIsReadOnly());
 	EnableNamedMenuItem(fMenuBar, kMoveToTrash, !TargetModel()->IsRoot()
-		&& count);
-	EnableNamedMenuItem(fMenuBar, kGetInfo, count != 0);
-	EnableNamedMenuItem(fMenuBar, kEditItem, count == 1);
+		&& selectCount > 0 && !PoseView()->SelectedVolumeIsReadOnly());
+	EnableNamedMenuItem(fMenuBar, kGetInfo, selectCount > 0);
+	EnableNamedMenuItem(fMenuBar, kEditItem, selectCount == 1);
 
 	SetCutItem(fMenuBar);
 	SetCopyItem(fMenuBar);
@@ -1084,16 +1104,62 @@ TFilePanel::MenusEnded()
 
 
 void
-TFilePanel::ShowContextMenu(BPoint point, const entry_ref* ref, BView* view)
+TFilePanel::ShowContextMenu(BPoint where, const entry_ref* ref)
 {
-	EnableNamedMenuItem(fWindowContextMenu, kNewFolder,
-		!TargetModel()->IsRoot());
-	EnableNamedMenuItem(fWindowContextMenu, kOpenParentDir,
-		!TargetModel()->IsRoot());
-	EnableNamedMenuItem(fWindowContextMenu, kMoveToTrash,
-		!TargetModel()->IsRoot());
+	ASSERT(IsLocked());
+	BPoint global(where);
+	PoseView()->ConvertToScreen(&global);
+	PoseView()->CommitActivePose();
 
-	_inherited::ShowContextMenu(point, ref, view);
+	if (ref != NULL) {
+		// clicked on a pose, show file or volume context menu
+		Model model(ref);
+		if (model.InitCheck() != B_OK)
+			return; // bail out, do not show context menu
+
+		if (TargetModel()->IsRoot() || model.IsVolume()) {
+			// Volume context menu
+			fContextMenu = fVolumeContextMenu;
+			EnableNamedMenuItem(fContextMenu, kOpenSelection, true);
+			EnableNamedMenuItem(fContextMenu, kGetInfo, true);
+			EnableNamedMenuItem(fContextMenu, kEditItem, !(model.IsDesktop()
+				|| model.IsRoot() || model.IsTrash()));
+
+			SetPasteItem(fContextMenu);
+		} else {
+			// File context menu
+			fContextMenu = fFileContextMenu;
+			EnableNamedMenuItem(fContextMenu, kGetInfo, true);
+			EnableNamedMenuItem(fContextMenu, kEditItem, !(model.IsDesktop()
+				|| model.IsRoot() || model.IsTrash()));
+			EnableNamedMenuItem(fContextMenu, kMoveToTrash,
+				!PoseView()->SelectedVolumeIsReadOnly());
+
+			SetCutItem(fContextMenu);
+			SetCopyItem(fContextMenu);
+			SetPasteItem(fContextMenu);
+		}
+	} else {
+		// Window context menu
+		fContextMenu = fWindowContextMenu;
+		EnableNamedMenuItem(fContextMenu, kNewFolder,
+			!TargetModel()->IsRoot()
+				&& !PoseView()->TargetVolumeIsReadOnly());
+		EnableNamedMenuItem(fContextMenu, kOpenParentDir,
+			!TargetModel()->IsRoot());
+		EnableNamedMenuItem(fContextMenu, kMoveToTrash,
+			!TargetModel()->IsRoot() && PoseView()->CountSelected() > 0
+				&& !PoseView()->SelectedVolumeIsReadOnly());
+
+		SetPasteItem(fContextMenu);
+	}
+
+	// context menu invalid or popup window is already open
+	if (fContextMenu == NULL || fContextMenu->Window() != NULL)
+		return;
+
+	fContextMenu->Go(global, true, true, true);
+	fContextMenu = NULL;
 }
 
 
@@ -1195,7 +1261,7 @@ TFilePanel::MessageReceived(BMessage* message)
 						// all we have to do is see if the button is enabled.
 						BButton* button = dynamic_cast<BButton*>(
 							FindView("default button"));
-						if (button == NULL)
+						if (button == NULL || !button->IsEnabled())
 							break;
 
 						if (IsSavePanel()) {
@@ -1227,13 +1293,13 @@ TFilePanel::MessageReceived(BMessage* message)
 							break;
 						}
 
-					  	// send handler a message and close
+						// send handler a message and close
 						BMessage openMessage(*fMessage);
 						for (int32 index = 0; ; index++) {
-					  		if (message->FindRef("refs", index, &ref) != B_OK)
+							if (message->FindRef("refs", index, &ref) != B_OK)
 								break;
 							openMessage.AddRef("refs", &ref);
-					  	}
+						}
 						OpenSelectionCommon(&openMessage);
 					}
 				}
@@ -1327,7 +1393,7 @@ TFilePanel::MessageReceived(BMessage* message)
 		case kDefaultButton:
 			if (fIsSavePanel) {
 				if (PoseView()->IsFocus()
-					&& PoseView()->SelectionList()->CountItems() == 1) {
+					&& PoseView()->CountSelected() == 1) {
 					Model* model = (PoseView()->SelectionList()->
 						FirstItem())->TargetModel();
 					if (model->ResolveIfLink()->IsDirectory()) {
@@ -1411,8 +1477,8 @@ TFilePanel::OpenParent()
 		PoseView()->SwitchDir(&ref);
 		SwitchDirMenuTo(&ref);
 
-		// make sure the child get's selected in the new view once it
-		// shows up
+		// Make sure the child gets selected in the new view
+		// once it shows up.
 		fTaskLoop->RunLater(NewMemberFunctionObjectWithResult
 			(&TFilePanel::SelectChildInParent, this,
 			const_cast<const entry_ref*>(&ref),
@@ -1655,7 +1721,8 @@ TFilePanel::HandleOpenButton()
 		}
 
 		OpenSelectionCommon(&message);
-	} else if (IsOpenButtonAlwaysEnabled()) {
+	} else if ((fNodeFlavors & B_DIRECTORY_NODE) != 0) {
+		// Open the current directory.
 		BMessage message(*fMessage);
 		message.AddRef("refs", TargetModel()->EntryRef());
 		OpenSelectionCommon(&message);
@@ -1871,7 +1938,7 @@ BFilePanelPoseView::AdaptToVolumeChange(BMessage* message)
 		monitorMsg.AddInt64("directory", model.EntryRef()->directory);
 		monitorMsg.AddString("name", model.EntryRef()->name);
 		TrackerSettings().SetShowDisksIcon(showDisksIcon);
-		if (Window())
+		if (Window() != NULL)
 			Window()->PostMessage(&monitorMsg, this);
 	}
 

@@ -20,10 +20,6 @@ struct text_run_array;
 _BEGIN_ICON_NAMESPACE
 	class Icon;
 	class Style;
-	class VectorPath;
-	class PathContainer;
-	class ShapeContainer;
-	class StyleContainer;
 _END_ICON_NAMESPACE
 
 struct style_map {
@@ -31,6 +27,10 @@ struct style_map {
 	Style *style;
 };
 
+/*! Turns text into its associated paths and shapes.
+	Coloring can also be imported from applications, such as StyledEdit, that
+	specify it in a supported format.
+*/
 class StyledTextImporter : public Importer {
  public:
 								StyledTextImporter();

@@ -65,6 +65,7 @@ struct realtime_sem_context;	// defined in realtime_sem.cpp
 struct select_info;
 struct user_thread;				// defined in libroot/user_thread.h
 struct VMAddressSpace;
+struct user_mutex_context;		// defined in user_mutex.cpp
 struct xsi_sem_context;			// defined in xsi_semaphore.cpp
 
 namespace Scheduler {
@@ -240,6 +241,7 @@ struct Team : TeamThreadIteratorEntry<team_id>, KernelReferenceable,
 	int				state;			// current team state, see above
 	int32			flags;
 	struct io_context *io_context;
+	struct user_mutex_context *user_mutex_context;
 	struct realtime_sem_context	*realtime_sem_context;
 	struct xsi_sem_context *xsi_sem_context;
 	struct team_death_entry *death_entry;	// protected by fLock
@@ -274,6 +276,8 @@ struct Team : TeamThreadIteratorEntry<team_id>, KernelReferenceable,
 	void*			commpage_address;
 
 	struct team_debug_info debug_info;
+
+	bigtime_t		start_time;
 
 	// protected by time_lock
 	bigtime_t		dead_threads_kernel_time;
@@ -487,8 +491,6 @@ struct Thread : TeamThreadIteratorEntry<thread_id>, KernelReferenceable {
 		timer		unblock_timer;		// timer for block with timeout
 	} wait;
 
-	struct PrivateConditionVariableEntry *condition_variable_entry;
-
 	struct {
 		sem_id		write_sem;	// acquired by writers before writing
 		sem_id		read_sem;	// release by writers after writing, acquired
@@ -544,6 +546,10 @@ struct Thread : TeamThreadIteratorEntry<thread_id>, KernelReferenceable {
 
 	void			(*post_interrupt_callback)(void*);
 	void*			post_interrupt_data;
+
+#if KDEBUG_RW_LOCK_DEBUG
+	rw_lock*		held_read_locks[64] = {}; // only modified by this thread
+#endif
 
 	// architecture dependent section
 	struct arch_thread arch_info;
@@ -640,8 +646,7 @@ private:
 
 struct ProcessSession : BReferenceable {
 	pid_t				id;
-	int32				controlling_tty;	// index of the controlling tty,
-											// -1 if none
+	void*				controlling_tty;
 	pid_t				foreground_group;
 
 public:

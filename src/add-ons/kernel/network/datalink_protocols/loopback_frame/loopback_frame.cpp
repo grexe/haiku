@@ -35,6 +35,10 @@ status_t
 loopback_deframe(net_device* device, net_buffer* buffer)
 {
 	// there is not that much to do...
+	NetBufferHeaderRemover<ether_header> bufferHeader(buffer);
+	if (bufferHeader.Status() != B_OK)
+		return bufferHeader.Status();
+
 	return B_OK;
 }
 
@@ -56,7 +60,6 @@ loopback_frame_init(struct net_interface*interface, net_domain* domain,
 	status_t status = get_module(NET_STACK_MODULE_NAME, (module_info**)&stack);
 	if (status != B_OK)
 		return status;
-
 	status = stack->register_device_deframer(interface->device,
 		&loopback_deframe);
 	if (status != B_OK)
@@ -102,6 +105,34 @@ loopback_frame_uninit(net_datalink_protocol* protocol)
 status_t
 loopback_frame_send_data(net_datalink_protocol* protocol, net_buffer* buffer)
 {
+	NetBufferPrepend<ether_header> bufferHeader(buffer);
+	if (bufferHeader.Status() != B_OK)
+		return bufferHeader.Status();
+
+	ether_header &header = bufferHeader.Data();
+
+	int family;
+	if (buffer->interface_address != NULL)
+		family = buffer->interface_address->domain->family;
+	else
+		family = buffer->destination->sa_family;
+
+	switch (family) {
+		case AF_INET:
+			header.type = B_HOST_TO_BENDIAN_INT16(ETHER_TYPE_IP);
+			break;
+		case AF_INET6:
+			header.type = B_HOST_TO_BENDIAN_INT16(ETHER_TYPE_IPV6);
+			break;
+		default:
+			header.type = 0;
+			break;
+	}
+
+	memset(header.source, 0, ETHER_ADDRESS_LENGTH);
+	memset(header.destination, 0, ETHER_ADDRESS_LENGTH);
+	bufferHeader.Sync();
+
 	return protocol->next->module->send_data(protocol->next, buffer);
 }
 

@@ -13,7 +13,10 @@
 
 #include <device_manager.h>
 #include <Drivers.h>
+#include <generic_syscall.h>
+#include <kernel.h>
 #include <malloc.h>
+#include <random_defs.h>
 #include <string.h>
 #include <util/AutoLock.h>
 
@@ -79,7 +82,7 @@ random_open(void *deviceCookie, const char *name, int flags, void **cookie)
 static status_t
 random_read(void *cookie, off_t position, void *_buffer, size_t *_numBytes)
 {
-	TRACE("read(%Ld,, %ld)\n", position, *_numBytes);
+	TRACE("read(%lld,, %ld)\n", position, *_numBytes);
 
 	MutexLocker locker(&sRandomLock);
 	return RANDOM_READ(sRandomCookie, _buffer, _numBytes);
@@ -89,7 +92,7 @@ random_read(void *cookie, off_t position, void *_buffer, size_t *_numBytes)
 static status_t
 random_write(void *cookie, off_t position, const void *buffer, size_t *_numBytes)
 {
-	TRACE("write(%Ld,, %ld)\n", position, *_numBytes);
+	TRACE("write(%lld,, %ld)\n", position, *_numBytes);
 	MutexLocker locker(&sRandomLock);
 	return RANDOM_WRITE(sRandomCookie, buffer, _numBytes);
 }
@@ -100,6 +103,33 @@ random_control(void *cookie, uint32 op, void *arg, size_t length)
 {
 	TRACE("ioctl(%ld)\n", op);
 	return B_ERROR;
+}
+
+
+static status_t
+random_generic_syscall(const char* subsystem, uint32 function, void* buffer,
+	size_t bufferSize)
+{
+	switch (function) {
+		case RANDOM_GET_ENTROPY:
+		{
+			random_get_entropy_args args;
+			if (bufferSize != sizeof(args) || !IS_USER_ADDRESS(buffer))
+				return B_BAD_VALUE;
+
+			if (user_memcpy(&args, buffer, sizeof(args)) != B_OK)
+				return B_BAD_ADDRESS;
+			if (!IS_USER_ADDRESS(args.buffer))
+				return B_BAD_ADDRESS;
+
+			status_t result = random_read(NULL, 0, args.buffer, &args.length);
+			if (result < 0)
+				return result;
+
+			return user_memcpy(buffer, &args, sizeof(args));
+		}
+	}
+	return B_BAD_HANDLER;
 }
 
 
@@ -197,6 +227,8 @@ random_init_driver(device_node *node, void **cookie)
 
 	info->node = node;
 
+	register_generic_syscall(RANDOM_SYSCALLS, random_generic_syscall, 1, 0);
+
 	*cookie = info;
 	return B_OK;
 }
@@ -206,6 +238,8 @@ static void
 random_uninit_driver(void *_cookie)
 {
 	CALLED();
+
+	unregister_generic_syscall(RANDOM_SYSCALLS, 1);
 
 	RANDOM_UNINIT();
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011, Haiku, Inc. All rights reserved.
+ * Copyright 2008-2023, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
@@ -35,23 +35,6 @@
 
 
 namespace {
-
-// Queue for holding blocked threads
-struct queued_thread : DoublyLinkedListLinkImpl<queued_thread> {
-	queued_thread(Thread *_thread, int32 _message_length)
-		:
-		thread(_thread),
-		message_length(_message_length),
-		queued(false)
-	{
-	}
-
-	Thread	*thread;
-	int32	message_length;
-	bool	queued;
-};
-
-typedef DoublyLinkedList<queued_thread> ThreadQueue;
 
 
 struct queued_message : DoublyLinkedListLinkImpl<queued_message> {
@@ -106,11 +89,12 @@ class XsiMessageQueue {
 public:
 	XsiMessageQueue(int flags)
 		:
-		fBytesInQueue(0),
-		fThreadsWaitingToReceive(0),
-		fThreadsWaitingToSend(0)
+		fBytesInQueue(0)
 	{
 		mutex_init(&fLock, "XsiMessageQueue private mutex");
+		fWaitingToReceive.Init(this, "XsiMessageQueue");
+		fWaitingToSend.Init(this, "XsiMessageQueue");
+
 		SetIpcKey((key_t)-1);
 		SetPermissions(flags);
 		// Initialize all fields to zero
@@ -122,18 +106,11 @@ public:
 	// Implemented after sXsiMessageCount is declared
 	~XsiMessageQueue();
 
-	status_t BlockAndUnlock(Thread *thread, MutexLocker *queueLocker)
+	status_t BlockAndUnlock(ConditionVariableEntry *queueEntry, MutexLocker *queueLocker)
 	{
-		thread_prepare_to_block(thread, B_CAN_INTERRUPT,
-				THREAD_BLOCK_TYPE_OTHER, (void*)"xsi message queue");
 		// Unlock the queue before blocking
 		queueLocker->Unlock();
-
-// TODO: We've got a serious race condition: If BlockAndUnlock() returned due to
-// interruption, we will still be queued. A WakeUpThread() at this point will
-// call thread_unblock() and might thus screw with our trying to re-lock the
-// mutex.
-		return thread_block();
+		return queueEntry->Wait(B_CAN_INTERRUPT);
 	}
 
 	void DoIpcSet(struct msqid_ds *result)
@@ -146,29 +123,18 @@ public:
 		fMessageQueue.msg_ctime = (time_t)real_time_clock();
 	}
 
-	void Deque(queued_thread *queueEntry, bool waitForMessage)
+	void Dequeue(ConditionVariableEntry *queueEntry)
 	{
-		if (queueEntry->queued) {
-			if (waitForMessage) {
-				fWaitingToReceive.Remove(queueEntry);
-				fThreadsWaitingToReceive--;
-			} else {
-				fWaitingToSend.Remove(queueEntry);
-				fThreadsWaitingToSend--;
-			}
-		}
+		queueEntry->Wait(B_RELATIVE_TIMEOUT, 0);
 	}
 
-	void Enqueue(queued_thread *queueEntry, bool waitForMessage)
+	void Enqueue(ConditionVariableEntry *queueEntry, bool waitForMessage)
 	{
 		if (waitForMessage) {
 			fWaitingToReceive.Add(queueEntry);
-			fThreadsWaitingToReceive++;
 		} else {
 			fWaitingToSend.Add(queueEntry);
-			fThreadsWaitingToSend++;
 		}
-		queueEntry->queued = true;
 	}
 
 	struct msqid_ds &GetMessageQueue()
@@ -252,18 +218,10 @@ public:
 			// Wake up all waiting thread for a message
 			// TODO: this can cause starvation for any
 			// very-unlucky-and-slow thread
-			while (queued_thread *entry = fWaitingToReceive.RemoveHead()) {
-				entry->queued = false;
-				fThreadsWaitingToReceive--;
-				thread_unblock(entry->thread, 0);
-			}
+			fWaitingToReceive.NotifyAll();
 		} else {
 			// Wake up only one thread waiting to send
-			if (queued_thread *entry = fWaitingToSend.RemoveHead()) {
-				entry->queued = false;
-				fThreadsWaitingToSend--;
-				thread_unblock(entry->thread, 0);
-			}
+			fWaitingToSend.NotifyOne();
 		}
 	}
 
@@ -279,11 +237,9 @@ private:
 	MessageQueue		fMessage;
 	struct msqid_ds		fMessageQueue;
 	uint32				fSequenceNumber;
-	uint32				fThreadsWaitingToReceive;
-	uint32				fThreadsWaitingToSend;
 
-	ThreadQueue			fWaitingToReceive;
-	ThreadQueue			fWaitingToSend;
+	ConditionVariable	fWaitingToReceive;
+	ConditionVariable	fWaitingToSend;
 
 	XsiMessageQueue*	fLink;
 };
@@ -402,16 +358,8 @@ XsiMessageQueue::~XsiMessageQueue()
 	mutex_destroy(&fLock);
 
 	// Wake up any threads still waiting
-	if (fThreadsWaitingToSend || fThreadsWaitingToReceive) {
-		while (queued_thread *entry = fWaitingToReceive.RemoveHead()) {
-			entry->queued = false;
-			thread_unblock(entry->thread, EIDRM);
-		}
-		while (queued_thread *entry = fWaitingToSend.RemoveHead()) {
-			entry->queued = false;
-			thread_unblock(entry->thread, EIDRM);
-		}
-	}
+	fWaitingToReceive.NotifyAll(EIDRM);
+	fWaitingToSend.NotifyAll(EIDRM);
 
 	// Free up any remaining messages
 	if (fMessageQueue.msg_qnum) {
@@ -447,8 +395,8 @@ XsiMessageQueue::Insert(queued_message *message)
 	fMessageQueue.msg_lspid = getpid();
 	fMessageQueue.msg_stime = real_time_clock();
 	fBytesInQueue += message->length;
-	if (fThreadsWaitingToReceive)
-		WakeUpThread(true /* WaitForMessage */);
+
+	WakeUpThread(true /* WaitForMessage */);
 	return false;
 }
 
@@ -492,8 +440,8 @@ XsiMessageQueue::Remove(long typeRequested)
 	fMessageQueue.msg_rtime = real_time_clock();
 	fBytesInQueue -= message->length;
 	atomic_add(&sXsiMessageCount, -1);
-	if (fThreadsWaitingToSend)
-		WakeUpThread(false /* WaitForMessage */);
+
+	WakeUpThread(false /* WaitForMessage */);
 	return message;
 }
 
@@ -543,11 +491,11 @@ _user_xsi_msgctl(int messageQueueID, int command, struct msqid_ds *buffer)
 	MutexLocker messageQueueHashLocker(sXsiMessageQueueLock);
 	XsiMessageQueue *messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 	if (messageQueue == NULL) {
-		TRACE_ERROR(("xsi_msgctl: message queue id %d not valid\n", messageQueueID));
+		TRACE(("xsi_msgctl: message queue id %d not valid\n", messageQueueID));
 		return EINVAL;
 	}
-	if (!IS_USER_ADDRESS(buffer)) {
-		TRACE_ERROR(("xsi_msgctl: buffer address is not valid\n"));
+	if (buffer != NULL && !IS_USER_ADDRESS(buffer)) {
+		TRACE(("xsi_msgctl: buffer address is not valid\n"));
 		return B_BAD_ADDRESS;
 	}
 
@@ -569,7 +517,7 @@ _user_xsi_msgctl(int messageQueueID, int command, struct msqid_ds *buffer)
 	switch (command) {
 		case IPC_STAT: {
 			if (!messageQueue->HasReadPermission()) {
-				TRACE_ERROR(("xsi_msgctl: calling process has not read "
+				TRACE(("xsi_msgctl: calling process has not read "
 					"permission on message queue %d, key %d\n", messageQueueID,
 					(int)messageQueue->IpcKey()));
 				return EACCES;
@@ -584,7 +532,7 @@ _user_xsi_msgctl(int messageQueueID, int command, struct msqid_ds *buffer)
 
 		case IPC_SET: {
 			if (!messageQueue->HasPermission()) {
-				TRACE_ERROR(("xsi_msgctl: calling process has not permission "
+				TRACE(("xsi_msgctl: calling process has not permission "
 					"on message queue %d, key %d\n", messageQueueID,
 					(int)messageQueue->IpcKey()));
 				return EPERM;
@@ -595,12 +543,12 @@ _user_xsi_msgctl(int messageQueueID, int command, struct msqid_ds *buffer)
 				return B_BAD_ADDRESS;
 			}
 			if (msg.msg_qbytes > messageQueue->MaxBytes() && getuid() != 0) {
-				TRACE_ERROR(("xsi_msgctl: user does not have permission to "
+				TRACE(("xsi_msgctl: user does not have permission to "
 					"increase the maximum number of bytes allowed on queue\n"));
 				return EPERM;
 			}
 			if (msg.msg_qbytes == 0) {
-				TRACE_ERROR(("xsi_msgctl: can't set msg_qbytes to 0!\n"));
+				TRACE(("xsi_msgctl: can't set msg_qbytes to 0!\n"));
 				return EINVAL;
 			}
 
@@ -614,7 +562,7 @@ _user_xsi_msgctl(int messageQueueID, int command, struct msqid_ds *buffer)
 			// message queue lock itself. This prevents other process
 			// to try and acquire a destroyed mutex
 			if (!messageQueue->HasPermission()) {
-				TRACE_ERROR(("xsi_msgctl: calling process has not permission "
+				TRACE(("xsi_msgctl: calling process has not permission "
 					"on message queue %d, key %d\n", messageQueueID,
 					(int)messageQueue->IpcKey()));
 				return EPERM;
@@ -662,14 +610,14 @@ _user_xsi_msgget(key_t key, int flags)
 		ipcKey = sIpcHashTable.Lookup(key);
 		if (ipcKey == NULL || ipcKey->MessageQueueID() == -1) {
 			if (!(flags & IPC_CREAT)) {
-				TRACE_ERROR(("xsi_msgget: key %d does not exist, but the "
+				TRACE(("xsi_msgget: key %d does not exist, but the "
 					"caller did not ask for creation\n", (int)key));
 				return ENOENT;
 			}
 			if (ipcKey == NULL) {
 				ipcKey = new(std::nothrow) Ipc(key);
 				if (ipcKey == NULL) {
-					TRACE_ERROR(("xsi_msgget: failed to create new Ipc object "
+					TRACE(("xsi_msgget: failed to create new Ipc object "
 						"for key %d\n", (int)key));
 					return ENOMEM;
 				}
@@ -686,7 +634,7 @@ _user_xsi_msgget(key_t key, int flags)
 			MutexLocker _(sXsiMessageQueueLock);
 			messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 			if (!messageQueue->HasPermission()) {
-				TRACE_ERROR(("xsi_msgget: calling process has not permission "
+				TRACE(("xsi_msgget: calling process has not permission "
 					"on message queue %d, key %d\n", messageQueue->ID(),
 					(int)key));
 				return EACCES;
@@ -735,7 +683,7 @@ _user_xsi_msgrcv(int messageQueueID, void *messagePointer,
 	MutexLocker messageQueueHashLocker(sXsiMessageQueueLock);
 	XsiMessageQueue *messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 	if (messageQueue == NULL) {
-		TRACE_ERROR(("xsi_msgrcv: message queue id %d not valid\n",
+		TRACE(("xsi_msgrcv: message queue id %d not valid\n",
 			messageQueueID));
 		return EINVAL;
 	}
@@ -747,13 +695,13 @@ _user_xsi_msgrcv(int messageQueueID, void *messagePointer,
 		return EINVAL;
 	}
 	if (!messageQueue->HasPermission()) {
-		TRACE_ERROR(("xsi_msgrcv: calling process has not permission "
+		TRACE(("xsi_msgrcv: calling process has not permission "
 			"on message queue id %d, key %d\n", messageQueueID,
 			(int)messageQueue->IpcKey()));
 		return EACCES;
 	}
 	if (!IS_USER_ADDRESS(messagePointer)) {
-		TRACE_ERROR(("xsi_msgrcv: message address is not valid\n"));
+		TRACE(("xsi_msgrcv: message address is not valid\n"));
 		return B_BAD_ADDRESS;
 	}
 
@@ -763,30 +711,29 @@ _user_xsi_msgrcv(int messageQueueID, void *messagePointer,
 
 		if (message == NULL && !(messageFlags & IPC_NOWAIT)) {
 			// We are going to sleep
-			Thread *thread = thread_get_current_thread();
-			queued_thread queueEntry(thread, messageSize);
+			ConditionVariableEntry queueEntry;
 			messageQueue->Enqueue(&queueEntry, /* waitForMessage */ true);
 
 			uint32 sequenceNumber = messageQueue->SequenceNumber();
 
-			TRACE(("xsi_msgrcv: thread %d going to sleep\n", (int)thread->id));
+			TRACE(("xsi_msgrcv: thread %d going to sleep\n", (int)thread_get_current_thread_id()));
 			status_t result
-				= messageQueue->BlockAndUnlock(thread, &messageQueueLocker);
-			TRACE(("xsi_msgrcv: thread %d back to life\n", (int)thread->id));
+				= messageQueue->BlockAndUnlock(&queueEntry, &messageQueueLocker);
+			TRACE(("xsi_msgrcv: thread %d back to life\n", (int)thread_get_current_thread_id()));
 
 			messageQueueHashLocker.Lock();
 			messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 			if (result == EIDRM || messageQueue == NULL || (messageQueue != NULL
 				&& sequenceNumber != messageQueue->SequenceNumber())) {
-				TRACE_ERROR(("xsi_msgrcv: message queue id %d (sequence = "
+				TRACE(("xsi_msgrcv: message queue id %d (sequence = "
 					"%" B_PRIu32 ") got destroyed\n", messageQueueID,
 					sequenceNumber));
 				return EIDRM;
 			} else if (result == B_INTERRUPTED) {
-				TRACE_ERROR(("xsi_msgrcv: thread %d got interrupted while "
-					"waiting on message queue %d\n",(int)thread->id,
+				TRACE(("xsi_msgrcv: thread %d got interrupted while "
+					"waiting on message queue %d\n", (int)thread_get_current_thread_id(),
 					messageQueueID));
-				messageQueue->Deque(&queueEntry, /* waitForMessage */ true);
+				messageQueue->Dequeue(&queueEntry);
 				return EINTR;
 			} else {
 				messageQueueLocker.Lock();
@@ -834,7 +781,7 @@ _user_xsi_msgsnd(int messageQueueID, const void *messagePointer,
 	MutexLocker messageQueueHashLocker(sXsiMessageQueueLock);
 	XsiMessageQueue *messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 	if (messageQueue == NULL) {
-		TRACE_ERROR(("xsi_msgsnd: message queue id %d not valid\n",
+		TRACE(("xsi_msgsnd: message queue id %d not valid\n",
 			messageQueueID));
 		return EINVAL;
 	}
@@ -846,13 +793,13 @@ _user_xsi_msgsnd(int messageQueueID, const void *messagePointer,
 		return EINVAL;
 	}
 	if (!messageQueue->HasPermission()) {
-		TRACE_ERROR(("xsi_msgsnd: calling process has not permission "
+		TRACE(("xsi_msgsnd: calling process has not permission "
 			"on message queue id %d, key %d\n", messageQueueID,
 			(int)messageQueue->IpcKey()));
 		return EACCES;
 	}
 	if (!IS_USER_ADDRESS(messagePointer)) {
-		TRACE_ERROR(("xsi_msgsnd: message address is not valid\n"));
+		TRACE(("xsi_msgsnd: message address is not valid\n"));
 		return B_BAD_ADDRESS;
 	}
 
@@ -871,31 +818,30 @@ _user_xsi_msgsnd(int messageQueueID, const void *messagePointer,
 
 		if (goToSleep && !(messageFlags & IPC_NOWAIT)) {
 			// We are going to sleep
-			Thread *thread = thread_get_current_thread();
-			queued_thread queueEntry(thread, messageSize);
+			ConditionVariableEntry queueEntry;
 			messageQueue->Enqueue(&queueEntry, /* waitForMessage */ false);
 
 			uint32 sequenceNumber = messageQueue->SequenceNumber();
 
-			TRACE(("xsi_msgsnd: thread %d going to sleep\n", (int)thread->id));
-			result = messageQueue->BlockAndUnlock(thread, &messageQueueLocker);
-			TRACE(("xsi_msgsnd: thread %d back to life\n", (int)thread->id));
+			TRACE(("xsi_msgsnd: thread %d going to sleep\n", (int)thread_get_current_thread_id()));
+			result = messageQueue->BlockAndUnlock(&queueEntry, &messageQueueLocker);
+			TRACE(("xsi_msgsnd: thread %d back to life\n", (int)thread_get_current_thread_id()));
 
 			messageQueueHashLocker.Lock();
 			messageQueue = sMessageQueueHashTable.Lookup(messageQueueID);
 			if (result == EIDRM || messageQueue == NULL || (messageQueue != NULL
 				&& sequenceNumber != messageQueue->SequenceNumber())) {
-				TRACE_ERROR(("xsi_msgsnd: message queue id %d (sequence = "
+				TRACE(("xsi_msgsnd: message queue id %d (sequence = "
 					"%" B_PRIu32 ") got destroyed\n", messageQueueID,
 					sequenceNumber));
 				delete message;
 				notSent = false;
 				result = EIDRM;
 			} else if (result == B_INTERRUPTED) {
-				TRACE_ERROR(("xsi_msgsnd: thread %d got interrupted while "
-					"waiting on message queue %d\n",(int)thread->id,
+				TRACE(("xsi_msgsnd: thread %d got interrupted while "
+					"waiting on message queue %d\n", (int)thread_get_current_thread_id(),
 					messageQueueID));
-				messageQueue->Deque(&queueEntry, /* waitForMessage */ false);
+				messageQueue->Dequeue(&queueEntry);
 				delete message;
 				notSent = false;
 				result = EINTR;

@@ -1,4 +1,4 @@
-1	lithuanian	x-vnd.Be-MAIL	259571489
+1	lithuanian	x-vnd.Be-MAIL	1205124611
 Set to Saved	Mail		Perkelti į Išsaugotus
 Your main text contains %ld unencodable characters. Perhaps a different character set would work better? Hit Send to send it anyway (a substitute character will be used in place of the unencodable ones), or choose Cancel to go back and try fixing it up.	Mail		Laiško tekste yra %lt simboliai (-ų), kurių negalima užkoduoti naudojant pasirinktą koduotę. Galbūt norėtumėte parinkti kitą koduotę? Ar norite laišką išsiųsti nepaisant šios problemos (netinkami simboliai bus pakeisti tinkamais)? Jeigu norite pabandyti problemą išspręsti, rinkitės „Atsisakyti“.
 Text wrapping:	Mail		Teksto laužymas:
@@ -33,10 +33,7 @@ Removing attachments from a forwarded mail is not yet implemented!\nIt will not 
 Previous message	Mail		Ankstesnis laiškas
 (Address unavailable)	Mail		(Adresas nenurodytas)
 Mail	System name		Paštas
-Enclosure: %name% (Type: %type%)	Mail	Don't translate the variables %name% and %type%.	Priedas – %name% (tipas – %type%)
 Copy link location	Mail		Kopijuoti saito adresą
-Attachments: 	Mail		Priedai:
-Remove enclosure	Mail		Pašalinti priedą
 Next	Mail		Kitas
 Show icons only	Mail		Rodyti tik piktogramas
 Subject:	Mail		Tema:
@@ -92,7 +89,6 @@ Need Tracker to move items to trash	Mail		Kad galėtumėte mesti objektus Šiuk�
 The mail_daemon could not be started:\n\t	Mail		Pašto tarnybos (mail_daemon) paleisti nepavyko:\n\t
 <no account found>	Mail		<paskyra nerasta>
 Mail couldn't find its dictionary.	Mail		Pašto programai nepavyko rasti žodyno.
-Mail preferences	Mail		Pašto nuostatos
 helpful message	Mail		naudingas pranešimas
  Read 	Mail		Perskaitytas
 Font:	Mail		Šriftas:
@@ -157,4 +153,3 @@ Delete	Mail		Šalinti
 Put your favorite e-mail queries and query templates in this folder.	Mail		Savo mėgstamas el. pašto užklausas ir jų šablonus dėkite į šį aplanką.
 Couldn't open this signature. Sorry.	Mail		Apgailestaujame, tačiau šio prierašo atverti nepavyko.
 Revert	Mail		Atšaukti pakeitimus
-Add enclosure…	Mail		Pridėti failą…

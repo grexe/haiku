@@ -17,6 +17,10 @@
 #include <lock.h>
 #include <util/Vector.h>
 
+// include vm.h before iovec_support.h for generic_memcpy, which is used by the bus drivers.
+#include <vm/vm.h>
+#include <util/iovec_support.h>
+
 
 #define TRACE_OUTPUT(x, y, z...) \
 	{ \
@@ -172,14 +176,13 @@ public:
 		usb_id							USBID() const { return 0; }
 		const char *					TypeName() const { return "stack"; }
 
-		void							TriggerExplore();
+		void							Explore();
 
 private:
 static	int32							ExploreThread(void *data);
 
 		Vector<BusManager *>			fBusManagers;
 		thread_id						fExploreThread;
-		bool							fFirstExploreDone;
 		sem_id							fExploreSem;
 
 		mutex							fStackLock;
@@ -474,12 +477,10 @@ virtual	const char *					TypeName() const { return "bulk pipe"; }
 											size_t dataLength,
 											usb_callback_func callback,
 											void *callbackCookie);
-		status_t						QueueBulkV(iovec *vector,
-											size_t vectorCount,
-											usb_callback_func callback,
-											void *callbackCookie,
-											bool physical);
-};
+		status_t						QueueBulkV(iovec *vector, size_t vectorCount,
+											usb_callback_func callback, void *callbackCookie);
+		status_t						QueueBulkV(physical_entry *vector, size_t vectorCount,
+											usb_callback_func callback, void *callbackCookie);};
 
 
 class IsochronousPipe : public Pipe {
@@ -714,15 +715,14 @@ public:
 
 		void						SetData(uint8 *buffer, size_t length);
 		uint8 *						Data() const
-										{ return (uint8 *)fData.iov_base; }
-		size_t						DataLength() const { return fData.iov_len; }
+										{ return fPhysical ? NULL : (uint8 *)fData.base; }
+		size_t						DataLength() const { return fData.length; }
 
-		void						SetPhysical(bool physical);
 		bool						IsPhysical() const { return fPhysical; }
 
-		void						SetVector(iovec *vector,
-										size_t vectorCount);
-		iovec *						Vector() { return fVector; }
+		void						SetVector(iovec *vector, size_t vectorCount);
+		void						SetVector(physical_entry *vector, size_t vectorCount);
+		generic_io_vec *			Vector() { return fVector; }
 		size_t						VectorCount() const { return fVectorCount; }
 
 		uint16						Bandwidth() const { return fBandwidth; }
@@ -748,12 +748,13 @@ public:
 		const char *				TypeName() const { return "transfer"; }
 
 private:
+		void						_CheckFragmented();
 		status_t					_CalculateBandwidth();
 
 		// Data that is related to the transfer
 		Pipe *						fPipe;
-		iovec						fData;
-		iovec *						fVector;
+		generic_io_vec				fData;
+		generic_io_vec *			fVector;
 		size_t						fVectorCount;
 		void *						fBaseAddress;
 		bool						fPhysical;

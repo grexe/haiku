@@ -9,6 +9,7 @@ DEFINES = ICON_O_MATIC=1 ;
 local iconSourceDirs =
 	icon
 	icon/flat_icon
+	icon/generic
 	icon/message
 	icon/shape
 	icon/style
@@ -61,7 +62,6 @@ for sourceDir in $(sourceDirs) {
 }
 
 # system headers
-UseBuildFeatureHeaders expat ;
 UseLibraryHeaders agg icon ;
 UsePrivateHeaders shared ;
 
@@ -81,26 +81,26 @@ Application Icon-O-Matic :
 	MessageImporter.cpp
 
 	# icon/shape
-	PathContainer.cpp
+	PathSourceShape.cpp
+	ReferenceImage.cpp
 	Shape.cpp
-	ShapeContainer.cpp
 	VectorPath.cpp
 
 	# icon/style
 	GradientTransformable.cpp
 	Style.cpp
-	StyleContainer.cpp
 
 	# icon/transformable
 	Transformable.cpp
 
 	# icon/transformer
 	AffineTransformer.cpp
+	CompoundStyleTransformer.cpp
 	ContourTransformer.cpp
 	PathSource.cpp
 	PerspectiveTransformer.cpp
 	StrokeTransformer.cpp
-	Transformer.cpp
+	StyleTransformer.cpp
 	TransformerFactory.cpp
 
 	# icon
@@ -276,6 +276,9 @@ Application Icon-O-Matic :
 	# transformable
 	CanvasTransformBox.cpp
 	ChannelTransform.cpp
+	PerspectiveBox.cpp
+	PerspectiveBoxStates.cpp
+	PerspectiveCommand.cpp
 	ResetTransformationCommand.cpp
 	TransformBox.cpp
 	TransformBoxStates.cpp
@@ -295,14 +298,10 @@ Application Icon-O-Matic :
 	Util.cpp
 
 	: be tracker translation shared libagg.a
-		[ BuildFeatureAttribute expat : library ]
 		[ TargetLibstdc++ ] localestub
 
 	: Icon-O-Matic.rdef
 ;
-
-Includes [ FGristFiles SVGParser.cpp ]
-	: [ BuildFeatureAttribute expat : headers ] ;
 
 DoCatalogs Icon-O-Matic :
 	x-vnd.haiku-icon_o_matic
@@ -324,6 +323,7 @@ DoCatalogs Icon-O-Matic :
 	SVGExporter.cpp
 	SVGImporter.cpp
 	Exporter.cpp
+	FlatIconExporter.cpp
 	AddPathsCommand.cpp
 	AddPointCommand.cpp
 	AddShapesCommand.cpp
@@ -353,6 +353,7 @@ DoCatalogs Icon-O-Matic :
 	RemoveStylesCommand.cpp
 	SetColorCommand.cpp
 	SetGradientCommand.cpp
+	PerspectiveCommand.cpp
 	ResetTransformationCommand.cpp
 	TransformBoxStates.cpp
 	TransformerFactory.cpp

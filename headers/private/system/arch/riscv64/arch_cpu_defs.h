@@ -124,23 +124,20 @@ enum {
 	pteIdxBits = 9,
 };
 
-enum {
-	pteValid    = 0,
-	pteRead     = 1,
-	pteWrite    = 2,
-	pteExec     = 3,
-	pteUser     = 4,
-	pteGlobal   = 5,
-	pteAccessed = 6,
-	pteDirty    = 7,
-};
-
 union Pte {
 	struct {
-		uint64 flags:     8;
-		uint64 rsw:       2;
-		uint64 ppn:      44;
-		uint64 reserved: 10;
+		uint64 isValid:    1;
+		uint64 isRead:     1;
+		uint64 isWrite:    1;
+		uint64 isExec:     1;
+		uint64 isUser:     1;
+		uint64 isGlobal:   1;
+		uint64 isAccessed: 1;
+		uint64 isDirty:    1;
+
+		uint64 rsw:        2;
+		uint64 ppn:       44;
+		uint64 reserved:  10;
 	};
 	uint64 val;
 };
@@ -256,7 +253,7 @@ static B_ALWAYS_INLINE void FlushTlbPage(uint64 x) {
 static B_ALWAYS_INLINE void FlushTlbAllAsid(uint64 asid) {
 	asm volatile("sfence.vma x0, %0" : : "r" (asid) : "memory");}
 static B_ALWAYS_INLINE void FlushTlbPageAsid(uint64 page, uint64 asid) {
-	asm volatile("sfence.vma %0, %0" : : "r" (page), "r" (asid) : "memory");}
+	asm volatile("sfence.vma %0, %1" : : "r" (page), "r" (asid) : "memory");}
 
 // flush instruction cache
 static B_ALWAYS_INLINE void FenceI() {

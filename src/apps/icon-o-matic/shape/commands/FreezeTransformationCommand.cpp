@@ -14,9 +14,10 @@
 
 #include <Catalog.h>
 #include <Locale.h>
+#include <StringFormat.h>
 
 #include "GradientTransformable.h"
-#include "Shape.h"
+#include "PathSourceShape.h"
 #include "Style.h"
 #include "VectorPath.h"
 
@@ -29,10 +30,10 @@ using std::nothrow;
 
 // constructor
 FreezeTransformationCommand::FreezeTransformationCommand(
-								   Shape** const shapes,
+								   PathSourceShape** const shapes,
 								   int32 count)
 	: Command(),
-	  fShapes(shapes && count > 0 ? new (nothrow) Shape*[count] : NULL),
+	  fShapes(shapes && count > 0 ? new (nothrow) PathSourceShape*[count] : NULL),
 	  fOriginalTransformations(count > 0 ? new (nothrow) double[
 									count * Transformable::matrix_size]
 							   : NULL),
@@ -41,7 +42,7 @@ FreezeTransformationCommand::FreezeTransformationCommand(
 	if (!fShapes || !fOriginalTransformations)
 		return;
 
-	memcpy(fShapes, shapes, sizeof(Shape*) * fCount);
+	memcpy(fShapes, shapes, sizeof(PathSourceShape*) * fCount);
 
 	bool initOk = false;
 
@@ -118,23 +119,22 @@ FreezeTransformationCommand::Undo()
 void
 FreezeTransformationCommand::GetName(BString& name)
 {
-	if (fCount > 1)
-		name << B_TRANSLATE("Freeze Shapes");
-	else
-		name << B_TRANSLATE("Freeze Shape");
+	static BStringFormat format(B_TRANSLATE("Freeze {0, plural, "
+		"one{shape} other{shapes}}"));
+	format.Format(name, fCount);
 }
 
 // #pragma mark -
 
 // _ApplyTransformation
 void
-FreezeTransformationCommand::_ApplyTransformation(Shape* shape,
+FreezeTransformationCommand::_ApplyTransformation(PathSourceShape* shape,
 									const Transformable& transform)
 {
 	// apply inverse of old shape transformation to every assigned path
-	int32 pathCount = shape->Paths()->CountPaths();
+	int32 pathCount = shape->Paths()->CountItems();
 	for (int32 i = 0; i < pathCount; i++) {
-		VectorPath* path = shape->Paths()->PathAtFast(i);
+		VectorPath* path = shape->Paths()->ItemAtFast(i);
 		int32 shapes = 0;
 		int32 listeners = path->CountListeners();
 		for (int32 j = 0; j < listeners; j++) {

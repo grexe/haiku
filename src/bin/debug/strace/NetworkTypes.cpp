@@ -12,6 +12,7 @@
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/un.h>
 
 #include <map>
 #include <utility>
@@ -168,17 +169,6 @@ format_pointer(Context &context, flock *lock)
 
 
 
-template<typename value_t>
-static inline value_t
-get_value(const void *address)
-{
-	if (sizeof(align_t) > sizeof(value_t))
-		return value_t(*(align_t*)address);
-	else
-		return *(value_t*)address;
-}
-
-
 static string
 format_signed_number(int32 value)
 {
@@ -191,7 +181,7 @@ format_signed_number(int32 value)
 static string
 read_pollfd(Context &context, void *data)
 {
-	nfds_t numfds = get_value<nfds_t>(context.GetValue(context.GetSibling(1)));
+	nfds_t numfds = context.ReadValue<nfds_t>(context.GetSibling(1));
 	if ((int64)numfds <= 0)
 		return string();
 
@@ -396,23 +386,72 @@ format_pointer(Context &context, sockaddr *saddr)
 {
 	string r;
 
-	sockaddr_in *sin = (sockaddr_in *)saddr;
-
 	r = format_socket_family(context, saddr->sa_family) + ", ";
 
 	switch (saddr->sa_family) {
 		case AF_INET:
+		{
+			sockaddr_in *sin = (sockaddr_in *)saddr;
 			r += get_ipv4_address(&sin->sin_addr);
 			r += "/";
 			r += format_number(ntohs(sin->sin_port));
 			break;
-
+		}
+		case AF_UNIX:
+		{
+			sockaddr_un *sun = (sockaddr_un *)saddr;
+			r += "path = \"" + string(sun->sun_path) + "\"";
+			break;
+		}
 		default:
 			r += "...";
 			break;
 	}
 
 	return r;
+}
+
+
+static string
+read_sockaddr(Context &context, Parameter *param, void *address)
+{
+	param = context.GetNextSibling(param);
+	if (param == NULL)
+		return context.FormatPointer(address);
+
+	socklen_t addrlen = context.ReadValue<socklen_t>(param);
+
+	sockaddr_storage data;
+
+	if (addrlen > sizeof(data))
+		return context.FormatPointer(address);
+
+	int32 bytesRead;
+	status_t err = context.Reader().Read(address, &data, addrlen, bytesRead);
+	if (err != B_OK)
+		return context.FormatPointer(address);
+
+	return "{" + format_pointer(context, (sockaddr *)&data) + "}";
+}
+
+
+template<>
+string
+TypeHandlerImpl<sockaddr *>::GetParameterValue(Context &context,
+	Parameter *param, const void *address)
+{
+	void *data = *(void **)address;
+	if (data != NULL && context.GetContents(Context::SIMPLE_STRUCTS))
+		return read_sockaddr(context, param, data);
+	return context.FormatPointer(data);
+}
+
+
+template<>
+string
+TypeHandlerImpl<sockaddr *>::GetReturnValue(Context &context, uint64 value)
+{
+	return context.FormatPointer((void *)value);
 }
 
 
@@ -583,10 +622,24 @@ get_iovec(Context &context, iovec *iov, int iovlen)
 	if (iov == NULL && iovlen == 0)
 		return "(empty)";
 
-	string r = "{";
-	r += context.FormatPointer(iov);
-	r += ", " + context.FormatSigned(iovlen);
-	return r + "}";
+	iovec vecs[iovlen];
+	int32 bytesRead;
+
+	string r = "[";
+	status_t err = context.Reader().Read(iov, vecs, sizeof(vecs), bytesRead);
+	if (err != B_OK) {
+		r += context.FormatPointer(iov);
+		r += ", " + context.FormatSigned(iovlen);
+	} else {
+		for (int i = 0; i < iovlen; i++) {
+			if (i > 0)
+				r += ", ";
+			r += "{iov_base=" + context.FormatPointer(vecs[i].iov_base);
+			r += ", iov_len=" + context.FormatUnsigned(vecs[i].iov_len);
+			r += "}";
+		}
+	}
+	return r + "]";
 }
 
 
@@ -712,6 +765,7 @@ POINTER_TYPE(ifreq_ptr, ifreq);
 DEFINE_TYPE(pollfd_ptr, pollfd *);
 POINTER_TYPE(siginfo_t_ptr, siginfo_t);
 POINTER_TYPE(msghdr_ptr, msghdr);
+DEFINE_TYPE(sockaddr_ptr, sockaddr *);
 #if 0
 POINTER_TYPE(message_args_ptr, message_args);
 POINTER_TYPE(sockaddr_args_ptr, sockaddr_args);

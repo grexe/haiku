@@ -73,6 +73,7 @@ local sources =
 	CliContinueCommand.cpp
 	CliDebugReportCommand.cpp
 	CliDumpMemoryCommand.cpp
+	CliDumpStringCommand.cpp
 	CliPrintVariableCommand.cpp
 	CliQuitCommand.cpp
 	CliStackFrameCommand.cpp
@@ -136,6 +137,7 @@ local sources =
 
 	# user_interface/gui/util
 	ActionMenuItem.cpp
+	AlertWithCheckbox.cpp
 	GuiSettingsUtils.cpp
 	SettingsMenu.cpp
 	SignalDispositionMenu.cpp

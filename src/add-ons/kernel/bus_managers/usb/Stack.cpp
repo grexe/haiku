@@ -11,15 +11,17 @@
 #include <module.h>
 #include <unistd.h>
 #include <util/kernel_cpp.h>
+#include <util/AutoLock.h>
+
 #include "usb_private.h"
 #include "PhysicalMemoryAllocator.h"
 
 #include <fs/devfs.h>
+#include <kdevice_manager.h>
 
 
 Stack::Stack()
 	:	fExploreThread(-1),
-		fFirstExploreDone(false),
 		fExploreSem(-1),
 		fAllocator(NULL),
 		fObjectIndex(1),
@@ -59,12 +61,6 @@ Stack::Stack()
 	fExploreThread = spawn_kernel_thread(ExploreThread, "usb explore",
 		B_LOW_PRIORITY, this);
 	resume_thread(fExploreThread);
-
-	// wait for the first explore to complete. this ensures that a driver that
-	// is opening the module does not get rescanned while or before installing
-	// its hooks.
-	while (!fFirstExploreDone)
-		snooze(10000);
 }
 
 
@@ -210,44 +206,52 @@ Stack::ExploreThread(void *data)
 	Stack *stack = (Stack *)data;
 
 	while (acquire_sem_etc(stack->fExploreSem, 1, B_RELATIVE_TIMEOUT,
-		USB_DELAY_HUB_EXPLORE) != B_BAD_SEM_ID) {
-		if (mutex_lock(&stack->fExploreLock) != B_OK)
-			break;
-
-		int32 semCount = 0;
-		get_sem_count(stack->fExploreSem, &semCount);
-		if (semCount > 0)
-			acquire_sem_etc(stack->fExploreSem, semCount, B_RELATIVE_TIMEOUT, 0);
-
-		rescan_item *rescanList = NULL;
-		change_item *changeItem = NULL;
-		for (int32 i = 0; i < stack->fBusManagers.Count(); i++) {
-			Hub *rootHub = stack->fBusManagers.ElementAt(i)->GetRootHub();
-			if (rootHub)
-				rootHub->Explore(&changeItem);
-		}
-
-		while (changeItem) {
-			stack->NotifyDeviceChange(changeItem->device, &rescanList, changeItem->added);
-			if (!changeItem->added) {
-				// everyone possibly holding a reference is now notified so we
-				// can delete the device
-				changeItem->device->GetBusManager()->FreeDevice(changeItem->device);
-			}
-
-			change_item *next = changeItem->link;
-			delete changeItem;
-			changeItem = next;
-		}
-
-		stack->fFirstExploreDone = true;
-		mutex_unlock(&stack->fExploreLock);
-		stack->RescanDrivers(rescanList);
+			USB_DELAY_HUB_EXPLORE) != B_BAD_SEM_ID) {
+		stack->Explore();
 	}
 
 	return B_OK;
 }
 
+
+void
+Stack::Explore()
+{
+	// Acquire the device manager lock before the explore lock, to prevent lock-order inversion.
+	RecursiveLocker dmLocker(device_manager_get_lock());
+
+	if (mutex_lock(&fExploreLock) != B_OK)
+		return;
+
+	int32 semCount = 0;
+	get_sem_count(fExploreSem, &semCount);
+	if (semCount > 0)
+		acquire_sem_etc(fExploreSem, semCount, B_RELATIVE_TIMEOUT, 0);
+
+	rescan_item *rescanList = NULL;
+	change_item *changeItem = NULL;
+	for (int32 i = 0; i < fBusManagers.Count(); i++) {
+		Hub *rootHub = fBusManagers.ElementAt(i)->GetRootHub();
+		if (rootHub)
+			rootHub->Explore(&changeItem);
+	}
+
+	while (changeItem) {
+		NotifyDeviceChange(changeItem->device, &rescanList, changeItem->added);
+		if (!changeItem->added) {
+			// everyone possibly holding a reference is now notified so we
+			// can delete the device
+			changeItem->device->GetBusManager()->FreeDevice(changeItem->device);
+		}
+
+		change_item *next = changeItem->link;
+		delete changeItem;
+		changeItem = next;
+	}
+
+	mutex_unlock(&fExploreLock);
+	RescanDrivers(rescanList);
+}
 
 void
 Stack::AddBusManager(BusManager *busManager)
@@ -521,9 +525,3 @@ Stack::UninstallNotify(const char *driverName)
 	return B_NAME_NOT_FOUND;
 }
 
-
-void
-Stack::TriggerExplore()
-{
-	release_sem(fExploreSem);
-}

@@ -1,9 +1,10 @@
 /*
- * Copyright 2008-2009, Haiku, Inc. All rights reserved.
+ * Copyright 2008-2009, 2023, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
  *		François Revol <revol@free.fr>
+ *		Zardshard
  */
 
 #include "StyledTextImporter.h"
@@ -28,10 +29,8 @@
 
 #include "Defines.h"
 #include "Icon.h"
-#include "PathContainer.h"
-#include "Shape.h"
+#include "PathSourceShape.h"
 #include "Style.h"
-#include "StyleContainer.h"
 #include "VectorPath.h"
 
 
@@ -45,7 +44,7 @@ using std::nothrow;
 
 class ShapeIterator : public BShapeIterator {
  public:
-	ShapeIterator(Icon *icon, Shape *to, BPoint offset, const char *name);
+	ShapeIterator(Icon *icon, PathSourceShape *to, BPoint offset, const char *name);
 	~ShapeIterator() {};
 
 	virtual	status_t	IterateMoveTo(BPoint *point);
@@ -58,7 +57,7 @@ class ShapeIterator : public BShapeIterator {
 	void					NextPath();
 
 	Icon *fIcon;
-	Shape *fShape;
+	PathSourceShape *fShape;
 	VectorPath *fPath;
 	BPoint fOffset;
 	const char *fName;
@@ -66,7 +65,7 @@ class ShapeIterator : public BShapeIterator {
 	bool fHasLastPoint;
 };
 
-ShapeIterator::ShapeIterator(Icon *icon, Shape *to, BPoint offset,
+ShapeIterator::ShapeIterator(Icon *icon, PathSourceShape *to, BPoint offset,
 	const char *name)
 {
 	CALLED();
@@ -114,16 +113,33 @@ ShapeIterator::IterateBezierTo(int32 bezierCount, BPoint *bezierPts)
 	CALLED();
 	if (!CurrentPath())
 		return B_ERROR;
-	BPoint start(bezierPts[0]);
-	if (fHasLastPoint)
-		start = fLastPoint;
-	while (bezierCount--) {
-		fPath->AddPoint(fOffset + bezierPts[0],
-			fLastPoint, fOffset + bezierPts[1], true);
-		fLastPoint = fOffset + bezierPts[2];
-		bezierPts += 3;
+
+	BPoint firstPoint(fLastPoint);
+	fLastPoint = fOffset + bezierPts[bezierCount * 3 - 1];
+
+	// first point
+	if (firstPoint == fLastPoint) {
+		// combine the first and the last point
+		fPath->AddPoint(firstPoint,
+			fOffset + bezierPts[bezierCount * 3 - 2], fOffset + bezierPts[0], false);
+			// Mark the points as disconnected for now. CleanUp will change this if necessary.
+		fPath->SetClosed(true);
+	} else {
+		fPath->AddPoint(firstPoint, firstPoint, fOffset + bezierPts[0], false);
 	}
-	fPath->AddPoint(fLastPoint);
+
+	// middle points
+	for (int i = 1; i + 2 < bezierCount * 3; i += 3) {
+		fPath->AddPoint(fOffset + bezierPts[i + 1],
+			fOffset + bezierPts[i + 0], fOffset + bezierPts[i + 2], false);
+	}
+
+	// last point
+	if (firstPoint != fLastPoint) {
+		fPath->AddPoint(fLastPoint,
+			fOffset + bezierPts[bezierCount * 3 - 2], fLastPoint, false);
+	}
+
 	fHasLastPoint = true;
 	return B_OK;
 }
@@ -156,8 +172,9 @@ ShapeIterator::NextPath()
 {
 	CALLED();
 	if (fPath) {
-		fIcon->Paths()->AddPath(fPath);
-		fShape->Paths()->AddPath(fPath);
+		fPath->CleanUp();
+		fIcon->Paths()->AddItem(fPath);
+		fShape->Paths()->AddItem(fPath);
 	}
 	fPath = NULL;
 }
@@ -257,7 +274,7 @@ StyledTextImporter::_Import(Icon* icon, const char *text, text_run_array *runs)
 		BAlert* alert = new BAlert(B_TRANSLATE("Text too long"),
 			B_TRANSLATE("The text you are trying to import is quite long, "
 				"are you sure?"),
-			B_TRANSLATE("Yes"), B_TRANSLATE("No"), NULL,
+			B_TRANSLATE("Import text"), B_TRANSLATE("Cancel"), NULL,
 			B_WIDTH_AS_USUAL, B_WARNING_ALERT);
 		if (alert->Go())
 			return B_CANCELED;
@@ -328,11 +345,11 @@ StyledTextImporter::_Import(Icon* icon, const char *text, text_run_array *runs)
 		if (glyph.Bounds().IsValid()) {
 			//offset.x += glyph.Bounds().Width();
 			offset.x += charWidth;
-			Shape* shape = new (nothrow) Shape(NULL);
+			PathSourceShape* shape = new (nothrow) PathSourceShape(NULL);
 			if (shape == NULL)
 				return B_NO_MEMORY;
 			shape->SetName(glyphName.String());
-			if (!icon->Shapes()->AddShape(shape)) {
+			if (!icon->Shapes()->AddItem(shape)) {
 				delete shape;
 				return B_NO_MEMORY;
 			}
@@ -372,7 +389,8 @@ StyledTextImporter::_AddStyle(Icon *icon, text_run *run)
 	if (style == NULL)
 		return B_NO_MEMORY;
 	char name[30];
-	sprintf(name, B_TRANSLATE("Color (#%02x%02x%02x)"),
+	sprintf(name, B_TRANSLATE_COMMENT("Color (#%02x%02x%02x)",
+		"Style name after dropping a color"),
 		color.red, color.green, color.blue);
 	style->SetName(name);
 
@@ -386,7 +404,7 @@ StyledTextImporter::_AddStyle(Icon *icon, text_run *run)
 		}
 	}
 
-	if (!found && !icon->Styles()->AddStyle(style)) {
+	if (!found && !icon->Styles()->AddItem(style)) {
 		delete style;
 		return B_NO_MEMORY;
 	}

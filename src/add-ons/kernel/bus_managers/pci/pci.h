@@ -7,17 +7,12 @@
 #ifndef __PCI_H__
 #define __PCI_H__
 
-#include <PCI.h>
+#include <bus/PCI.h>
 
-#ifdef __cplusplus
-  #include <VectorMap.h>
-#endif
+#include <VectorMap.h>
 
-#include "pci_controller.h"
+#include "pci_msi.h"
 
-#if defined(__i386__) || defined(__x86_64__)
-#include "pci_arch_info.h"
-#endif
 
 #define TRACE_PCI
 #ifndef TRACE_PCI
@@ -26,12 +21,9 @@
 #	define TRACE(x) dprintf x
 #endif
 
-#ifdef __cplusplus
-
 struct PCIDev;
 
 struct PCIBus {
-	PCIBus *			next;
 	PCIDev *			parent;
 	PCIDev *			child;
 	uint8				domain;
@@ -47,19 +39,28 @@ struct PCIDev {
 	uint8				device;
 	uint8				function;
 	pci_info			info;
-#if defined(__i386__) || defined(__x86_64__)
-	pci_arch_info		arch_info;
-#endif
+
+	msi_info			msi;
+	msix_info			msix;
+	ht_mapping_info		ht_mapping;
 };
 
 
 struct domain_data {
 	// These two are set in PCI::AddController:
-	pci_controller *	controller;
+	pci_controller_module_info *controller;
 	void *				controller_cookie;
+	device_node *		root_node;
+	PCIBus *			bus;
 
 	// All the rest is set in PCI::InitDomainData
 	int					max_bus_devices;
+	pci_resource_range 	ranges[kPciRangeEnd];
+
+#if !(defined(__i386__) || defined(__x86_64__))
+	area_id				io_port_area;
+	uint8 *				io_port_adr;
+#endif
 };
 
 
@@ -68,11 +69,15 @@ public:
 							PCI();
 							~PCI();
 
-			void			InitDomainData();
-			void			InitBus();
+			void			InitDomainData(domain_data &data);
+			void			InitBus(PCIBus *bus);
 
-			status_t		AddController(pci_controller *controller,
-								void *controller_cookie);
+			status_t		AddController(pci_controller_module_info *controller,
+								void *controllerCookie, device_node *rootNode,
+								domain_data **domainData);
+
+			status_t		LookupRange(uint32 type, phys_addr_t pciAddr,
+								uint8 &domain, pci_resource_range &range, uint8 **mappedAdr = NULL);
 
 			status_t		GetNthInfo(long index, pci_info *outInfo);
 
@@ -105,7 +110,7 @@ public:
 								uint8 *offset);
 			status_t		FindHTCapability(PCIDev *device,
 								uint16 capID, uint8 *offset = NULL);
-			
+
 			status_t		ResolveVirtualBus(uint8 virtualBus, uint8 *domain,
 								uint8 *bus);
 
@@ -126,6 +131,15 @@ public:
 			status_t		UpdateInterruptLine(uint8 domain, uint8 bus,
 								uint8 device, uint8 function,
 								uint8 newInterruptLineValue);
+
+			uint8			GetMSICount(PCIDev *device);
+			status_t		ConfigureMSI(PCIDev *device, uint8 count, uint8 *startVector);
+			status_t		UnconfigureMSI(PCIDev *device);
+			status_t		EnableMSI(PCIDev *device);
+			status_t		DisableMSI(PCIDev *device);
+			uint8			GetMSIXCount(PCIDev *device);
+			status_t		ConfigureMSIX(PCIDev *device, uint8 count, uint8 *startVector);
+			status_t		EnableMSIX(PCIDev *device);
 
 private:
 			void			_EnumerateBus(uint8 domain, uint8 bus,
@@ -161,8 +175,10 @@ private:
 								uint32 &address, uint32 *size = NULL,
 								uint8 *flags = NULL);
 
+public:
 			domain_data *	_GetDomainData(uint8 domain);
 
+private:
 			status_t		_CreateVirtualBus(uint8 domain, uint8 bus,
 								uint8 *virtualBus);
 
@@ -171,9 +187,14 @@ private:
 			PCIDev *		_FindDevice(PCIBus *current, uint8 domain,
 								uint8 bus, uint8 device, uint8 function);
 
-private:
-	PCIBus *				fRootBus;
+			void			_HtMSIMap(PCIDev *device, uint64 address);
+			void			_ReadMSIInfo(PCIDev *device);
+			void			_ReadMSIXInfo(PCIDev *device);
+			void			_ReadHtMappingInfo(PCIDev *device);
+			status_t		_UnconfigureMSIX(PCIDev *device);
+			status_t		_DisableMSIX(PCIDev *device);
 
+private:
 	enum { MAX_PCI_DOMAINS = 8 };
 
 	domain_data				fDomainData[MAX_PCI_DOMAINS];
@@ -188,12 +209,8 @@ private:
 
 extern PCI *gPCI;
 
-#endif // __cplusplus
 
-
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 status_t	pci_init(void);
 status_t	pci_init_deferred(void);
@@ -208,8 +225,6 @@ void		pci_write_config(uint8 virtualBus, uint8 device, uint8 function,
 
 void		__pci_resolve_virtual_bus(uint8 virtualBus, uint8 *domain, uint8 *bus);
 
-#ifdef __cplusplus
 }
-#endif
 
 #endif	/* __PCI_H__ */

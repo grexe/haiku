@@ -17,13 +17,22 @@ class BNode;
 class BPositionIO;
 
 _BEGIN_ICON_NAMESPACE
+	template <class Type> class Container;
 	class Gradient;
 	class LittleEndianBuffer;
-	class PathContainer;
-	class ShapeContainer;
-	class StyleContainer;
+	class Shape;
+	class Style;
 	class VectorPath;
 _END_ICON_NAMESPACE
+
+
+#define HVIF_EXPORTER_ERRORS_BASE		(B_ERRORS_END + 1)
+#define E_TOO_MANY_PATHS				(HVIF_EXPORTER_ERRORS_BASE + 0)
+#define E_PATH_TOO_MANY_POINTS			(HVIF_EXPORTER_ERRORS_BASE + 1)
+#define E_TOO_MANY_SHAPES				(HVIF_EXPORTER_ERRORS_BASE + 2)
+#define E_SHAPE_TOO_MANY_PATHS			(HVIF_EXPORTER_ERRORS_BASE + 3)
+#define E_SHAPE_TOO_MANY_TRANSFORMERS	(HVIF_EXPORTER_ERRORS_BASE + 4)
+#define E_TOO_MANY_STYLES				(HVIF_EXPORTER_ERRORS_BASE + 5)
 
 
 #define PRINT_STATISTICS 0
@@ -47,6 +56,7 @@ class PointHash {
 typedef hash_set<BPoint, PointHash> PointSet;
 #endif
 
+/*! Export to HVIF file or to an existing file's attribute. */
 class FlatIconExporter : public Exporter {
  public:
 								FlatIconExporter();
@@ -55,10 +65,11 @@ class FlatIconExporter : public Exporter {
 	// Exporter interface
 	virtual	status_t			Export(const Icon* icon,
 									   BPositionIO* stream);
-
-	virtual	const char*			MIMEType();
+	virtual const char*			ErrorCodeToString(status_t code);
+	virtual	const char*			MIMEType() { return NULL; }
 
 	// FlatIconExporter
+	/*! Export to file attribute */
 	status_t					Export(const Icon* icon, BNode* node,
 									   const char* attrName);
 
@@ -67,13 +78,13 @@ class FlatIconExporter : public Exporter {
 										const Icon* icon);
 
 			status_t			_WriteStyles(LittleEndianBuffer& buffer,
-											 StyleContainer* styles);
+											 const Container<Style>* styles);
 			status_t			_WritePaths(LittleEndianBuffer& buffer,
-											PathContainer* paths);
+											const Container<VectorPath>* paths);
 			status_t			_WriteShapes(LittleEndianBuffer& buffer,
-											 StyleContainer* styles,
-											 PathContainer* paths,
-											 ShapeContainer* shapes);
+											 const Container<Style>* styles,
+											 const Container<VectorPath>* paths,
+											 const Container<Shape>* shapes);
 
 			bool				_WriteGradient(LittleEndianBuffer& buffer,
 											   const Gradient* gradient);

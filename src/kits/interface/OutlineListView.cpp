@@ -846,18 +846,19 @@ BOutlineListView::ExpandOrCollapse(BListItem* item, bool expand)
 				uint32 subLevel = item->fLevel;
 				items++;
 
-				while (--count > 0 && items[0]->fLevel > subLevel)
+				while (count > 0 && items[0]->fLevel > subLevel) {
 					items++;
+					count--;
+				}
 			} else
 				items++;
 		}
 		_RecalcItemTops(startIndex);
 	} else {
 		// collapse
-		uint32 level = item->fLevel;
-		int32 fullListIndex = FullListIndexOf(item);
-		int32 index = IndexOf(item);
-		int32 startIndex = index;
+		const uint32 level = item->fLevel;
+		const int32 fullListIndex = FullListIndexOf(item);
+		const int32 index = IndexOf(item);
 		int32 max = FullListCountItems() - fullListIndex - 1;
 		int32 count = 0;
 		bool selectionChanged = false;
@@ -882,14 +883,19 @@ BOutlineListView::ExpandOrCollapse(BListItem* item, bool expand)
 			items++;
 		}
 
-		_RecalcItemTops(startIndex);
+		_RecalcItemTops(index);
 		// fix selection hints
 		// if the selected item was just removed by collapsing, select its
 		// parent
-		if (ListType() == B_SINGLE_SELECTION_LIST && selectionChanged)
-			fFirstSelected = fLastSelected = index;
-
-		if (index < fFirstSelected && index + count < fFirstSelected) {
+		if (selectionChanged) {
+			if (fFirstSelected > index && fFirstSelected <= index + count) {
+					fFirstSelected = index;
+			}
+			if (fLastSelected > index && fLastSelected <= index + count) {
+				fLastSelected = index;
+			}
+		}
+		if (index + count < fFirstSelected) {
 				// all items removed were higher than the selection range,
 				// adjust the indexes to correspond to their new visible positions
 				fFirstSelected -= count;
@@ -904,7 +910,7 @@ BOutlineListView::ExpandOrCollapse(BListItem* item, bool expand)
 			fLastSelected = maxIndex;
 
 		if (selectionChanged)
-			SelectionChanged();
+			Select(fFirstSelected, fLastSelected);
 	}
 
 	_FixupScrollBar();
