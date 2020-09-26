@@ -104,13 +104,13 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 
     entry_ref ref;
     BEntry entry;
-    BPath path;
+   	char *fileName = new char[B_FILE_NAME_LENGTH];
     int index = 0;
     
     while (fRelationTargetsReply.FindRef("refs", index, &ref) == B_OK) {
         entry.SetTo(&ref);
-        entry.GetPath(&path);
-        BMenuItem* item = new BMenuItem(path.Path(), NULL);
+        entry.GetName(fileName);
+        BMenuItem* item = new IconMenuItem(fileName, new BMessage(kOpenSelection), new BNodeInfo(new BNode(&ref)), B_MINI_ICON);
         
 		AddItem(item);
         index++;

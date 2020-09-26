@@ -110,6 +110,15 @@ void OpenRelationsMenu::ClearMenuBuildingState()
 void
 OpenRelationsMenu::DoneBuildingItemList()
 {
+    /* bail out if SEN server is not running
+    if (! fSenMessenger.IsValid()) {
+        BMenuItem* item = new BMenuItem("Cannot reach SEN server, please start SEN service.", 0);
+		item->SetEnabled(false);
+		AddItem(item);
+        
+        return;
+    }*/
+    
 	// target the menu
 	if (target != NULL)
 		SetTargetForItems(target);
