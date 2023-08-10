@@ -67,13 +67,10 @@ OpenRelationTargetsMenu::StartBuildingItemList()
     fSenMessenger = BMessenger(SEN_SERVER_SIGNATURE);
     
     if (fSenMessenger.IsValid()) {
-        
         PRINT(("Tracker->SEN: getting relation targets" UTF8_ELLIPSIS, path.Path()));
-        
         fSenMessenger.SendMessage(&fEntriesToOpen, &fRelationTargetsReply);
         
         PRINT(("SEN->Tracker: received reply."));
-        
         return true;
     } else {
         PRINT(("failed to reach SEN server, is it running?"));
@@ -102,19 +99,18 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 	else
 		SetTargetForItems(fMessenger);
 
-    entry_ref ref;
-    BEntry entry;
-   	char *fileName = new char[B_FILE_NAME_LENGTH];
-    int index = 0;
-    
-    while (fRelationTargetsReply.FindRef("refs", index, &ref) == B_OK) {
-        entry.SetTo(&ref);
-        entry.GetName(fileName);
-        BMenuItem* item = new IconMenuItem(fileName, new BMessage(kOpenSelection), new BNodeInfo(new BNode(&ref)), B_MINI_ICON);
-        
+	entry_ref ref;
+	BEntry entry;
+	char *fileName = new char[B_FILE_NAME_LENGTH];
+	int index = 0;
+
+	while (fRelationTargetsReply.FindRef("refs", index, &ref) == B_OK) {
+		entry.SetTo(&ref);
+		entry.GetPath(&path);
+		ModelMenuItem* item = new ModelMenuItem(new Model(&ref, true, true), path.Leaf(), NULL);
 		AddItem(item);
-        index++;
-    }
+	        index++;
+	}
     
 	if (index == 0) {
 		BMenuItem* item = new BMenuItem("no targets found.", 0);

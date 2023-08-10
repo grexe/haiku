@@ -17,22 +17,6 @@
 #include "SlowMenu.h"
 #include "Utilities.h"
 
-#define DEBUG 1
-
-#define SEN_SERVER_SIGNATURE "application/x-vnd.crashandburn.sen-server"
-
-// relations
-#define SEN_RELATION_SOURCE         "source"
-#define SEN_RELATION_NAME           "relation"
-#define SEN_RELATION_TARGET         "target"
-
-#define SEN_RELATIONS_GET			'SCrg'
-#define SEN_RELATIONS_GET_TARGETS	'SCrt'
-#define SEN_RELATIONS_ADD			'SCra'
-#define SEN_RELATIONS_REMOVE		'SCrr'
-// e.g. when a related file is deleted; P = Purge
-#define SEN_RELATIONS_REMOVEALL		'SCrp'
-
 class OpenRelationsMenu : public BSlowMenu {
 public:
 	OpenRelationsMenu(const char* label, const BMessage* entriesToOpen,
