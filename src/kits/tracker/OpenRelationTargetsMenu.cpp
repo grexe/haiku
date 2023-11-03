@@ -101,7 +101,7 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 
 	entry_ref ref;
 	BEntry entry;
-	char *fileName = new char[B_FILE_NAME_LENGTH];
+	BPath path;
 	int index = 0;
 
 	while (fRelationTargetsReply.FindRef("refs", index, &ref) == B_OK) {
@@ -109,7 +109,7 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 		entry.GetPath(&path);
 		ModelMenuItem* item = new ModelMenuItem(new Model(&ref, true, true), path.Leaf(), NULL);
 		AddItem(item);
-	        index++;
+		index++;
 	}
     
 	if (index == 0) {
