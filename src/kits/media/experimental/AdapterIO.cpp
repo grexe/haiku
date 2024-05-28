@@ -46,6 +46,28 @@ public:
 		return B_OK;
 	}
 
+	status_t FlushBefore(off_t position, BPositionIO* buffer, const void* oldBuffer,
+		size_t oldLength)
+	{
+		AutoWriteLocker _(fLock);
+		off_t relative = _PositionToRelative(position);
+		if (relative < 0)
+			return B_OK;
+		if (relative > (off_t)oldLength)
+			return B_BAD_VALUE;
+		status_t status = buffer->WriteAt(0, (void*)((addr_t)oldBuffer + relative),
+			oldLength - relative);
+		if (status < B_OK)
+			return status;
+		status = buffer->Seek(fBuffer->Position() - relative, SEEK_SET);
+		if (status < B_OK)
+			return status;
+		fBackPosition -= relative;
+		fStartOffset += relative;
+		SetBuffer(buffer);
+		return B_OK;
+	}
+
 	status_t EvaluatePosition(off_t position, off_t totalSize)
 	{
 		if (position < 0)
@@ -116,7 +138,9 @@ public:
 	{
 		AutoWriteLocker _(fLock);
 
-		return fBuffer->Seek(_PositionToRelative(position), seekMode);
+		if (seekMode == SEEK_SET)
+			return fBuffer->Seek(_PositionToRelative(position), seekMode);
+		return fBuffer->Seek(position, seekMode);
 	}
 
 	virtual off_t Position() const
@@ -178,6 +202,11 @@ public:
 		int32 flags = 0;
 		fOwner->GetFlags(&flags);
 		return ((flags & B_MEDIA_SEEKABLE) == B_MEDIA_SEEKABLE);
+	}
+
+	const BPositionIO* Buffer() const
+	{
+		return fBuffer;
 	}
 
 private:
@@ -376,6 +405,16 @@ BAdapterIO::SetBuffer(BPositionIO* buffer)
 		return B_ERROR;
 
 	fBuffer->SetBuffer(buffer);
+	return B_OK;
+}
+
+
+status_t
+BAdapterIO::FlushBefore(off_t position)
+{
+	BMallocIO* buffer = new BMallocIO();
+	BMallocIO* oldBuffer = (BMallocIO*)fBuffer->Buffer();
+	fBuffer->FlushBefore(position, buffer, oldBuffer->Buffer(), oldBuffer->BufferLength());
 	return B_OK;
 }
 

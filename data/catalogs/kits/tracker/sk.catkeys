@@ -1,4 +1,4 @@
-1	slovak	x-vnd.Haiku-libtracker	844426958
+1	slovak	x-vnd.Haiku-libtracker	2765723411
 Created	ContainerWindow		Vytvorené
 Open and make preferred	OpenWithWindow		Otvoriť a nastaviť ako preferovanú
 Kind	ContainerWindow		Druh
@@ -92,7 +92,6 @@ Hide dotfiles	SettingsView		Skryť súbory s bodkou na začiatku
 Trash	Model		Kôš
 Enable type-ahead filtering	SettingsView		Zapnúť filtrovanie počas písania
 copy	FSUtils	filename copy	kopírovať
-New folder%ld	FSUtils		Nový priečinok%ld
 Location	OpenWithWindow		Umiestnenie
 Resize to fit	QueryContainerWindow		Prispôsobiť veľkosť
 List folders first	SettingsView		Uviesť priečinky na začiatku
@@ -134,7 +133,6 @@ The Tracker must be running to see Info windows.	PoseView		Tracker musí bežať
 Tracker preferences	TrackerSettingsWindow		Nastavenia Trackera
 Read	FilePermissionsView		Čítať
 There was an error writing the attribute.	WidgetAttributeText		Vyskytla sa chyba pri zapisovaní atribútu.
-Path	Default Query Columns		Cesta
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Ak premenujete %target, %osName sa nemusí správať správne!\n\nSte si istý, že to chcete urobiť?
 Could not open \"%name\" (%error). 	FSUtils		Nebolo možné otvoriť „%name“ (%error). 
 %name info	InfoWindow	InfoWindow Title	Info o %name
@@ -207,7 +205,6 @@ Recent queries	FindPanel		Nedávne požiadavky
 Mount all	MountMenu		Pripojiť všetky
 Size	Default Query Columns		Veľkosť
 Favorites	FavoritesMenu		Obľúbené
-Delete	FilePanelPriv		Zmazať
 <No recent items>	FavoritesMenu		<Žiadne nedávne položky>
 Formula %formula	FindPanel	FindResultTitle	Vzorec %formula
 Preparing to create links…	StatusWindow		Pripravuje sa vytvorenie odkazov…
@@ -380,7 +377,6 @@ by formula	FindPanel		podľa vzorca
 Move to Trash	FilePanelPriv		Presunúť do Koša
 is	FindPanel		je
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Ak premenujete systémový priečinok alebo jeho obsah, %osName sa nemusí správať správne!\n\nSte si istý, že to chcete urobiť?\n\nAk chcete napriek tomu premenovať systémový priečinok alebo jeho obsah, podržte kláves Shift a kliknite na „Premenovať“.
-New folder %ld	FSUtils		Nový priečinok %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		„%name“ je spustiteľný súbor v starom formáte. Prosím, zožeňte si aktualizovanú verziu alebo znovu skompilujte aplikáciu.
 Only the boot disk	AutoMounterSettings		Iba zavádzací disk
 Modified	Default Query Columns		Zmenené

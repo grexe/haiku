@@ -215,6 +215,9 @@ UnixDatagramEndpoint::Send(const iovec* vecs, size_t vecCount,
 	TRACE("[%" B_PRId32 "] %p->UnixDatagramEndpoint::Send()\n",
 		find_thread(NULL), this);
 
+	if ((flags & ~(MSG_DONTWAIT)) != 0)
+		return EOPNOTSUPP;
+
 	bigtime_t timeout = 0;
 	if ((flags & MSG_DONTWAIT) == 0) {
 		timeout = absolute_timeout(socket->send.timeout);
@@ -304,8 +307,7 @@ UnixDatagramEndpoint::Send(const iovec* vecs, size_t vecCount,
 
 	switch (result) {
 		case EPIPE:
-			if (gStackModule->is_syscall())
-				send_signal(find_thread(NULL), SIGPIPE);
+			// The socket module will generate SIGPIPE for us, if necessary.
 			break;
 		case B_TIMED_OUT:
 			if (timeout == 0)
@@ -324,6 +326,9 @@ UnixDatagramEndpoint::Receive(const iovec* vecs, size_t vecCount,
 {
 	TRACE("[%" B_PRId32 "] %p->UnixDatagramEndpoint::Receive()\n",
 		find_thread(NULL), this);
+
+	if ((flags & ~(MSG_DONTWAIT)) != 0)
+		return EOPNOTSUPP;
 
 	bigtime_t timeout = 0;
 	if ((flags & MSG_DONTWAIT) == 0) {

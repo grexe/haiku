@@ -27,7 +27,7 @@ Pahawh Hmong	UnicodeBlocks		Pahawh Hmong
 Bopomofo extended	UnicodeBlocks		Bopomofo genişletilmiş
 Bassa Vah	UnicodeBlocks		Bassa Vah
 Georgian extended	UnicodeBlocks		Gürcüce genişletilmiş
-Mathematical alphanumeric symbols	UnicodeBlocks		Matematiksel abece-sayısal semboller
+Mathematical alphanumeric symbols	UnicodeBlocks		Matematiksel abece–sayısal semboller
 Coptic	UnicodeBlocks		Antik Mısır
 Masaram Gondi	UnicodeBlocks		Masaram Gondi
 Cuneiform numbers and punctuation	UnicodeBlocks		Çivi yazısı sayıları ve noktalama
@@ -75,7 +75,7 @@ Arabic presentation forms B	UnicodeBlocks		Arapça sunum biçimleri B
 Cypriot syllabary	UnicodeBlocks		Kıbrıs hece yazısı
 IPA extensions	UnicodeBlocks		IPA uzantıları
 Katakana phonetic extensions	UnicodeBlocks		Katakana fonetik genişletmeler
-N'Ko	UnicodeBlocks		N'Ko
+N'Ko	UnicodeBlocks		N’Ko
 Cherokee supplement	UnicodeBlocks		Çeroki ek
 Halfwidth and fullwidth forms	UnicodeBlocks		Yarı genişlikli ve tam genişlikli biçimler
 Counting rod numerals	UnicodeBlocks		Sayma çubukları
@@ -112,7 +112,7 @@ Elymaic	UnicodeBlocks		Elimaik
 Gurmukhi	UnicodeBlocks		Gurmukhi
 Supplemental arrows B	UnicodeBlocks		Ek oklar B
 CJK unified ideographs	UnicodeBlocks		ÇJK birleştirilmiş ideograflar
-Enclosed alphanumeric supplement	UnicodeBlocks		İliştirilmiş abece-sayısal ek
+Enclosed alphanumeric supplement	UnicodeBlocks		İliştirilmiş abece–sayısal ek
 Latin extended B	UnicodeBlocks		Latin genişletilmiş B
 Phonetic extensions	UnicodeBlocks		Fonetik genişletmeler
 Indic Siyaq numbers	UnicodeBlocks		Hindi Divan rakamları
@@ -279,7 +279,7 @@ Manichaean	UnicodeBlocks		Maniçyaca
 Phaistos disc	UnicodeBlocks		Phaistos diski
 Miscellaneous technical	UnicodeBlocks		Karışık teknik
 Braille patterns	UnicodeBlocks		Braille desenleri
-Enclosed alphanumerics	UnicodeBlocks		İliştirilen abece-sayısallar
+Enclosed alphanumerics	UnicodeBlocks		İliştirilen abece–sayısallar
 Thaana	UnicodeBlocks		Thaana
 Ethiopic	UnicodeBlocks		Etiyopyaca
 Byzantine musical symbols	UnicodeBlocks		Bizans müzik sembolleri

@@ -37,9 +37,9 @@ public:
 
 			status_t			StartLoading(const char* fileName,
 									BString& _requiredExternalFile);
-			status_t			Load(uint8 addressSize,
+			status_t			Load(uint8 addressSize, bool isBigEndian,
 									const BString& externalFilePath);
-			status_t			FinishLoading();
+			status_t			FinishLoading(uint8 addressSize, bool isBigEndian);
 
 			const char*			Name() const		{ return fName; }
 			ElfFile*			GetElfFile() const	{ return fElfFile; }
@@ -57,7 +57,7 @@ public:
 									uint64 offset) const;
 
 			status_t			UnwindCallFrame(CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									target_addr_t location,
 									const DwarfTargetInterface* inputInterface,
@@ -65,7 +65,7 @@ public:
 									target_addr_t& _framePointer);
 
 			status_t			EvaluateExpression(CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									const void* expression,
 									off_t expressionLength,
@@ -75,7 +75,7 @@ public:
 									target_addr_t valueToPush, bool pushValue,
 									target_addr_t& _result);
 			status_t			ResolveLocation(CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									const LocationDescription* location,
 									const DwarfTargetInterface* targetInterface,
@@ -90,14 +90,15 @@ public:
 									// bit offsets/sizes (cf. bit pieces).
 
 			status_t			EvaluateConstantValue(CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									const ConstantAttributeValue* value,
 									const DwarfTargetInterface* targetInterface,
 									target_addr_t instructionPointer,
 									target_addr_t framePointer,
 									BVariant& _result);
-			status_t			EvaluateDynamicValue(CompilationUnit* unit, uint8 addressSize,
+			status_t			EvaluateDynamicValue(CompilationUnit* unit,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									const DynamicAttributeValue* value,
 									const DwarfTargetInterface* targetInterface,
@@ -117,11 +118,11 @@ private:
 			typedef BObjectList<FDELookupInfo> FDEInfoList;
 
 private:
-			status_t			_ParseDebugInfoSection();
-			status_t			_ParseTypesSection();
+			status_t			_ParseDebugInfoSection(uint8 _addressSize, bool isBigEndian);
+			status_t			_ParseTypesSection(uint8 _addressSize, bool isBigEndian);
 			status_t			_ParseFrameSection(ElfSection* section,
-									uint8 addressSize, bool ehFrame,
-									FDEInfoList& infos);
+									uint8 addressSize, bool isBigEndian,
+									bool ehFrame, FDEInfoList& infos);
 			status_t			_ParseCompilationUnit(CompilationUnit* unit);
 			status_t			_ParseTypeUnit(TypeUnit* unit);
 			status_t			_ParseDebugInfoEntry(DataReader& dataReader,
@@ -130,6 +131,10 @@ private:
 									DebugInfoEntry*& _entry,
 									bool& _endOfEntryList, int level = 0);
 			status_t			_FinishUnit(BaseUnit* unit);
+			status_t			_ReadStringIndirect(BaseUnit* unit,
+									uint64 index, const char*& value) const;
+			status_t			_ReadAddressIndirect(BaseUnit* unit,
+									uint64 index, uint64& value) const;
 			status_t			_ParseEntryAttributes(DataReader& dataReader,
 									BaseUnit* unit,
 									DebugInfoEntry* entry,
@@ -144,7 +149,7 @@ private:
 			status_t			_ParseLineInfo(CompilationUnit* unit);
 
 			status_t			_UnwindCallFrame(CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									DIESubprogram* subprogramEntry,
 									target_addr_t location,
 									const FDELookupInfo* info,
@@ -155,7 +160,7 @@ private:
 			status_t			_ParseCIEHeader(ElfSection* debugFrameSection,
 									bool usingEHFrameSection,
 									CompilationUnit* unit,
-									uint8 addressSize,
+									uint8 addressSize, bool isBigEndian,
 									CfaContext& context, off_t cieOffset,
 									CIEAugmentation& cieAugmentation,
 									DataReader& reader,
@@ -165,7 +170,7 @@ private:
 									DataReader& dataReader,
 									CIEAugmentation& cieAugmentation);
 
-			status_t			_ParsePublicTypesInfo();
+			status_t			_ParsePublicTypesInfo(uint8 _addressSize, bool isBigEndian);
 			status_t			_ParsePublicTypesInfo(DataReader& dataReader,
 									bool dwarf64);
 
@@ -214,7 +219,9 @@ private:
 			ElfFile*			fAlternateElfFile;
 			ElfSection*			fDebugInfoSection;
 			ElfSection*			fDebugAbbrevSection;
+			ElfSection*			fDebugAddressSection;
 			ElfSection*			fDebugStringSection;
+			ElfSection*			fDebugStrOffsetsSection;
 			ElfSection*			fDebugRangesSection;
 			ElfSection*			fDebugLineSection;
 			ElfSection*			fDebugLineStrSection;

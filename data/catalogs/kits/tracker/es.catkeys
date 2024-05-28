@@ -1,4 +1,4 @@
-1	spanish; castilian	x-vnd.Haiku-libtracker	746720348
+1	spanish; castilian	x-vnd.Haiku-libtracker	1124891868
 Created	ContainerWindow		Creado
 Icon	AttributesView		Icono
 Open and make preferred	OpenWithWindow		Abrir y hacer preferido
@@ -115,7 +115,6 @@ Hide dotfiles	SettingsView		Ocultar archivos que comienzan con .
 Trash	Model		Papelera
 Enable type-ahead filtering	SettingsView		Habilitar el filtrado de escritura anticipada
 copy	FSUtils	filename copy	Copiar Nombre
-New folder%ld	FSUtils		Nueva carpeta%ld
 Location	OpenWithWindow		Localización
 Resize to fit	QueryContainerWindow		Ajustar el tamaño
 List folders first	SettingsView		Lista de carpetas primero
@@ -159,7 +158,6 @@ The Tracker must be running to see Info windows.	PoseView		El Trazador se debe e
 Tracker preferences	TrackerSettingsWindow		Preferencias del rastreador
 Read	FilePermissionsView		Leer
 There was an error writing the attribute.	WidgetAttributeText		Ha habido un error escribiendo el atributo
-Path	Default Query Columns		Ruta
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Si renombras %target, es posible que %osName no funcione adecuadamente.\n\n¿Estás seguro de que deseas hacer esto?
 Filesystem:	InfoWindow		Sistema de archivos:
 Could not open \"%name\" (%error). 	FSUtils		No se pudo abrir \"%name\" (%error).
@@ -245,7 +243,6 @@ Recent queries	FindPanel		Consultas recientes
 Mount all	MountMenu		Montar todo
 Size	Default Query Columns		Tamaño
 Favorites	FavoritesMenu		Favoritos
-Delete	FilePanelPriv		Eliminar
 <No recent items>	FavoritesMenu		Sin elementos recientes
 Formula %formula	FindPanel	FindResultTitle	Formula %formula
 Preparing to create links…	StatusWindow		Preparando para crear enlaces
@@ -301,6 +298,7 @@ Select all	ContainerWindow		Seleccionar todo
 apps	B_APPS_DIRECTORY		apps
 Error calculating folder size.	InfoWindow		Error calculando el tamaño de la carpeta
 Delete	FSUtils		Eliminar
+Duplicate	FilePanelPriv		Duplicar
 Edit name	ContainerWindow		Cambiar nombre
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		No se pudo abrir \"%document\" (Missing symbol: %symbol). \n
 ASCII Text	AttributesView		Texto ASCII
@@ -337,6 +335,7 @@ yes	AttributesView		sí
 Make active printer	ContainerWindow		Convertir en la impresora activa
 Copy to	ContainerWindow		Copiar a 
 Name	SelectionWindow		Nombre
+Location	Default Query Columns		Ubicación
 by attribute	FindPanel		Por atributo
 Write	FilePermissionsView		Escribir
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Si modifica la carpeta de sistema o sus contenidos, es posible que no pueda iniciar %osName!\n\n¿Está seguro de que desea hacer esto?\n\nPara modificar la carpeta de sistema o sus contenidos, mantenga presionada la tecla Mayúsculas (Shift) y haga clic en \"Sé lo que estoy haciendo\".
@@ -404,6 +403,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		No se pudo desmontar la unida
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		No se puede abrir \"%document\" con la aplicación \"%app\" (símbolo perdido: %symbol). \n
 New folder	ContainerWindow		Nueva carpeta
 Name	OpenWithWindow		Nombre
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Obtener información
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Hubo un problema al reemplazar \"%name\". el elemento puede estar abierto u ocupado.
 Windows	TrackerSettingsWindow		Ventanas
 Show space bars on volumes	SettingsView		Mostrar barras de espacio en volúmenes
@@ -455,7 +455,6 @@ Move to Trash	FilePanelPriv		Mover a la papelera
 is	FindPanel		es
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Si renombras la carpeta de sistema o sus contenidos, es posible que no puedas iniciar %osName.\n\n¿Estás seguro de que deseas hacer esto?\n\nPara renombrar la carpeta de sistema o sus contenidos, mantén presionada la tecla Mayúsculas y haz clic en \"Renombrar\".
 Permissions	FilePermissionsView		Permisos
-New folder %ld	FSUtils		Nueva carpeta %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" es un ejecutable antiguo. Por favor, obtenga una versión actualizada o recompile la aplicación.
 Only the boot disk	AutoMounterSettings		Sólo el disco de arranque
 Message	AttributesView		Mensaje

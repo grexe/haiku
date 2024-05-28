@@ -40,38 +40,29 @@ typedef struct pci_device_module_info {
 	void	(*set_powerstate)(pci_device *device, uint8 state);
 
 	// MSI/MSI-X
-	uint8	(*get_msi_count)(pci_device *device);
+	uint32	(*get_msi_count)(pci_device *device);
 	status_t (*configure_msi)(pci_device *device,
-				uint8 count,
-				uint8 *startVector);
+				uint32 count,
+				uint32 *startVector);
 	status_t (*unconfigure_msi)(pci_device *device);
 
 	status_t (*enable_msi)(pci_device *device);
 	status_t (*disable_msi)(pci_device *device);
 
-	uint8	(*get_msix_count)(pci_device *device);
+	uint32	(*get_msix_count)(pci_device *device);
 	status_t (*configure_msix)(pci_device *device,
-				uint8 count,
-				uint8 *startVector);
+				uint32 count,
+				uint32 *startVector);
 	status_t (*enable_msix)(pci_device *device);
 
 } pci_device_module_info;
 
 
-enum {
-	kPciRangeInvalid      = 0,
-	kPciRangeIoPort       = 1,
-	kPciRangeMmio         = 2,
-	kPciRangeMmio64Bit    = 1 << 0,
-	kPciRangeMmioPrefetch = 1 << 1,
-	kPciRangeMmioEnd      = 6,
-	kPciRangeEnd          = 6,
-};
-
 typedef struct pci_resource_range {
 	uint32 type;
-	phys_addr_t host_addr;
-	phys_addr_t pci_addr;
+	uint8 address_type;
+	phys_addr_t host_address;
+	phys_addr_t pci_address;
 	uint64 size;
 } pci_resource_range;
 

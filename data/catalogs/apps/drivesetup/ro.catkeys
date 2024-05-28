@@ -1,4 +1,4 @@
-1	romanian	x-vnd.Haiku-DriveSetup	2150010803
+1	romanian	x-vnd.Haiku-DriveSetup	63900332
 Could not unmount partition %s.	MainWindow		Nu s-a putut demonta partiția %s.
 Mount all	MainWindow		Montează toate
 Disk	MainWindow		Disc
@@ -42,6 +42,7 @@ Format	InitializeParametersPanel		Format
 Could not unmount partition	MainWindow		Nu s-a putut demonta partiția
 Create	CreateParametersPanel		Creează
 File system	PartitionList		Sistem de fișiere
+Unknown (%s)	PartitionList		Necunoscut (%s)
 The selected partition does not contain a partitioning system.	MainWindow		Partiția selectată nu conține un sistem de partiționare.
 End: %s	Support		Final: %s
 Partition type	PartitionList		Tip de partiție
@@ -51,7 +52,6 @@ Are you sure you want to format a raw disk? (Most people initialize the disk wit
 Wipe (not implemented)	MainWindow		Șterge (neimplementat)
 The currently selected partition does not have a parent partition.	MainWindow		Partiția selectată în prezent nu are o partiție superioară.
 Validation of the given initialization parameters failed.	MainWindow		Validarea parametrilor de inițializare furnizați a eșuat.
-Not formatted (%s)	PartitionList		Nu este formatat (%s)
 Failed to create the partition. No changes have been written to disk.	MainWindow		Nu s-a putut crea partiția. Nu au fost scrise modificări pe disc.
 Shared	PartitionList		Partajat
 MIMEs	PartitionList		MIME-uri

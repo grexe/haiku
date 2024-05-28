@@ -120,7 +120,7 @@ BTextWidget::TextWidth(const BPoseView* pose) const
 float
 BTextWidget::PreferredWidth(const BPoseView* pose) const
 {
-	return fText->PreferredWidth(pose) + 1;
+	return fText->PreferredWidth(pose);
 }
 
 
@@ -137,8 +137,8 @@ BTextWidget::ColumnRect(BPoint poseLoc, const BColumn* column,
 	result.left = column->Offset() + poseLoc.x;
 	result.right = result.left + column->Width();
 	result.bottom = poseLoc.y
-		+ roundf((view->ListElemHeight() + view->FontHeight()) / 2);
-	result.top = result.bottom - floorf(view->FontHeight());
+		+ roundf((view->ListElemHeight() + ActualFontHeight(view)) / 2);
+	result.top = result.bottom - floorf(ActualFontHeight(view));
 	return result;
 }
 
@@ -147,6 +147,7 @@ BRect
 BTextWidget::CalcRectCommon(BPoint poseLoc, const BColumn* column,
 	const BPoseView* view, float textWidth)
 {
+	textWidth -= 1;
 	BRect result;
 	float viewWidth = textWidth;
 
@@ -183,7 +184,7 @@ BTextWidget::CalcRectCommon(BPoint poseLoc, const BColumn* column,
 		}
 
 		result.bottom = poseLoc.y
-			+ roundf((view->ListElemHeight() + view->FontHeight()) / 2);
+			+ roundf((view->ListElemHeight() + ActualFontHeight(view)) / 2);
 	} else {
 		viewWidth = std::min(view->StringWidth("M") * 30, textWidth);
 		if (view->ViewMode() == kIconMode) {
@@ -199,7 +200,7 @@ BTextWidget::CalcRectCommon(BPoint poseLoc, const BColumn* column,
 		result.right = result.left + viewWidth;
 	}
 
-	result.top = result.bottom - floorf(view->FontHeight());
+	result.top = result.bottom - floorf(ActualFontHeight(view));
 
 	return result;
 }
@@ -442,23 +443,24 @@ BTextWidget::StartEdit(BRect bounds, BPoseView* view, BPose* pose)
 
 	view->SetActiveTextWidget(this);
 
-	// TODO fix text rect being off by a pixel on some files
-
 	BRect rect(bounds);
-	rect.OffsetBy(view->ViewMode() == kListMode ? -1 : 1, -4);
+	rect.OffsetBy(view->ViewMode() == kListMode ? -2 : 0, -2);
 	BTextView* textView = new BTextView(rect, "WidgetTextView", rect,
 		be_plain_font, 0, B_FOLLOW_ALL, B_WILL_DRAW);
 
 	textView->SetWordWrap(false);
 	textView->SetInsets(2, 2, 2, 2);
 	DisallowMetaKeys(textView);
-	fText->SetUpEditing(textView);
+	fText->SetupEditing(textView);
 
 	textView->AddFilter(new BMessageFilter(B_KEY_DOWN, TextViewKeyDownFilter));
 
-	if (view->TargetVolumeIsReadOnly()) {
+	if (view->SelectedVolumeIsReadOnly()) {
 		textView->MakeEditable(false);
 		textView->MakeSelectable(true);
+		// tint text view background color to indicate not editable
+		textView->SetViewColor(tint_color(textView->ViewColor(),
+			ReadOnlyTint(textView->ViewColor())));
 	} else
 		textView->AddFilter(new BMessageFilter(B_PASTE, TextViewPasteFilter));
 
@@ -643,8 +645,8 @@ BTextWidget::Draw(BRect eraseRect, BRect textRect, float, BPoseView* view,
 		drawView->SetHighColor(view->TextColor());
 
 	BPoint location;
-	location.y = textRect.bottom - view->FontInfo().descent;
-	location.x = textRect.left + 1;
+	location.y = textRect.bottom - view->FontInfo().descent + 1;
+	location.x = textRect.left;
 
 	const char* fittingText = fText->FittingText(view);
 
@@ -664,7 +666,7 @@ BTextWidget::Draw(BRect eraseRect, BRect textRect, float, BPoseView* view,
 		drawView->GetFont(&font);
 
 		rgb_color textColor = view->TextColor();
-		if (textColor.Brightness() < 100) {
+		if (textColor.IsDark()) {
 			// dark text on light outline
 			rgb_color glowColor = ui_color(B_SHINE_COLOR);
 

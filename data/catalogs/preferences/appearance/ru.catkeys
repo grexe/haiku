@@ -1,4 +1,4 @@
-1	russian	x-vnd.Haiku-Appearance	663472720
+1	russian	x-vnd.Haiku-Appearance	211365410
 Control border	Colors tab		Граница элемента
 Control mark	Colors tab		Отметка
 Off	AntialiasingSettingsView		Выключить
@@ -36,13 +36,14 @@ Menu font:	Font view		Шрифт меню:
 Bold font:	Font view		Жирный шрифт:
 %decorName\n\nAuthors:\n\t%decorAuthors\n\nURL: %decorURL\nLicense: %decorLic\n\n%decorDesc\n	DecorSettingsView		%decorName\n\nАвторы:\n\t%decorAuthors\n\nURL: %decorURL\nЛицензия: %decorLic\n\n%decorDesc\n
 Choose Decorator	DecorSettingsView		Выберите декоратор
-Strong	AntialiasingSettingsView		Сильная
 Failure	Colors tab		Неудача
+Strong	AntialiasingSettingsView		Сильная
 Double:	DecorSettingsView		Двойной:
 Selected menu item text	Colors tab		Текст выделенного пункта меню
 Size:	Font Selection view		Размер:
 Panel background	Colors tab		Фон панели
 Plain font:	Font view		Простой шрифт:
+Automatically pick secondary colors	Colors tab		Автоматически подбирать производные цвета
 Window tab text	Colors tab		Текст заголовка окна
 Navigation pulse	Colors tab		Навигационная пульсация
 LCD subpixel	AntialiasingSettingsView		Субпиксельное сглаживание

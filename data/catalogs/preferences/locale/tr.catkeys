@@ -1,5 +1,6 @@
-1	turkish	x-vnd.Haiku-Locale	1081217032
+1	turkish	x-vnd.Haiku-Locale	1312749322
 Medium format:	TimeFormatSettings		Orta biçim:
+ERROR	TimeFormatSettings		HATA
 Negative:	TimeFormatSettings		Negatif:
 Language	Locale Preflet Window		Dil
 Short format:	TimeFormatSettings		Kısa biçim:
@@ -14,7 +15,7 @@ Long format:	TimeFormatSettings		Uzun biçim:
 Numbers	TimeFormatSettings		Sayılar
 Available languages	Locale Preflet Window		Kullanılabilir diller
 Locale	Locale Preflet		Yerel Ayarlar
-Unable to find the available languages! You can't use this preflet!	Locale Preflet Window		Kullanılabilir diller bulunamıyor! Bu preflet'i kullanamazsınız!
+Unable to find the available languages! You can't use this preflet!	Locale Preflet Window		Kullanılabilir diller bulunamıyor! Bu paneli kullanamazsınız!
 Formatting	Locale Preflet Window		Biçimlendirme
 Use month/day-names from preferred language	TimeFormatSettings		Ay/gün adlarını tercih edilen dillerden al
 already chosen	LanguageListView		halihazırda seçili
@@ -25,6 +26,6 @@ Revert	Locale Preflet Window		Eski haline döndür
 Translate application and folder names	TimeFormatSettings		Uygulama ve klasör adlarını çevir
 12 hour	TimeFormatSettings		12 saat
 Positive:	TimeFormatSettings		Pozitif:
-Deskbar and Tracker need to be restarted for this change to take effect. Would you like to restart them now?	Locale Preflet Window		Bu değişikliğin etkin olması için Masaüstü Çubuğu ve İzleyici'nin yeniden başlatılması gerekiyor. Şimdi yeniden başlatmak ister misiniz?
+Deskbar and Tracker need to be restarted for this change to take effect. Would you like to restart them now?	Locale Preflet Window		Bu değişikliğin etkin olması için Masaüstü Çubuğu’nun ve İzleyici’nin yeniden başlatılması gerekiyor. Şimdi yeniden başlatmak ister misiniz?
 Restart	Locale Preflet Window		Yeniden başlat
 Currency	TimeFormatSettings		Para birimi

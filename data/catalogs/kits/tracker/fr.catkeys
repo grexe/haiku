@@ -1,4 +1,4 @@
-1	french	x-vnd.Haiku-libtracker	3311885033
+1	french	x-vnd.Haiku-libtracker	2087035058
 Created	ContainerWindow		Créé
 Icon	AttributesView		Icône
 Open and make preferred	OpenWithWindow		Ouvrir et en faire la préférence
@@ -8,6 +8,7 @@ Error moving \"%name\" to Trash. (%error)	FSUtils		Erreur en envoyant « %name�
 Or	FindPanel		Ou
 MIME Description	AttributesView		Description MIME
 before	FindPanel		avant
+New folder%d	FSUtils		Nouveau dossier%d
 Volume icons	TrackerSettingsWindow		Icônes des volumes
 Ignore case	SelectionWindow		Ignorer la casse
 Current folder	ContainerWindow		Dossier courant
@@ -115,7 +116,6 @@ Hide dotfiles	SettingsView		Masquer les fichiers cachés
 Trash	Model		Corbeille
 Enable type-ahead filtering	SettingsView		Activer le filtrage au cours de la saisie
 copy	FSUtils	filename copy	copie
-New folder%ld	FSUtils		Nouveau dossier%ld
 Location	OpenWithWindow		Emplacement
 Resize to fit	QueryContainerWindow		Ajuster
 List folders first	SettingsView		Lister les dossiers en premier
@@ -159,10 +159,10 @@ The Tracker must be running to see Info windows.	PoseView		Le Tracker doit être
 Tracker preferences	TrackerSettingsWindow		Préférences du Tracker
 Read	FilePermissionsView		Lire
 There was an error writing the attribute.	WidgetAttributeText		Il y a eu une erreur à l’écriture de l’attribut.
-Path	Default Query Columns		Chemin
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Si vous renommez %target, %osName pourrait ne plus se comporter correctement !\n\nÊtes vous sûr de vouloir le faire ?
 Filesystem:	InfoWindow		Système de fichiers :
 Could not open \"%name\" (%error). 	FSUtils		Impossible d’ouvrir « %name » (%error). 
+Media parameter group	AttributesView		Groupe de paramètres média
 %name info	InfoWindow	InfoWindow Title	Informations sur %name
 If you move the home folder, %osName may not behave properly!\n\nAre you sure you want to do this?\n\nTo move the home folder anyway, hold down the Shift key and click \"Move\".	FSUtils		Si vous déplacez le dossier d’accueil, %osName pourrait ne plus fonctionner normalement !\n\nÊtes-vous sûr de vouloir le faire ?\n\nPour déplacer quand même le dossier d’accueil, maintenez la touche « Maj » enfoncée et cliquez sur « Déplacer ».
 Property info	AttributesView		Information sur la propriété
@@ -243,7 +243,6 @@ Recent queries	FindPanel		Requêtes récentes
 Mount all	MountMenu		Monter tout
 Size	Default Query Columns		Taille
 Favorites	FavoritesMenu		Favoris
-Delete	FilePanelPriv		Supprimer
 <No recent items>	FavoritesMenu		<Pas d’éléments récents>
 Formula %formula	FindPanel	FindResultTitle	Formule %formula
 Preparing to create links…	StatusWindow		Création des liens en préparation…
@@ -266,6 +265,7 @@ Don't automount	AutoMounterSettings		Ne pas monter automatiquement
 Node ref	AttributesView		Référence de nœud
 Could not find application \"%appname\"	OpenWithWindow		Impossible de trouver l’application « %appname »
 Unmatched parenthesis.	libtracker		Parenthèses non appariées.
+New folder %d	FSUtils		Nouveau dossier %d
 Extended attribute	AttributesView		Attribut étendu
 Unmatched brackets.	libtracker		Crochets non appariées.
 Error %error loading Add-On %name.	ContainerWindow		Erreur %error au chargement de l’extension %name.
@@ -299,6 +299,7 @@ Select all	ContainerWindow		Sélectionner tout
 apps	B_APPS_DIRECTORY		applications
 Error calculating folder size.	InfoWindow		Erreur de calcul de la taille du dossier.
 Delete	FSUtils		Supprimer
+Duplicate	FilePanelPriv		Dupliquer
 Edit name	ContainerWindow		Éditer le nom
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Impossible d’ouvrir « %document » (Il manque le symbole : %symbol).\n
 ASCII Text	AttributesView		Texte ASCII
@@ -332,15 +333,18 @@ To: %dir	StatusWindow		Vers : %dir
 Paste layout	ContainerWindow		Coller la disposition
 Cancel	Tracker		Annuler
 yes	AttributesView		oui
+Error copying file \"%name\":\n\t%error\n\n	FSUtils		Erreur à la copie du fichier « %name » :\n\t%error\n\n
 Make active printer	ContainerWindow		Activer l’imprimante
 Copy to	ContainerWindow		Copier vers
 Name	SelectionWindow		Nom
+Location	Default Query Columns		Emplacement
 by attribute	FindPanel		par attribut
 Write	FilePermissionsView		Écrire
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Si vous altérez le dossier système ou son contenu, vous ne pourrez plus démarrer %osName !\n\nÊtes vous sûr de vouloir le faire ?\n\nPour altérer quand-même le dossier système ou son contenu , maintenez la touche Majuscule enfoncée et cliquez sur « Je sais ce que je fais ».
 Save	FilePanelPriv		Sauvegarder
 Could not open \"%document\" with application \"%app\" (Missing libraries: %library). \n	FSUtils		Impossible d’ouvrir « %document » avec l’application « %app » (Il manque la bibliothèque : %library).\n
 Finish: %time	StatusWindow		Fin : %time
+Messenger	AttributesView		Messager
 after	FindPanel		après
 {0, plural, one{<# data byte>} other{<# bytes of data>}}	AttributesView		{0, plural, one{<# octet de données>} other{<# octets de données>}}
 Version	OpenWithWindow		Version
@@ -452,7 +456,6 @@ Move to Trash	FilePanelPriv		Envoyer à la corbeille
 is	FindPanel		est
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Si vous renommez le dossier système ou son contenu, vous ne pourrez plus démarrer %osName !\n\nÊtes vous sûr de vouloir le faire ?\n\nPour renommer quand-même le dossier système ou son contenu , maintenez la touche Majuscule enfoncée et cliquez sur « renommer ».
 Permissions	FilePermissionsView		Autorisations
-New folder %ld	FSUtils		Nouveau dossier %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		« %name » est un exécutable ancien. Veuillez vous procurer une version mise à jour, ou recompiler l’application.
 Only the boot disk	AutoMounterSettings		Seulement le disque de démarrage
 Message	AttributesView		Message
@@ -475,6 +478,7 @@ Color	AttributesView		Couleur
 Copy layout	ContainerWindow		Copier la disposition
 Duplicate	ContainerWindow		Dupliquer
 16-bit integer	AttributesView		Entier 16-bits
+Note: file names in the destination file system are not case-sensitive.\n	FSUtils		Remarque : dans le système de fichiers cible, les noms de fichiers ne sont pas sensibles à la casse.\n
 Untitled clipping	PoseView		Extrait sans titre
 The file \"%name\" already exists in the specified folder. Do you want to replace it?	FilePanelPriv		Le fichier « %name » existe déjà dans le dossier indiqué. Voulez-vous le remplacer ?
 , indexed	InfoWindow		, indexé
@@ -494,6 +498,7 @@ Move to Trash	FSUtils		Envoyer à la corbeille
 Handles %type	OpenWithWindow		Support de « %type »
 Cancel	PoseView		Annuler
 Delete	PoseView		Supprimer
+Media parameter	AttributesView		Paramètre média
 If you alter the home folder, %osName may not behave properly!\n\nAre you sure you want to do this?\n\nTo alter the home folder anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Si vous altérer votre dossier d’accueil, %osName pourrait ne plus se comporter correctement!\n\nÊtes vous sûr de vouloir le faire ?\n\nPour altérer quand-même d’accueil, maintenez la touche Majuscule enfoncée et cliquez sur « Je sais ce que je fais ».
 Sorry, you can't copy items to the Trash.	PoseView		Désolé, vous ne pouvez pas copier des éléments dans la Corbeille.
 Invert selection	VirtualDirectoryWindow		Inverser la sélection

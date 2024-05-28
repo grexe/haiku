@@ -1,4 +1,4 @@
-1	ukrainian	x-vnd.Haiku-Appearance	663472720
+1	ukrainian	x-vnd.Haiku-Appearance	211365410
 Control border	Colors tab		Рамка елемента
 Control mark	Colors tab		Відмітка
 Off	AntialiasingSettingsView		Вимкнено
@@ -36,13 +36,14 @@ Menu font:	Font view		Шрифт меню:
 Bold font:	Font view		Жирний шрифт:
 %decorName\n\nAuthors:\n\t%decorAuthors\n\nURL: %decorURL\nLicense: %decorLic\n\n%decorDesc\n	DecorSettingsView		%decorName\n\nАвтори:\n\t%decorAuthors\n\nURL: %decorURL\nЛіцензія: %decorLic\n\n%decorDesc\n
 Choose Decorator	DecorSettingsView		Вибір Декоратора
-Strong	AntialiasingSettingsView		Сильно
 Failure	Colors tab		Збій
+Strong	AntialiasingSettingsView		Сильно
 Double:	DecorSettingsView		Подвійний:
 Selected menu item text	Colors tab		Текст вибраного елемента меню
 Size:	Font Selection view		Розмір:
 Panel background	Colors tab		Фон панелі
 Plain font:	Font view		Простий шрифт:
+Automatically pick secondary colors	Colors tab		Автоматично вибирати інші кольори
 Window tab text	Colors tab		Текст заголовку вікна
 Navigation pulse	Colors tab		Навігація pulse
 LCD subpixel	AntialiasingSettingsView		Субпіксельне згладжування

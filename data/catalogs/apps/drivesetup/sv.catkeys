@@ -1,4 +1,4 @@
-1	swedish	x-vnd.Haiku-DriveSetup	2150010803
+1	swedish	x-vnd.Haiku-DriveSetup	63900332
 Could not unmount partition %s.	MainWindow		Kunde inte avmontera partition %s.
 Mount all	MainWindow		Montera alla
 Disk	MainWindow		Disk
@@ -42,6 +42,7 @@ Format	InitializeParametersPanel		Formatera
 Could not unmount partition	MainWindow		Kunde inte avmontera partition
 Create	CreateParametersPanel		Skapa
 File system	PartitionList		Filsystem
+Unknown (%s)	PartitionList		Okänd (%s)
 The selected partition does not contain a partitioning system.	MainWindow		Den valda partitionen innehåller inget partitionssystem.
 End: %s	Support		Slutar: %s
 Partition type	PartitionList		Partitionstyp
@@ -51,7 +52,6 @@ Are you sure you want to format a raw disk? (Most people initialize the disk wit
 Wipe (not implemented)	MainWindow		Formatera (inte implementerat)
 The currently selected partition does not have a parent partition.	MainWindow		Den valda partitionen saknar omslutande partition.
 Validation of the given initialization parameters failed.	MainWindow		Utvärdering av de givna initialiseringsparametrarna misslyckades.
-Not formatted (%s)	PartitionList		Ej formaterad (%s)
 Failed to create the partition. No changes have been written to disk.	MainWindow		Det gick inte att skapa partitionen. Inga ändringar har skrivits till disken.
 Shared	PartitionList		Delad
 MIMEs	PartitionList		MIMEs

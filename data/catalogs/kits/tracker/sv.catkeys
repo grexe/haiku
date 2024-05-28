@@ -1,4 +1,4 @@
-1	swedish	x-vnd.Haiku-libtracker	746720348
+1	swedish	x-vnd.Haiku-libtracker	1124891868
 Created	ContainerWindow		Skapad
 Icon	AttributesView		Ikon
 Open and make preferred	OpenWithWindow		Öppna och gör till förval
@@ -115,7 +115,6 @@ Hide dotfiles	SettingsView		Dölj . filer
 Trash	Model		Papperskorg
 Enable type-ahead filtering	SettingsView		Markera filer som matchar tangentsekvens
 copy	FSUtils	filename copy	kopia
-New folder%ld	FSUtils		Ny mapp%ld
 Location	OpenWithWindow		Plats
 Resize to fit	QueryContainerWindow		Anpassa
 List folders first	SettingsView		Visa mappar först
@@ -159,7 +158,6 @@ The Tracker must be running to see Info windows.	PoseView		Tracker måste köras
 Tracker preferences	TrackerSettingsWindow		Trackerinställningar
 Read	FilePermissionsView		Läsa
 There was an error writing the attribute.	WidgetAttributeText		Fel inträffade vid skrivning av attribut.
-Path	Default Query Columns		Sökväg
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Om du byter namn på %target kommer kanske inte %osName fungera som det ska!\n\nÄr du säker på att du vill göra detta?
 Filesystem:	InfoWindow		Filsystem:
 Could not open \"%name\" (%error). 	FSUtils		Kunde inte öppna \"%name\" (%error).
@@ -245,7 +243,6 @@ Recent queries	FindPanel		Senaste frågor
 Mount all	MountMenu		Montera alla
 Size	Default Query Columns		Storlek
 Favorites	FavoritesMenu		Favoriter
-Delete	FilePanelPriv		Ta bort
 <No recent items>	FavoritesMenu		<Inga tidigare objekt>
 Formula %formula	FindPanel	FindResultTitle	Formel %formula
 Preparing to create links…	StatusWindow		Förbereder skapande av länkar...
@@ -301,6 +298,7 @@ Select all	ContainerWindow		Markera allt
 apps	B_APPS_DIRECTORY		program
 Error calculating folder size.	InfoWindow		Ett fel uppstod vid beräkningen av mappens storlek.
 Delete	FSUtils		Ta bort
+Duplicate	FilePanelPriv		Duplicera
 Edit name	ContainerWindow		Ändra namn
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Kunde inte öppna \"%document\" (Saknar symbol: %symbol). \n
 ASCII Text	AttributesView		ASCII-text
@@ -337,6 +335,7 @@ yes	AttributesView		ja
 Make active printer	ContainerWindow		Gör till aktiv skrivare
 Copy to	ContainerWindow		Kopiera till
 Name	SelectionWindow		Namn
+Location	Default Query Columns		Plats
 by attribute	FindPanel		via attribut
 Write	FilePermissionsView		Skriv
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Om du gör ändringar i systemmappen kommer du kanske inte kunna starta %osName!\n\nÄr du säker på att du vill göra detta?\n\nFör att göra ändringar ändå, håll nere Shift-tangenten samtidigt som du trycker på \"Jag vet vad jag håller på med\".
@@ -404,6 +403,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Kan inte avmontera startvolym
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		Kunde inte öppna \"%document\" med programmet \"%app\" (Saknar symbol: %symbol). \n
 New folder	ContainerWindow		Ny mapp
 Name	OpenWithWindow		Namn
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Få information
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Kunde inte ersätta \"%name\". Filen kan vara öppen eller upptagen.
 Windows	TrackerSettingsWindow		Fönster
 Show space bars on volumes	SettingsView		Visa ledigt utrymme på volymer
@@ -455,7 +455,6 @@ Move to Trash	FilePanelPriv		Flytta till papperskorg
 is	FindPanel		är
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Om du byter namn på systemmappen eller dess innehåll kommer du kanske inte kunna starta %osName!\n\nÄr du säker på att du vill göra detta?\n\nFör att byta namn ändå, håll nere Shift-tangenten samtidigt som du trycker på \"Byt namn\".
 Permissions	FilePermissionsView		Behörigheter
-New folder %ld	FSUtils		Ny mapp %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" Den körbara filen är från ett gammalt system. Var vänlig uppdatera din fil eller bygg om programmet.
 Only the boot disk	AutoMounterSettings		Bara uppstartsdisken
 Message	AttributesView		Meddelande

@@ -1,8 +1,6 @@
-1	esperanto	x-vnd.Haiku-About	2228890381
-Revision	AboutView		Revizio
+1	esperanto	x-vnd.Haiku-About	2759890592
 The Haikuware team and their bounty program\n	AboutView		La Haikuware grupo kaj ilia premia programo\n
 Copyright © 1999-2007 Michael C. Ring. All rights reserved.	AboutView		Kopirajto © 1999-2007 Michael C. Ring. Ĉiuj rajtoj estas rezervitaj.
-%.2f GHz	AboutView		%.2f GHz
 \n\nSpecial thanks to:\n	AboutView		\n\nDankegon al:\n
 Travis Geiselbrecht (and his NewOS kernel)\n	AboutView		Travis Geiselbrecht (kaj lia NewOS kerno)\n
 Copyright © 1999-2000 Y.Takagi. All rights reserved.	AboutView		Kopirajto © 1999-2000 Y.Takagi. Ĉiuj rajtoj estas rezervitaj.
@@ -17,7 +15,6 @@ Copyright © 2003 Peter Hanappe and others.	AboutView		Kopirajto © 2003 Peter H
 Testing and bug triaging:\n	AboutView		Testado kaj selektado de cimoj:\n
 {0, plural, one{Processor:} other{# Processors:}}	AboutView	\"Processor:\" or \"2 Processors:\"	{0, plural, one{Procesoro:} other{# Procesoroj:}}
 The code that is unique to Haiku, especially the kernel and all code that applications may link against, is distributed under the terms of the <MIT license>. Some system libraries contain third party code distributed under the <LGPL license>. You can find the copyrights to third party code below.\n\n	AboutView	<MIT license> and <LGPL license> aren't variables and can be translated. However, please, don't remove < and > as they're needed as placeholders for proper hypertext functionality.	La unika kodo de la Hajko, precipe la kerno kaj ĉiu kodo al kiu programoj povas ligiĝi, estas disdonata per la kondiĉoj de la <MIT permisilo>. Iom da sistemaj kodotekoj enhavas eksteran kodon disdonatan per la kondiĉoj de la <LGPL permisilo>. Vi povas trovi la kopirajtojn por ekstera kodo sube.\n\n
-%d MiB total	AboutView		%d MiB sume
 Copyright © 1996-1997 Jeff Prosise. All rights reserved.	AboutView		Kopirajto © 1996-1997 Jeff Prosise. Ĉiuj rajtoj estas rezervitaj.
 Copyright © 1999-2006 Brian Paul. Mesa3D Project. All rights reserved.	AboutView		Kopirajto © 1999-2006 Brian Paul. Mesa3D Project. Ĉiuj rajtoj estas rezervitaj.
 Copyright © 2010-2011 Google Inc. All rights reserved.	AboutView		Kopirajto © 2010-2011 Google Inc. Ĉiuj rajtoj estas rezervitaj.
@@ -27,10 +24,10 @@ Unknown	AboutView		Nekonata
 Be Inc. and its developer team, for having created BeOS!\n\n	AboutView		Be Inc. kaj ĝia programista teamo, por la kreado de BeOS!\n\n
 Copyright © 2002-2014 Industrial Light & Magic, a division of Lucas Digital Ltd. LLC.	AboutView		Kopirajto © 2002-2014 Industrial Light & Magic, a division of Lucas Digital Ltd. LLC.
 Licenses: 	AboutView		Permesiloj: 
+%ld MHz	AboutView	750 Mhz (CPU clock speed)	%ld MHz
 The copyright to the Haiku code is property of Haiku, Inc. or of the respective authors where expressly noted in the source. Haiku® and the HAIKU logo® are registered trademarks of Haiku, Inc.\n\n	AboutView		La kopirajto por la kodo de la Hajko estas posedaĵo de Haiku, Inc. aŭ de la respektivaj aŭtoroj, kio estas speciale notita en la fonta kodo. Haiku ® kaj la HAIKU emblemo ® estas registritaj varmarkoj de Haiku, Inc.\n\n
 Copyright © 2009 Colin Percival	AboutView		Kopirajto © 2009 Colin Percival
 Time running:	AboutView		Ruldaŭro:
-%ld MHz	AboutView		%ld MHz
 Copyright © 1996-2005 Julian R Seward. All rights reserved.	AboutView		Kopirajto © 1996-2005 Julian R Seward. Ĉiuj rajtoj estas rezervitaj.
 GNU LGPL v2	AboutWindow		GNU LGPL v2
 Copyright © 1994-2009, Thomas G. Lane, Guido Vollbeding. This software is based in part on the work of the Independent JPEG Group.	AboutView		Kopirajto © 1994-2009, Thomas G. Lane, Guido Vollbeding. Ĉi tiu programo estas bazita parte sur la laboro de la Independent JPEG Group.
@@ -42,8 +39,8 @@ Copyright © 1994-1997 Mark Kilgard. All rights reserved.	AboutView		Kopirajto �
 AboutSystem	System name		PriSistemo
 Copyright © 1995-2001 Lars Düning. All rights reserved.	AboutView		Kopirajto © 1995-2001 Lars Düning. Ĉiuj rajtoj estas rezervitaj.
 Copyright © 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper.	AboutView		Kopirajto © 1998-2000 Thai Open Source Software Center Ltd kaj Clark Cooper.
-Source Code: 	AboutView		Fontkodo: 
 \nCopyrights\n\n	AboutView		\nKopirajtoj\n\n
+Source Code: 	AboutView		Fontkodo: 
 GNU GPL v3	AboutWindow		GNU GPL v3
 Copyright © 1996-2002, 2006 David Turner, Robert Wilhelm and Werner Lemberg.	AboutView		Kopirajto © 1996-2002, 2006 David Turner, Robert Wilhelm kaj Werner Lemberg.
 Contains software from the GNU Project, released under the GPL and LGPL licenses:\nGNU C Library, GNU coretools, diffutils, findutils, sharutils, gawk, bison, m4, make, wget, ncurses, termcap, Bourne Again Shell.\nCopyright © The Free Software Foundation.	AboutView		Enhavas programaron de la GNU Project, eldonita per la GPL kaj LGPL permisiloj:\nGNU C Library, GNU coretools, diffutils, findutils, sharutils, gawk, bison, m4, make, wget, ncurses, termcap, Bourne Again Shell.\nKopirajto © The Free Software Foundation.
@@ -59,17 +56,16 @@ GNU LGPL v2.1	AboutWindow		GNU LGPL v2.1
 License: 	AboutView		Permesilo: 
 GNU GPL v2	AboutWindow		GNU GPL v2
 The University of Auckland and Christof Lutteroth\n\n	AboutView		La Universitato de Aŭklando kaj Christof Lutteroth\n\n
-%total MiB total, %inaccessible MiB inaccessible	AboutView		%total MiB sume, %inaccessible MiB neuzeblaj
 Copyright © 2012-2016 Google Internationalization team.	AboutView		Kopirajto © 2012-2016 Google Internationalization team.
 Copyright © 1994-2008 Xiph.Org. All rights reserved.	AboutView		Kopirajto © 1994-2008 Xiph.Org. Ĉiuj rajtoj estas rezervitaj.
 Copyright © 1995-2004 Jean-loup Gailly and Mark Adler.	AboutView		Kopirajto © 1995-2004 Jean-loup Gailly kaj Mark Adler.
 Copyright © 2001-2003 Expat maintainers.	AboutView		Kopirajto © 2001-2003 Expat daŭrigantoj.
 Copyright © 2002-2006 Maxim Shemanarev (McSeem).	AboutView		Kopirajto © 2002-2006 Maxim Shemanarev (McSeem).
 Translations:\n	AboutView		Tradukoj:\n
-Memory:	AboutView		Memoro:
 \n…and probably some more we forgot to mention (sorry!)\n\n	AboutView		\n…kaj verŝajne kelke pli kiujn ni forgesis mencii (ni bedaŭras!)\n\n
 BSD (2-clause)	AboutWindow		BSD (2-klaŭza)
 Website & marketing:\n	AboutView		Retpaĝaro & merkatado:\n
+%.2f GHz	AboutView	3.49 Ghz (CPU clock speed)	%.2f GHz
 2001 by Andy Ritger based on the Generalized Timing Formula	AboutView		2001 de Andy Ritger bazita sur la Generalized Timing Formula
 …and the many people making donations!\n\n	AboutView		…kaj la multe da homoj kiuj faras donacojn!\n\n
 BSD (4-clause)	AboutWindow		BSD (4-klaŭza)

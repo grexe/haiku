@@ -1,5 +1,5 @@
 1	turkish	x-vnd.Be-PEPL	2634915100
-Launching the FileTypes preflet to configure Person attributes has failed.\n\nError: 	People		Dosya Türleri preflet'i Kişi özniteliğini yapılandırmak için çalıştırılamadı.\n\nHata: 
+Launching the FileTypes preflet to configure Person attributes has failed.\n\nError: 	People		Dosya Türleri paneli, Kişi özniteliğini yapılandırmak için çalıştırılamadı.\n\nHata: 
 Mobile phone	People		Cep telefonu
 Unnamed person	People		Adsız kişi
 New person…	People		Yeni kişi…
@@ -10,7 +10,7 @@ Could not create %s.	People		%s oluşturulamadı.
 Quit	People		Çık
 Company	People		Şirket
 Name	People		Ad
-The file '%name%' could not be written.	People		'%name' dosyası yazılamadı.
+The file '%name%' could not be written.	People		“%name” dosyası yazılamadı.
 Contact name	People		Kişi adı
 Cancel	People		Vazgeç
 Edit	People		Düzen

@@ -1,4 +1,4 @@
-1	finnish	x-vnd.Haiku-libtracker	746720348
+1	finnish	x-vnd.Haiku-libtracker	2482866522
 Created	ContainerWindow		Luotu
 Icon	AttributesView		Kuvake
 Open and make preferred	OpenWithWindow		Avaa ja tee ensisijaiseksi
@@ -8,6 +8,7 @@ Error moving \"%name\" to Trash. (%error)	FSUtils		Virhe siirrettäessä kohdett
 Or	FindPanel		tai
 MIME Description	AttributesView		MIME-kuvaus
 before	FindPanel		ennen
+New folder%d	FSUtils		Uusi kansio%d
 Volume icons	TrackerSettingsWindow		Taltiokuvakkeet
 Ignore case	SelectionWindow		Ohita kirjainkoko
 Current folder	ContainerWindow		Nykyiset kansiot
@@ -115,7 +116,6 @@ Hide dotfiles	SettingsView		Piilota pistetiedostot
 Trash	Model		Roskakori
 Enable type-ahead filtering	SettingsView		Ota pois käytöstä kirjoituspuskurisuodatus
 copy	FSUtils	filename copy	kopioi
-New folder%ld	FSUtils		Uusi kansio%ld
 Location	OpenWithWindow		Sijainti
 Resize to fit	QueryContainerWindow		Sovita koko
 List folders first	SettingsView		Luettele kansiot ensin
@@ -159,7 +159,6 @@ The Tracker must be running to see Info windows.	PoseView		Seuraajan on oltava k
 Tracker preferences	TrackerSettingsWindow		Seuraaja-asetukset
 Read	FilePermissionsView		Lue
 There was an error writing the attribute.	WidgetAttributeText		Attribuutin kirjoittamisessa tapahtui virhe.
-Path	Default Query Columns		Polku
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Jos nimeät uudelleen kohteen %target, %osName ei ehkä toimi oikein!\n\nOletko varma, että haluat tehdä tämän?
 Filesystem:	InfoWindow		Tiedostojärjestelmä:
 Could not open \"%name\" (%error). 	FSUtils		Kohteen ”%name” avaus epäonnistui (%error)
@@ -245,7 +244,6 @@ Recent queries	FindPanel		Äskettäiset kyselyt
 Mount all	MountMenu		Liitä kaikki
 Size	Default Query Columns		Koko
 Favorites	FavoritesMenu		Suosikit
-Delete	FilePanelPriv		Poista
 <No recent items>	FavoritesMenu		<Ei äskettäisiä kohteita>
 Formula %formula	FindPanel	FindResultTitle	Kaava %formula
 Preparing to create links…	StatusWindow		Valmistaudutaan luomaan linkkejä...
@@ -268,6 +266,7 @@ Don't automount	AutoMounterSettings		Älä liitä automaattisesti
 Node ref	AttributesView		Solmuviite
 Could not find application \"%appname\"	OpenWithWindow		Sovelluksen ”%appname” löytäminen epäonnistui
 Unmatched parenthesis.	libtracker		Parittomat sulkeet.
+New folder %d	FSUtils		Uusi kansio %d
 Extended attribute	AttributesView		Laajennettu attribuutti
 Unmatched brackets.	libtracker		Parittomat sulkeet.
 Error %error loading Add-On %name.	ContainerWindow		Virhe %error ladattaessa lisäosaa %name.
@@ -301,6 +300,7 @@ Select all	ContainerWindow		Valitse kaikki
 apps	B_APPS_DIRECTORY		sovellukset
 Error calculating folder size.	InfoWindow		Virhe laskettaessa kansiokokoa.
 Delete	FSUtils		Poista
+Duplicate	FilePanelPriv		Kaksoiskappale
 Edit name	ContainerWindow		Muokkaa nimeä
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Asiakirjan ”%document” avaus epäonnistui (Symboli puuttuu: %symbol).\n
 ASCII Text	AttributesView		ASCI-teksti
@@ -334,9 +334,11 @@ To: %dir	StatusWindow		Vastaanottaja: %dir
 Paste layout	ContainerWindow		Liitä sijoittelu
 Cancel	Tracker		Peru
 yes	AttributesView		kyllä
+Error copying file \"%name\":\n\t%error\n\n	FSUtils		Virhe kopioitaessa tiedostoa \"%name\":\n\t%error\n\n
 Make active printer	ContainerWindow		Aseta aktiivinen tulostin
 Copy to	ContainerWindow		Kopioi kohteeseen
 Name	SelectionWindow		Nimi
+Location	Default Query Columns		Sijainti
 by attribute	FindPanel		attribuuteittain
 Write	FilePermissionsView		Kirjoita
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Jos muutat kansiota tai sen sisältöä, et ehkä kykene käynnistämään käyttöjärjestelmää %osName!\n\nOletko varma, että haluat tehdä tämän?\n\nJos kuitenkin muutat kansiota tai sen sisältöä, pidä alhaalla Vaihto-näppäin ja napsauta ”Tiedän, mitä olen tekemässä”.
@@ -404,6 +406,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Et voi irrottaa käynnistysta
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		Asiakirjan ”%document” avaus sovelluksella ”%app” epäonnistui (Puuttuva symboli: %symbol). \n
 New folder	ContainerWindow		Uusi kansio
 Name	OpenWithWindow		Nimi
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Hae tiedot
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Kohteen ”%name” korvaaminen epäonnistui. Kohde on ehkä avattu tai se on varattu.
 Windows	TrackerSettingsWindow		Ikkunat
 Show space bars on volumes	SettingsView		Näytä tilapalkit taltioissa
@@ -455,7 +458,6 @@ Move to Trash	FilePanelPriv		Siirrä roskakoriin
 is	FindPanel		on
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Jos nimeät uudelleen järjestelmäkansion tai sen sisällön, et ehkä kykene käynnistämään käyttöjärjestelmää %osName!\n\nOletko varma, että haluat tehdä tämän?\n\nJos kuitenkin nimeät uudelleen järjestelmäkansion tai sen sisällön, pidä Vaihto-näppäin alhaalla ja napsauta ”Nimeä uudelleen”.
 Permissions	FilePermissionsView		Käyttöoikeudet
-New folder %ld	FSUtils		Uusi kansio %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		”%name” on perinnäisjärjestelmän suoritettava tiedosto. Hanki päivitetty versio tai käännä sovellus uudelleen.
 Only the boot disk	AutoMounterSettings		Vain käynnistyslevy
 Message	AttributesView		Viesti
@@ -478,6 +480,7 @@ Color	AttributesView		Väri
 Copy layout	ContainerWindow		Kopioi sijoittelu
 Duplicate	ContainerWindow		Kaksoiskappale
 16-bit integer	AttributesView		16-bittinen kokonaisluku
+Note: file names in the destination file system are not case-sensitive.\n	FSUtils		Huomaa: tiedostonimet kohdetiedostojärjestelmässä eivät ole kirjainkoosta riippuvia.\n
 Untitled clipping	PoseView		Otsikoton leikkaus
 The file \"%name\" already exists in the specified folder. Do you want to replace it?	FilePanelPriv		Tiedosto ”%name” on jo olemassa määritellyssä kansiossa. Haluatko korvata sen?
 , indexed	InfoWindow		, indeksoitu

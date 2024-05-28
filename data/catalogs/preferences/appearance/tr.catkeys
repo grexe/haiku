@@ -1,4 +1,4 @@
-1	turkish	x-vnd.Haiku-Appearance	663472720
+1	turkish	x-vnd.Haiku-Appearance	211365410
 Control border	Colors tab		Denetim kenarlığı
 Control mark	Colors tab		Denetim imi
 Off	AntialiasingSettingsView		Kapalı
@@ -36,20 +36,21 @@ Menu font:	Font view		Menü yazıtipi:
 Bold font:	Font view		Kalın yazıtipi:
 %decorName\n\nAuthors:\n\t%decorAuthors\n\nURL: %decorURL\nLicense: %decorLic\n\n%decorDesc\n	DecorSettingsView		%decorName\n\nYazarlar:\n\t%decorAuthors\n\nURL: %decorURL\nLisans: %decorLic\n\n%decorDesc\n
 Choose Decorator	DecorSettingsView		Dekorcu seç
-Strong	AntialiasingSettingsView		Güçlü
 Failure	Colors tab		Başarısız
+Strong	AntialiasingSettingsView		Güçlü
 Double:	DecorSettingsView		Çift:
 Selected menu item text	Colors tab		Seçili menü ögesi metni
 Size:	Font Selection view		Boyut:
 Panel background	Colors tab		Panel arka planı
 Plain font:	Font view		Düz yazıtipi:
+Automatically pick secondary colors	Colors tab		İkincil renkleri kendiliğinden seç
 Window tab text	Colors tab		Pencere sekmesi metni
 Navigation pulse	Colors tab		Navigasyon nabzı
 LCD subpixel	AntialiasingSettingsView		LCD altpiksel
 Window tab	Colors tab		Pencere sekmesi
 Link text	Colors tab		Bağlantı metni
 Tooltip background	Colors tab		Araç ipucu arka planı
-ControlLook:	DecorSettingsView		Görünüm Denetimci:
+ControlLook:	DecorSettingsView		Görünüm denetimcisi:
 Scroll bar thumb	Colors tab		Sarma çubuğu başı
 Default	DecorSettingsView		Saptanmış
 Link visited	Colors tab		Ziyaret edilmiş bağlantı

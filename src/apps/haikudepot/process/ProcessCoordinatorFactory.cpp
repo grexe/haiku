@@ -1,9 +1,7 @@
 /*
- * Copyright 2018-2022, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2018-2023, Andrew Lindesay <apl@lindesay.co.nz>.
  * All rights reserved. Distributed under the terms of the MIT License.
  */
-
-
 #include "ProcessCoordinatorFactory.h"
 
 #include <Autolock.h>
@@ -13,6 +11,7 @@
 #include <package/PackageRoster.h>
 
 #include "AbstractServerProcess.h"
+#include "CacheScreenshotProcess.h"
 #include "DeskbarLink.h"
 #include "HaikuDepotConstants.h"
 #include "IncrementViewCounterProcess.h"
@@ -23,6 +22,7 @@
 #include "Model.h"
 #include "OpenPackageProcess.h"
 #include "PackageInfoListener.h"
+#include "PopulatePkgSizesProcess.h"
 #include "ProcessCoordinator.h"
 #include "ServerHelper.h"
 #include "ServerIconExportUpdateProcess.h"
@@ -106,6 +106,14 @@ ProcessCoordinatorFactory::CreateBulkLoadCoordinator(
 				serverProcessOptions));
 		processCoordinator->AddNode(serverReferenceDataUpdate);
 
+		// This one has to run after the server data is taken up because it
+		// will fill in the gaps based on local data that was not able to be
+		// sourced from the server. It has all of the
+		// `ServerPkgDataUpdateProcess` nodes configured as its predecessors.
+
+		AbstractProcessNode* populatePkgSizes =
+			new ThreadedProcessNode(new PopulatePkgSizesProcess(model));
+
 		// create a process for each of the repositories that are configured on
 		// the local system.  Later, only those that have a web-app repository
 		// server code will be actually processed, but this means that the
@@ -122,14 +130,17 @@ ProcessCoordinatorFactory::CreateBulkLoadCoordinator(
 			for (int32 i = 0; i < repoNames.CountStrings(); i++) {
 				AbstractProcessNode* processNode = new ThreadedProcessNode(
 					new ServerPkgDataUpdateProcess(
-						model->Language()->PreferredLanguage()->Code(),
 						repoNames.StringAt(i), model, serverProcessOptions));
 				processNode->AddPredecessor(serverRepositoryDataUpdate);
 				processNode->AddPredecessor(serverReferenceDataUpdate);
 				processCoordinator->AddNode(processNode);
+
+				populatePkgSizes->AddPredecessor(processNode);
 			}
 		} else
 			HDERROR("a problem has arisen getting the repository names.");
+
+		processCoordinator->AddNode(populatePkgSizes);
 	}
 
 	return processCoordinator;
@@ -150,6 +161,18 @@ ProcessCoordinatorFactory::CreatePackageActionCoordinator(
 		default:
 			HDFATAL("unexpected package action message what");
 	}
+}
+
+
+/*static*/ ProcessCoordinator*
+ProcessCoordinatorFactory::CacheScreenshotCoordinator(Model* model,
+	ScreenshotCoordinate& screenshotCoordinate)
+{
+	ProcessCoordinator* processCoordinator = new ProcessCoordinator("CacheScreenshot");
+	AbstractProcessNode* cacheScreenshotNode = new ThreadedProcessNode(
+		new CacheScreenshotProcess(model, screenshotCoordinate));
+	processCoordinator->AddNode(cacheScreenshotNode);
+	return processCoordinator;
 }
 
 

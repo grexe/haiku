@@ -1,4 +1,4 @@
-1	romanian	x-vnd.Haiku-libtracker	746720348
+1	romanian	x-vnd.Haiku-libtracker	1124891868
 Created	ContainerWindow		Creat
 Icon	AttributesView		Pictogramă
 Open and make preferred	OpenWithWindow		Deschide și face preferat
@@ -115,7 +115,6 @@ Hide dotfiles	SettingsView		Ascunde fișierele dot
 Trash	Model		Gunoi
 Enable type-ahead filtering	SettingsView		Activează filtrarea type-ahead
 copy	FSUtils	filename copy	copiază
-New folder%ld	FSUtils		Dosar nou%ld
 Location	OpenWithWindow		Locație
 Resize to fit	QueryContainerWindow		Redimensionează pentru a potrivi
 List folders first	SettingsView		Enumeră dosarele mai întâi
@@ -159,7 +158,6 @@ The Tracker must be running to see Info windows.	PoseView		Trackerul trebuie să
 Tracker preferences	TrackerSettingsWindow		Preferințe Tracker
 Read	FilePermissionsView		Citit
 There was an error writing the attribute.	WidgetAttributeText		A apărut o eroare la scrierea atributului.
-Path	Default Query Columns		Cale
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Dacă redenumiți %target, este posibil ca %osName să nu funcționeze corespunzător!\n\nSigur doriți să faceți asta?
 Filesystem:	InfoWindow		Sistem de fișiere:
 Could not open \"%name\" (%error). 	FSUtils		Nu s-a putut deschide \„%name\” (%error). 
@@ -245,7 +243,6 @@ Recent queries	FindPanel		Interogări recente
 Mount all	MountMenu		Montează toate
 Size	Default Query Columns		Dimensiune
 Favorites	FavoritesMenu		Favorite
-Delete	FilePanelPriv		Șterge
 <No recent items>	FavoritesMenu		<No recent items>
 Formula %formula	FindPanel	FindResultTitle	Formula %formula
 Preparing to create links…	StatusWindow		Se pregătește crearea legăturilor…
@@ -301,6 +298,7 @@ Select all	ContainerWindow		Selectează toate
 apps	B_APPS_DIRECTORY		apps
 Error calculating folder size.	InfoWindow		Eroare la calcularea dimensiunii dosarului.
 Delete	FSUtils		Șterge
+Duplicate	FilePanelPriv		Duplică
 Edit name	ContainerWindow		Editează numele
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Nu s-a putut deschide \„%document\” (Simbol lipsă: %symbol). \n
 ASCII Text	AttributesView		Text ASCII
@@ -337,6 +335,7 @@ yes	AttributesView		da
 Make active printer	ContainerWindow		Stabilește ca imprimantă activă
 Copy to	ContainerWindow		Copiază la
 Name	SelectionWindow		Nume
+Location	Default Query Columns		Locație
 by attribute	FindPanel		după atribut
 Write	FilePermissionsView		Scrie
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Dacă alterați dosarul de sistem sau conținutul acestuia, nu veți putea boota %osName!\n\nSigur doriți să faceți asta?\n\nPentru a altera dosarul de sistem sau conținutul acestuia oricum, țineți apăsată tasta Shift și dați clic pe \„Știu ce fac\”.
@@ -404,6 +403,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Nu se poate demonta volumul d
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		Nu s-a putut deschide \„%document\” cu aplicația \„%app\” (Simbol lipsă: %symbol). \n
 New folder	ContainerWindow		Dosar nou
 Name	OpenWithWindow		Nume
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Obține informații
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		A apărut o problemă la încercarea de înlocuire a \„%name\”. Elementul ar putea fi deschis sau ocupat.
 Windows	TrackerSettingsWindow		Ferestre
 Show space bars on volumes	SettingsView		Arată barele de spațiu pe volume
@@ -455,7 +455,6 @@ Move to Trash	FilePanelPriv		Mută la gunoi
 is	FindPanel		este
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Dacă redenumiți dosarul de sistem sau conținutul acestuia, nu veți putea boota %osName!\n\nSigur doriți să faceți asta?\n\nPentru a redenumi dosarul de sistem sau conținutul acestuia oricum, țineți apăsată tasta Shift și dați clic pe \„Redenumește\”.
 Permissions	FilePermissionsView		Permisiuni
-New folder %ld	FSUtils		Dosar nou %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\„%name\” este un executabil moștenit. Obțineți o versiune actualizată sau recompilați aplicația.
 Only the boot disk	AutoMounterSettings		Doar discul de boot
 Message	AttributesView		Mesaj

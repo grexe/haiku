@@ -19,20 +19,22 @@ public:
 		fSize(0),
 		fInitialSize(0),
 		fAddressSize(4),
+		fIsBigEndian(false),
 		fOverflow(false)
 	{
 	}
 
-	DataReader(const void* data, off_t size, uint8 addressSize)
+	DataReader(const void* data, off_t size, uint8 addressSize, bool isBigEndian)
 	{
-		SetTo(data, size, addressSize);
+		SetTo(data, size, addressSize, isBigEndian);
 	}
 
-	void SetTo(const void* data, off_t size, uint8 addressSize)
+	void SetTo(const void* data, off_t size, uint8 addressSize, bool isBigEndian)
 	{
 		fData = (const uint8*)data;
 		fInitialSize = fSize = size;
 		fAddressSize = addressSize;
+		fIsBigEndian = isBigEndian;
 		fOverflow = false;
 	}
 
@@ -43,12 +45,12 @@ public:
 
 	DataReader RestrictedReader(off_t maxLength)
 	{
-		return DataReader(fData, maxLength, fAddressSize);
+		return DataReader(fData, maxLength, fAddressSize, fIsBigEndian);
 	}
 
 	DataReader RestrictedReader(off_t relativeOffset, off_t maxLength)
 	{
-		return DataReader(fData + relativeOffset, maxLength, fAddressSize);
+		return DataReader(fData + relativeOffset, maxLength, fAddressSize, fIsBigEndian);
 	}
 
 	bool HasData() const
@@ -59,6 +61,11 @@ public:
 	uint32 AddressSize() const
 	{
 		return fAddressSize;
+	}
+
+	bool IsBigEndian() const
+	{
+		return fIsBigEndian;
 	}
 
 	void SetAddressSize(uint8 addressSize)
@@ -97,6 +104,7 @@ public:
 		fSize = fInitialSize - offset;
 	}
 
+	//TODO: take care of host vs target endianness
 	template<typename Type>
 	Type Read(const Type& defaultValue)
 	{
@@ -157,19 +165,30 @@ public:
 		return fOverflow ? defaultValue : result;
 	}
 
+	uint64 ReadUInt(size_t numBytes, uint64 defaultValue)
+	{
+		uint64 result = 0;
+		if (fIsBigEndian) {
+			for (size_t i = 0; i < numBytes; i++) {
+				uint8 byte = Read<uint8>(0);
+				result <<= 8;
+				result |= (uint64)byte;
+			}
+		} else {
+			int shift = 0;
+			for (size_t i = 0; i < numBytes; i++) {
+				uint8 byte = Read<uint8>(0);
+				result |= (uint64)byte << shift;
+				shift += 8;
+			}
+		}
+
+		return fOverflow ? defaultValue : result;
+	}
+
 	uint32 ReadU24(uint32 defaultValue)
 	{
-		uint8 res1 = Read<uint8>(0);
-		uint8 res2 = Read<uint8>(0);
-		uint8 res3 = Read<uint8>(0);
-#if defined(__HAIKU_LITTLE_ENDIAN)
-		uint32 result = res1 | (res2 << 8) | (res3 << 16);
-#elif defined(__HAIKU_BIG_ENDIAN)
-		uint32 result = res3 | (res2 << 8) | (res1 << 16);
-#else
-#error endiannes not defined
-#endif
-		return fOverflow ? defaultValue : result;
+		return ReadUInt(3, defaultValue);
 	}
 
 	const char* ReadString()
@@ -218,6 +237,7 @@ private:
 	off_t			fSize;
 	off_t			fInitialSize;
 	uint8			fAddressSize;
+	bool			fIsBigEndian;
 	bool			fOverflow;
 };
 

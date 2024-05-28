@@ -33,17 +33,17 @@
 #include <InterfaceDefs.h>
 #include <LayoutBuilder.h>
 #include <MenuBar.h>
-#include <MenuItem.h>
 #include <MenuField.h>
+#include <MenuItem.h>
 #include <Messenger.h>
 #include <Path.h>
 #include <PopUpMenu.h>
+#include <Roster.h>
 #include <Screen.h>
 #include <SpaceLayoutItem.h>
 #include <Spinner.h>
 #include <String.h>
 #include <StringView.h>
-#include <Roster.h>
 #include <Window.h>
 
 #include <InterfacePrivate.h>
@@ -85,13 +85,11 @@ static const struct {
 	{ B_RGB24, 24, B_TRANSLATE("24 bits/pixel, 16 Million colors") },
 	{ B_RGB32, 32, B_TRANSLATE("32 bits/pixel, 16 Million colors") }
 };
-static const int32 kColorSpaceCount
-	= sizeof(kColorSpaces) / sizeof(kColorSpaces[0]);
+static const int32 kColorSpaceCount = B_COUNT_OF(kColorSpaces);
 
 // list of standard refresh rates
 static const int32 kRefreshRates[] = { 60, 70, 72, 75, 80, 85, 95, 100 };
-static const int32 kRefreshRateCount
-	= sizeof(kRefreshRates) / sizeof(kRefreshRates[0]);
+static const int32 kRefreshRateCount = B_COUNT_OF(kRefreshRates);
 
 // list of combine modes
 static const struct {
@@ -102,8 +100,7 @@ static const struct {
 	{ kCombineHorizontally, B_TRANSLATE("horizontally") },
 	{ kCombineVertically, B_TRANSLATE("vertically") }
 };
-static const int32 kCombineModeCount
-	= sizeof(kCombineModes) / sizeof(kCombineModes[0]);
+static const int32 kCombineModeCount = B_COUNT_OF(kCombineModes);
 
 
 static BString
@@ -795,6 +792,15 @@ ScreenWindow::_CheckRefreshMenu()
 void
 ScreenWindow::_UpdateRefreshControl()
 {
+	if (isnan(fSelected.refresh)) {
+		fRefreshMenu->SetEnabled(false);
+		fOtherRefresh->SetLabel(B_TRANSLATE("Unknown"));
+		fOtherRefresh->SetMarked(true);
+		return;
+	} else {
+		fRefreshMenu->SetEnabled(true);
+	}
+
 	for (int32 i = 0; i < fRefreshMenu->CountItems(); i++) {
 		BMenuItem* item = fRefreshMenu->ItemAt(i);
 		if (item->Message()->FindFloat("refresh") == fSelected.refresh) {
@@ -805,7 +811,7 @@ ScreenWindow::_UpdateRefreshControl()
 			return;
 		}
 	}
-
+	
 	// this is a non-standard refresh rate
 	if (fOtherRefresh != NULL) {
 		fOtherRefresh->Message()->ReplaceFloat("refresh", fSelected.refresh);
@@ -1376,16 +1382,22 @@ ScreenWindow::_UpdateMonitor()
 			&& info.max_pixel_clock != 0) {
 			length = snprintf(text, sizeof(text),
 				B_TRANSLATE("Horizonal frequency:\t%lu - %lu kHz\n"
-				"Vertical frequency:\t%lu - %lu Hz\n\n"
-				"Maximum pixel clock:\t%g MHz"),
-				info.min_horizontal_frequency, info.max_horizontal_frequency,
-				info.min_vertical_frequency, info.max_vertical_frequency,
+					"Vertical frequency:\t%lu - %lu Hz\n\n"
+					"Maximum pixel clock:\t%g MHz"),
+				(long unsigned)info.min_horizontal_frequency,
+				(long unsigned)info.max_horizontal_frequency,
+				(long unsigned)info.min_vertical_frequency,
+				(long unsigned)info.max_vertical_frequency,
 				info.max_pixel_clock / 1000.0);
 		}
 		if (info.serial_number[0] && length < sizeof(text)) {
+			if (length > 0) {
+				text[length++] = '\n';
+				text[length++] = '\n';
+				text[length] = '\0';
+			}
 			length += snprintf(text + length, sizeof(text) - length,
-				B_TRANSLATE("%sSerial no.: %s"), length ? "\n\n" : "",
-				info.serial_number);
+				B_TRANSLATE("Serial no.: %s"), info.serial_number);
 			if (info.produced.week != 0 && info.produced.year != 0
 				&& length < sizeof(text)) {
 				length += snprintf(text + length, sizeof(text) - length,

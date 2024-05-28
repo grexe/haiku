@@ -1,4 +1,4 @@
-1	czech	x-vnd.Haiku-HaikuDepot	2837468702
+1	czech	x-vnd.Haiku-HaikuDepot	3762371345
 Usage conditions download problem	ToLatestUserUsageConditionsWindow		Problém se stažením podmínek použití
 Available packages	MainWindow		Dostupné balíčky
 It was not possible to create the new user.	UserLoginWindow		Nepodařilo se vytvořit nového uživatele.
@@ -128,6 +128,7 @@ No user ratings available.	PackageInfoView		Žádná uživatelská hodnocení.
 <no info>	PackageInfoView		<bez informací>
 Usage conditions download problem	UserUsageConditions		Problém se stažením podmínek použití
 An error has arisen downloading the password requirements required to create a new user. Check the log for details and try again. \nInformation about how to view the logs is available in the HaikuDepot section of the Haiku User Guide.	UserLoginWindow		Nastala chyba při stahování požadavků na heslo. Požadavky jsou potřeba k vytvoření nového uživatele. Zkontrolujte záznamy a opakujte. \nJak zobrazit podrobnější záznamy se dozvíte z uživatelské příručky Haiku v části HaikuDepot.
+Fetching screenshot	CacheScreenshotProcess		Fotím obrazovku
 A network transport error has arisen communicating with the server system: %s	ServerHelper		Při komunikaci se serverem došlo k chybě přenosu: %s
 Rating	PackageListView		Hodnocení
 Synchronizing icons	ServerIconExportUpdateProcess		Synchronizuji ikony
@@ -206,12 +207,13 @@ A validation error has occurred	ServerHelper		Došlo k chybě ověření
 The nickname is required.	UserLoginWindow		Přezdívka je vyžadována.
 -	no package size		-
 Apply changes	PackageResult		Použít změny
-Rate package	RatePackageWindow		Hodnocení balíčku
 Server error	ServerHelper		Chyba na serveru
+Rate package	RatePackageWindow		Hodnocení balíčku
 Recording view of \"%PackageName%\"	IncrementViewCounterProcess		Záznamy balíčku \"%PackageName%\"
 Sending anonymous usage data	MainWindow		Odesílám anonymní data o užívání
 Log in	UserLoginWindow		Přihlásit
 Usage conditions	UserUsageConditions		Podmínky použití
+Populating package sizes	PopulatePkgSizesProcess		Získávám velikosti balíčků
 HaikuDepot	System name		HaikuDepot
 Screenshot	ScreenshotWindow		Snímek obrazovky
 Email address:	UserLoginWindow		E-mailová adresa:

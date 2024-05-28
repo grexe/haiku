@@ -248,7 +248,7 @@ xhci_error_string(uint32 error)
 		case COMP_COMMAND_RING_STOPPED: return "Command ring stopped";
 		case COMP_COMMAND_ABORTED: return "Command aborted";
 		case COMP_STOPPED: return "Stopped";
-		case COMP_LENGTH_INVALID: return "Length invalid";
+		case COMP_STOPPED_LENGTH_INVALID: return "Stopped (length invalid)";
 		case COMP_MAX_EXIT_LATENCY: return "Max exit latency too large";
 		case COMP_ISOC_OVERRUN: return "Isoch buffer overrun";
 		case COMP_EVENT_LOST: return "Event lost";
@@ -258,6 +258,33 @@ xhci_error_string(uint32 error)
 		case COMP_SPLIT_TRANSACTION: return "Split transaction";
 
 		default: return "Undefined";
+	}
+}
+
+
+static status_t
+xhci_error_status(uint32 error, bool directionIn)
+{
+	switch (error) {
+		case COMP_SHORT_PACKET:
+		case COMP_SUCCESS:
+			return B_OK;
+		case COMP_DATA_BUFFER:
+			return directionIn ? B_DEV_WRITE_ERROR : B_DEV_READ_ERROR;
+		case COMP_BABBLE:
+			return directionIn ? B_DEV_DATA_OVERRUN : B_DEV_DATA_UNDERRUN;
+		case COMP_RING_UNDERRUN:
+			return B_DEV_FIFO_UNDERRUN;
+		case COMP_RING_OVERRUN:
+			return B_DEV_FIFO_OVERRUN;
+		case COMP_MISSED_SERVICE:
+			return B_DEV_TOO_LATE;
+		case COMP_USB_TRANSACTION:
+			return B_DEV_CRC_ERROR;
+		case COMP_STALL:
+			return B_DEV_STALLED;
+		default:
+			return B_DEV_STALLED;
 	}
 }
 
@@ -501,6 +528,9 @@ XHCI::XHCI(pci_info *info, 	pci_device_module_info* pci, pci_device* device, Sta
 
 	// Find the right interrupt vector, using MSIs if available.
 	fIRQ = fPCIInfo->u.h0.interrupt_line;
+	if (fIRQ == 0xFF)
+		fIRQ = 0;
+
 #if 0
 	if (fPci->get_msix_count(fDevice) >= 1) {
 		uint8 msiVector = 0;
@@ -513,7 +543,7 @@ XHCI::XHCI(pci_info *info, 	pci_device_module_info* pci, pci_device* device, Sta
 	} else
 #endif
 	if (fPci->get_msi_count(fDevice) >= 1) {
-		uint8 msiVector = 0;
+		uint32 msiVector = 0;
 		if (fPci->configure_msi(fDevice, 1, &msiVector) == B_OK
 			&& fPci->enable_msi(fDevice) == B_OK) {
 			TRACE_ALWAYS("using message signaled interrupts\n");
@@ -522,7 +552,7 @@ XHCI::XHCI(pci_info *info, 	pci_device_module_info* pci, pci_device* device, Sta
 		}
 	}
 
-	if (fIRQ == 0 || fIRQ == 0xFF) {
+	if (fIRQ == 0) {
 		TRACE_MODULE_ERROR("device PCI:%d:%d:%d was assigned an invalid IRQ\n",
 			fPCIInfo->bus, fPCIInfo->device, fPCIInfo->function);
 		return;
@@ -981,19 +1011,20 @@ XHCI::SubmitNormalRequest(Transfer *transfer)
 		td->trb_used++;
 	}
 
-	// Isochronous-specific
+	// Isochronous-specific.
 	if (isochronousData != NULL) {
-		// This is an isochronous transfer; we need to make the first TRB
-		// an isochronous TRB.
-		td->trbs[0].flags &= ~(TRB_3_TYPE(TRB_TYPE_NORMAL));
-		td->trbs[0].flags |= TRB_3_TYPE(TRB_TYPE_ISOCH);
+		// This is an isochronous transfer; it should have one TD per packet.
+		for (uint32 i = 0; i < isochronousData->packet_count; i++) {
+			td->trbs[i].flags &= ~(TRB_3_TYPE(TRB_TYPE_NORMAL));
+			td->trbs[i].flags |= TRB_3_TYPE(TRB_TYPE_ISOCH);
 
-		// Isochronous pipes are scheduled by microframes, one of which
-		// is 125us for USB 2 and above. But for USB 1 it was 1ms, so
-		// we need to use a different frame delta for that case.
-		uint8 frameDelta = 1;
-		if (transfer->TransferPipe()->Speed() == USB_SPEED_FULLSPEED)
-			frameDelta = 8;
+			if (i != (isochronousData->packet_count - 1)) {
+				// For all but the last TD, generate events (but not interrupts) on short packets.
+				// (The last TD uses the regular Event Data TRB.)
+				td->trbs[i].flags |= TRB_3_ISP_BIT | TRB_3_BEI_BIT;
+				td->trbs[i].flags &= ~TRB_3_CHAIN_BIT;
+			}
+		}
 
 		// TODO: We do not currently take Mult into account at all!
 		// How are we supposed to do that here?
@@ -1006,24 +1037,14 @@ XHCI::SubmitNormalRequest(Transfer *transfer)
 				|| isochronousData->starting_frame_number == NULL) {
 			// All reads from the microframe index register must be
 			// incremented by 1. (XHCI 1.2 § 4.14.2.1.4 p265.)
-			frame = ReadRunReg32(XHCI_MFINDEX) + 1;
+			frame = (ReadRunReg32(XHCI_MFINDEX) + 1) >> 3;
 			td->trbs[0].flags |= TRB_3_ISO_SIA_BIT;
 		} else {
 			frame = *isochronousData->starting_frame_number;
 			td->trbs[0].flags |= TRB_3_FRID(frame);
 		}
-		frame = (frame + frameDelta) % 2048;
 		if (isochronousData->starting_frame_number != NULL)
 			*isochronousData->starting_frame_number = frame;
-
-		// TODO: The OHCI bus driver seems to also do this for inbound
-		// isochronous transfers. Perhaps it should be moved into the stack?
-		if (directionIn) {
-			for (uint32 i = 0; i < isochronousData->packet_count; i++) {
-				isochronousData->packet_descriptors[i].actual_length = 0;
-				isochronousData->packet_descriptors[i].status = B_NO_INIT;
-			}
-		}
 	}
 
 	// Set the ENT (Evaluate Next TRB) bit, so that the HC will not switch
@@ -1132,7 +1153,7 @@ XHCI::CancelQueuedTransfers(Pipe *pipe, bool force)
 		// Clear the endpoint's TRBs.
 		memset(endpoint->trbs, 0, sizeof(xhci_trb) * XHCI_ENDPOINT_RING_SIZE);
 		endpoint->used = 0;
-		endpoint->current = 0;
+		endpoint->next = 0;
 
 		// Set dequeue pointer location to the beginning of the ring.
 		SetTRDequeue(endpoint->trb_addr, 0, endpoint->id + 1,
@@ -1645,9 +1666,10 @@ XHCI::AllocateDevice(Hub *parent, int8 hubAddress, uint8 hubPort,
 	mutex_init(&endpoint0->lock, "xhci endpoint lock");
 	endpoint0->device = device;
 	endpoint0->id = 0;
+	endpoint0->status = 0;
 	endpoint0->td_head = NULL;
 	endpoint0->used = 0;
-	endpoint0->current = 0;
+	endpoint0->next = 0;
 	endpoint0->trbs = device->trbs;
 	endpoint0->trb_addr = device->trb_addr;
 
@@ -1881,7 +1903,7 @@ XHCI::_InsertEndpointForPipe(Pipe *pipe)
 		endpoint->id = id;
 		endpoint->td_head = NULL;
 		endpoint->used = 0;
-		endpoint->current = 0;
+		endpoint->next = 0;
 
 		endpoint->trbs = device->trbs + id * XHCI_ENDPOINT_RING_SIZE;
 		endpoint->trb_addr = device->trb_addr
@@ -1984,6 +2006,7 @@ XHCI::_LinkDescriptorForPipe(xhci_td *descriptor, xhci_endpoint *endpoint)
 
 	// "used" refers to the number of currently linked TDs, not the number of
 	// used TRBs on the ring (we use 2 TRBs on the ring per transfer.)
+	// Furthermore, we have to leave an empty item between the head and tail.
 	if (endpoint->used >= (XHCI_MAX_TRANSFERS - 1)) {
 		TRACE_ERROR("link descriptor for pipe: max transfers count exceeded\n");
 		return B_BAD_VALUE;
@@ -2000,15 +2023,18 @@ XHCI::_LinkDescriptorForPipe(xhci_td *descriptor, xhci_endpoint *endpoint)
 	descriptor->next = endpoint->td_head;
 	endpoint->td_head = descriptor;
 
-	const uint32 current = endpoint->current,
-		eventdata = current + 1,
-		last = XHCI_ENDPOINT_RING_SIZE - 1;
-	uint32 next = eventdata + 1;
+	uint32 link = endpoint->next, eventdata = link + 1, next = eventdata + 1;
+	if (eventdata == XHCI_ENDPOINT_RING_SIZE || next == XHCI_ENDPOINT_RING_SIZE) {
+		// If it's "next" not "eventdata" that got us here, we will be leaving
+		// one TRB at the end of the ring unused.
+		eventdata = 0;
+		next = 1;
+	}
 
-	TRACE("link descriptor for pipe: current %d, next %d\n", current, next);
+	TRACE("link descriptor for pipe: link %d, next %d\n", link, next);
 
 	// Add a Link TRB to the end of the descriptor.
-	phys_addr_t addr = endpoint->trb_addr + eventdata * sizeof(xhci_trb);
+	phys_addr_t addr = endpoint->trb_addr + (eventdata * sizeof(xhci_trb));
 	descriptor->trbs[descriptor->trb_used].address = addr;
 	descriptor->trbs[descriptor->trb_used].status = TRB_2_IRQ(0);
 	descriptor->trbs[descriptor->trb_used].flags = TRB_3_TYPE(TRB_TYPE_LINK)
@@ -2032,11 +2058,11 @@ XHCI::_LinkDescriptorForPipe(xhci_td *descriptor, xhci_endpoint *endpoint)
 #endif
 
 	// Link the descriptor.
-	endpoint->trbs[current].address =
+	endpoint->trbs[link].address =
 		B_HOST_TO_LENDIAN_INT64(descriptor->trb_addr);
-	endpoint->trbs[current].status =
+	endpoint->trbs[link].status =
 		B_HOST_TO_LENDIAN_INT32(TRB_2_IRQ(0));
-	endpoint->trbs[current].flags =
+	endpoint->trbs[link].flags =
 		B_HOST_TO_LENDIAN_INT32(TRB_3_TYPE(TRB_TYPE_LINK));
 
 	// Set up the Event Data TRB (XHCI 1.2 § 4.11.5.2 p230.)
@@ -2060,39 +2086,22 @@ XHCI::_LinkDescriptorForPipe(xhci_td *descriptor, xhci_endpoint *endpoint)
 		B_HOST_TO_LENDIAN_INT32(TRB_3_TYPE(TRB_TYPE_EVENT_DATA)
 			| TRB_3_IOC_BIT | TRB_3_CYCLE_BIT);
 
-	if (next == last) {
-		// We always use 2 TRBs per _Link..() call, so if "next" is the last
-		// TRB in the ring, we need to generate a link TRB at "next", and
-		// then wrap it to 0. (We write the cycle bit later, after wrapping,
-		// for the reason noted in the previous comment.)
-		endpoint->trbs[next].address =
-			B_HOST_TO_LENDIAN_INT64(endpoint->trb_addr);
-		endpoint->trbs[next].status =
-			B_HOST_TO_LENDIAN_INT32(TRB_2_IRQ(0));
-		endpoint->trbs[next].flags =
-			B_HOST_TO_LENDIAN_INT32(TRB_3_TYPE(TRB_TYPE_LINK));
-
-		next = 0;
-	}
-
 	endpoint->trbs[next].address = 0;
 	endpoint->trbs[next].status = 0;
 	endpoint->trbs[next].flags = 0;
 
 	memory_write_barrier();
 
-	// Everything is ready, so write the cycle bit(s).
-	endpoint->trbs[current].flags |= B_HOST_TO_LENDIAN_INT32(TRB_3_CYCLE_BIT);
-	if (current == 0 && endpoint->trbs[last].address != 0)
-		endpoint->trbs[last].flags |= B_HOST_TO_LENDIAN_INT32(TRB_3_CYCLE_BIT);
+	// Everything is ready, so write the cycle bit.
+	endpoint->trbs[link].flags |= B_HOST_TO_LENDIAN_INT32(TRB_3_CYCLE_BIT);
 
-	TRACE("_LinkDescriptorForPipe pCurrent %p phys 0x%" B_PRIxPHYSADDR
-		" 0x%" B_PRIxPHYSADDR " 0x%08" B_PRIx32 "\n", &endpoint->trbs[current],
-		endpoint->trb_addr + current * sizeof(struct xhci_trb),
-		endpoint->trbs[current].address,
-		B_LENDIAN_TO_HOST_INT32(endpoint->trbs[current].flags));
+	TRACE("_LinkDescriptorForPipe pLink %p phys 0x%" B_PRIxPHYSADDR
+		" 0x%" B_PRIxPHYSADDR " 0x%08" B_PRIx32 "\n", &endpoint->trbs[link],
+		endpoint->trb_addr + link * sizeof(struct xhci_trb),
+		endpoint->trbs[link].address,
+		B_LENDIAN_TO_HOST_INT32(endpoint->trbs[link].flags));
 
-	endpoint->current = next;
+	endpoint->next = next;
 	endpointLocker.Unlock();
 
 	TRACE("Endpoint status 0x%08" B_PRIx32 " 0x%08" B_PRIx32 " 0x%016" B_PRIx64 "\n",
@@ -2637,29 +2646,50 @@ XHCI::HandleTransferComplete(xhci_trb* trb)
 		return;
 	}
 
-	// In the case of an Event Data TRB, the "transferred" field refers
-	// to the actual number of bytes transferred across the whole TD.
-	// (XHCI 1.2 § 6.4.2.1 Table 6-38 p478.)
-	const uint8 completionCode = TRB_2_COMP_CODE_GET(trb->status);
-	int32 transferred = TRB_2_REM_GET(trb->status), remainder = -1;
+	TRACE("HandleTransferComplete: ed %" B_PRIu32 ", status %" B_PRId32 "\n",
+		  (flags & TRB_3_EVENT_DATA_BIT), trb->status);
 
-	TRACE("HandleTransferComplete: ed %" B_PRIu32 ", code %" B_PRIu8 ", transferred %" B_PRId32 "\n",
-		  (flags & TRB_3_EVENT_DATA_BIT), completionCode, transferred);
+	uint8 completionCode = TRB_2_COMP_CODE_GET(trb->status);
 
-	if ((flags & TRB_3_EVENT_DATA_BIT) == 0) {
-		// This should only occur under error conditions.
-		TRACE("got an interrupt for a non-Event Data TRB!\n");
-		remainder = transferred;
-		transferred = -1;
+	if (completionCode == COMP_RING_OVERRUN || completionCode == COMP_RING_UNDERRUN) {
+		// These occur on isochronous endpoints when there is no TRB ready to be
+		// executed at the appropriate time. (XHCI 1.2 § 4.10.3.1 p204.)
+		endpoint->status = completionCode;
+		return;
+	}
+
+	int32 remainder = TRB_2_REM_GET(trb->status), transferred = -1;
+	if ((flags & TRB_3_EVENT_DATA_BIT) != 0) {
+		// In the case of an Event Data TRB, value in the status field refers
+		// to the actual number of bytes transferred across the whole TD.
+		// (XHCI 1.2 § 6.4.2.1 Table 6-38 p478.)
+		transferred = remainder;
+		remainder = -1;
+	} else {
+		// This should only occur under error conditions, or for isochronous transfers.
+		TRACE("got transfer event for a non-Event Data TRB!\n");
+
+		if (completionCode == COMP_STOPPED_LENGTH_INVALID)
+			remainder = -1;
 	}
 
 	if (completionCode != COMP_SUCCESS && completionCode != COMP_SHORT_PACKET
-			&& completionCode != COMP_STOPPED) {
+			&& completionCode != COMP_STOPPED && completionCode != COMP_STOPPED_LENGTH_INVALID) {
 		TRACE_ALWAYS("transfer error on slot %" B_PRId8 " endpoint %" B_PRId8
 			": %s\n", slot, endpointNumber, xhci_error_string(completionCode));
 	}
 
-	const phys_addr_t source = B_LENDIAN_TO_HOST_INT64(trb->address);
+	phys_addr_t source = B_LENDIAN_TO_HOST_INT64(trb->address);
+	if (source >= endpoint->trb_addr
+			&& (source - endpoint->trb_addr) < (XHCI_ENDPOINT_RING_SIZE * sizeof(xhci_trb))) {
+		// The "source" address points to a TRB on the ring.
+		// See if we can figure out what it really corresponds to.
+		const int64 offset = (source - endpoint->trb_addr) / sizeof(xhci_trb);
+		const int32 type = TRB_3_TYPE_GET(endpoint->trbs[offset].flags);
+		if (type == TRB_TYPE_EVENT_DATA || type == TRB_TYPE_LINK)
+			source = B_LENDIAN_TO_HOST_INT64(endpoint->trbs[offset].address);
+	}
+
 	for (xhci_td *td = endpoint->td_head; td != NULL; td = td->next) {
 		int64 offset = (source - td->trb_addr) / sizeof(xhci_trb);
 		if (offset < 0 || offset >= td->trb_count)
@@ -2667,6 +2697,48 @@ XHCI::HandleTransferComplete(xhci_trb* trb)
 
 		TRACE("HandleTransferComplete td %p trb %" B_PRId64 " found\n",
 			td, offset);
+
+		if (td->transfer != NULL && td->transfer->IsochronousData() != NULL) {
+			usb_isochronous_data* isochronousData = td->transfer->IsochronousData();
+			usb_iso_packet_descriptor& descriptor = isochronousData->packet_descriptors[offset];
+			if (transferred < 0)
+				transferred = (TRB_2_BYTES_GET(td->trbs[offset].status) - remainder);
+			descriptor.actual_length = transferred;
+			descriptor.status = xhci_error_status(completionCode,
+				(td->transfer->TransferPipe()->Direction() != Pipe::Out));
+
+			// Don't double-report completion status.
+			completionCode = COMP_SUCCESS;
+
+			if (offset != (td->trb_used - 1)) {
+				// We'll be sent here again.
+				return;
+			}
+
+			// Compute the real transferred length.
+			transferred = 0;
+			for (int32 i = 0; i < offset; i++) {
+				usb_iso_packet_descriptor& descriptor = isochronousData->packet_descriptors[i];
+				if (descriptor.status == B_NO_INIT) {
+					// Assume success.
+					descriptor.actual_length = descriptor.request_length;
+					descriptor.status = B_OK;
+				}
+				transferred += descriptor.actual_length;
+			}
+
+			// Report the endpoint status (if any.)
+			if (endpoint->status != 0) {
+				completionCode = endpoint->status;
+				endpoint->status = 0;
+			}
+		} else if (completionCode == COMP_STOPPED_LENGTH_INVALID) {
+			// To determine transferred length, sum up the lengths of all TRBs
+			// prior to the referenced one. (XHCI 1.2 § 4.6.9 p136.)
+			transferred = 0;
+			for (int32 i = 0; i < offset; i++)
+				transferred += TRB_2_BYTES_GET(td->trbs[i].status);
+		}
 
 		// The TRB at offset trb_used will be the link TRB, which we do not
 		// care about (and should not generate an interrupt at all.) We really
@@ -3071,31 +3143,8 @@ XHCI::FinishTransfers()
 
 			bool directionIn = (transfer->TransferPipe()->Direction() != Pipe::Out);
 
-			status_t callbackStatus = B_OK;
 			const uint8 completionCode = td->trb_completion_code;
-			switch (completionCode) {
-				case COMP_SHORT_PACKET:
-				case COMP_SUCCESS:
-					callbackStatus = B_OK;
-					break;
-				case COMP_DATA_BUFFER:
-					callbackStatus = directionIn ? B_DEV_DATA_OVERRUN
-						: B_DEV_DATA_UNDERRUN;
-					break;
-				case COMP_BABBLE:
-					callbackStatus = directionIn ? B_DEV_FIFO_OVERRUN
-						: B_DEV_FIFO_UNDERRUN;
-					break;
-				case COMP_USB_TRANSACTION:
-					callbackStatus = B_DEV_CRC_ERROR;
-					break;
-				case COMP_STALL:
-					callbackStatus = B_DEV_STALLED;
-					break;
-				default:
-					callbackStatus = B_DEV_STALLED;
-					break;
-			}
+			status_t callbackStatus = xhci_error_status(completionCode, directionIn);
 
 			size_t actualLength = transfer->FragmentLength();
 			if (completionCode != COMP_SUCCESS) {
@@ -3106,21 +3155,7 @@ XHCI::FinishTransfers()
 					actualLength);
 			}
 
-			usb_isochronous_data* isochronousData = transfer->IsochronousData();
-			if (isochronousData != NULL) {
-				size_t packetSize = transfer->DataLength()
-						/ isochronousData->packet_count,
-					left = actualLength;
-				for (uint32 i = 0; i < isochronousData->packet_count; i++) {
-					size_t size = min_c(packetSize, left);
-					isochronousData->packet_descriptors[i].actual_length = size;
-					isochronousData->packet_descriptors[i].status = (size > 0)
-						? B_OK : B_DEV_FIFO_UNDERRUN;
-					left -= size;
- 				}
- 			}
-
-			if (callbackStatus == B_OK && directionIn && actualLength > 0) {
+			if (directionIn && actualLength > 0) {
 				TRACE("copying in iov count %ld\n", transfer->VectorCount());
 				status_t status = transfer->PrepareKernelAccess();
 				if (status == B_OK) {

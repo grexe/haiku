@@ -1,4 +1,4 @@
-1	spanish; castilian	x-vnd.Haiku-DriveSetup	2150010803
+1	spanish; castilian	x-vnd.Haiku-DriveSetup	63900332
 Could not unmount partition %s.	MainWindow		No se pudo desmontar la partición %s.
 Mount all	MainWindow		Montar todo
 Disk	MainWindow		Disco
@@ -42,6 +42,7 @@ Format	InitializeParametersPanel		Formato
 Could not unmount partition	MainWindow		No se pudo desmontar la partición
 Create	CreateParametersPanel		Crear
 File system	PartitionList		Sistema de archivos
+Unknown (%s)	PartitionList		Desconocido (%s)
 The selected partition does not contain a partitioning system.	MainWindow		La partición seleccionada no contiene un sistema de particionado.
 End: %s	Support		Final: %s
 Partition type	PartitionList		Tipo de partición
@@ -51,7 +52,6 @@ Are you sure you want to format a raw disk? (Most people initialize the disk wit
 Wipe (not implemented)	MainWindow		Limpiar (no implementado)
 The currently selected partition does not have a parent partition.	MainWindow		La partición seleccionada no tiene una partición padre.
 Validation of the given initialization parameters failed.	MainWindow		La validación de los parámetros de inicialización proporcionados falló.
-Not formatted (%s)	PartitionList		Sin formato (%s)
 Failed to create the partition. No changes have been written to disk.	MainWindow		Hubo un error al crear la partición. No se han realizado cambios en el disco.
 Shared	PartitionList		Compartida
 MIMEs	PartitionList		MIME

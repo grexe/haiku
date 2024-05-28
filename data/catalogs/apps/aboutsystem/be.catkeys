@@ -1,8 +1,6 @@
-1	belarusian	x-vnd.Haiku-About	377284265
-Revision	AboutView		Рэвізія
+1	belarusian	x-vnd.Haiku-About	908284476
 The Haikuware team and their bounty program\n	AboutView		Каманда Haikuware і ихнія ахвяраванні\n
 Copyright © 1999-2007 Michael C. Ring. All rights reserved.	AboutView		Аўтарскае права © 1999-2007 Michael C. Ring. Правы захаваныя.
-%.2f GHz	AboutView		%.2f ГГц
 \n\nSpecial thanks to:\n	AboutView		\n\nАсабістыя падзякі:\n
 Travis Geiselbrecht (and his NewOS kernel)\n	AboutView		Travis Geiselbrecht (асабіста за ядро NewOS)\n
 Copyright © 1999-2000 Y.Takagi. All rights reserved.	AboutView		Аўтарскае права © 1999-2000 Y.Takagi. Правы захаваныя.
@@ -14,7 +12,6 @@ Copyright © 1991-2000 Silicon Graphics, Inc. All rights reserved.	AboutView		А
 Copyright © 1990-2002 Info-ZIP. All rights reserved.	AboutView		Аўтарскае права © 1990-2002 Info-ZIP. Правы захаваныя.
 Copyright © 2003 Peter Hanappe and others.	AboutView		Аўтарскае права © 2003 Peter Hanappe і іншыя.
 The code that is unique to Haiku, especially the kernel and all code that applications may link against, is distributed under the terms of the <MIT license>. Some system libraries contain third party code distributed under the <LGPL license>. You can find the copyrights to third party code below.\n\n	AboutView	<MIT license> and <LGPL license> aren't variables and can be translated. However, please, don't remove < and > as they're needed as placeholders for proper hypertext functionality.	Код, якi з'яўляецца ўласнасцю Haiku, асаблiва ядро и праграмы, могуць распаўсюджвацца ў станаўленнi з ўмовами <MIT license>. Некаторыя сiстэмныя бiблiятэки змяшчаюць староннi код, якi распаўсюджваюцца пад лицэнзiяй <LGPL license>. Аўтарскiя правы на староннi код вы можаце знайсцi нiжэй.\n\n
-%d MiB total	AboutView		%d MiB усяго
 Copyright © 1996-1997 Jeff Prosise. All rights reserved.	AboutView		Аўтарскае права © 1996-1997 Jeff Prosise. Правы захаваныя.
 Copyright © 1999-2006 Brian Paul. Mesa3D Project. All rights reserved.	AboutView		Аўтарскае права © 1999-2006 Brian Paul. Mesa3D Project. Правы захаваныя.
 Copyright © 2010-2011 Google Inc. All rights reserved.	AboutView		Аўтарскае права © 2010-2011 Google Inc. Правы захаваныя.
@@ -23,9 +20,9 @@ Past maintainers:\n	AboutView		Былыя дагляднікі:\n
 Unknown	AboutView		Невядома
 Be Inc. and its developer team, for having created BeOS!\n\n	AboutView		Be Inc. і яе распрацоўшчыкам, за тое што ставарылі BeOS!\n\n
 Licenses: 	AboutView		Лицэнзіі: 
+%ld MHz	AboutView	750 Mhz (CPU clock speed)	%ld МГц
 The copyright to the Haiku code is property of Haiku, Inc. or of the respective authors where expressly noted in the source. Haiku® and the HAIKU logo® are registered trademarks of Haiku, Inc.\n\n	AboutView		Аўтарскія правы на зыходны код Haiku належаць Haiku, Inc. ці суадносным аўтарам якія пазначаны ў зыходных тэкстах. Haiku® і HAIKU logo® з´яўляюцца зарэгістраванымі гандлёвымі знакамі Haiku, Inc.\n\n
 Time running:	AboutView		Час працы:
-%ld MHz	AboutView		%ld МГц
 Copyright © 1996-2005 Julian R Seward. All rights reserved.	AboutView		Аўтарскае права © 1996-2005 Julian R Seward. Правы захаваныя.
 Copyright © 1994-2009, Thomas G. Lane, Guido Vollbeding. This software is based in part on the work of the Independent JPEG Group.	AboutView		Аўтарскае права © 1994-2009, Thomas G. Lane, Guido Vollbeding. This software is based in part on the work of the Independent JPEG Group.
 Michael Phipps (project founder)\n\n	AboutView		Michael Phipps (заснавальнік праекту)\n\n
@@ -35,8 +32,8 @@ Copyright © 1994-1997 Mark Kilgard. All rights reserved.	AboutView		Аўтар�
 AboutSystem	System name		Пра Сістэму
 Copyright © 1995-2001 Lars Düning. All rights reserved.	AboutView		Аўтарскае права © 1995-2001 Lars Düning. Правы захаваныя.
 Copyright © 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper.	AboutView		Аўтарскае права © 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper.
-Source Code: 	AboutView		Зыходны код: 
 \nCopyrights\n\n	AboutView		\nАўтарскія правы\n\n
+Source Code: 	AboutView		Зыходны код: 
 Copyright © 2002-2003 Steve Lhomme. All rights reserved.	AboutView		Аўтарскае права © 2002-2003 Steve Lhomme. Правы захаваныя.
 Current maintainers:\n	AboutView		Распрацоўшчыкі:\n
 Copyright © 1995, 1998-2001 Jef Poskanzer. All rights reserved.	AboutView		Аўтарскае права © 1995, 1998-2001 Jef Poskanzer. Правы захаваныя.
@@ -44,13 +41,12 @@ Version:	AboutView		Версія:
 The BeGeistert team\n	AboutView		Каманада BeGeistert\n
 License: 	AboutView		Ліцензія: 
 The University of Auckland and Christof Lutteroth\n\n	AboutView		The University of Auckland and Christof Lutteroth\n\n
-%total MiB total, %inaccessible MiB inaccessible	AboutView		%total MiB усяго %inaccessible MiB недаступна
 Copyright © 1994-2008 Xiph.Org. All rights reserved.	AboutView		Аўтарскае права © 1994-2008 Xiph.Org. Правы захаваныя.
 Copyright © 1995-2004 Jean-loup Gailly and Mark Adler.	AboutView		Аўтарскае права © 1995-2004 Jean-loup Gailly and Mark Adler.
 Copyright © 2001-2003 Expat maintainers.	AboutView		Аўтарскае права © 2001-2003 Expat maintainers.
 Copyright © 2002-2006 Maxim Shemanarev (McSeem).	AboutView		Аўтарскае права © 2002-2006 Maxim Shemanarev (McSeem).
 Translations:\n	AboutView		Пераклады:\n
-Memory:	AboutView		Памяць:
 \n…and probably some more we forgot to mention (sorry!)\n\n	AboutView		\n…і прабачце нас тыя, пра каго мы, магчыма, забылі тут згадаць!\n\n
+%.2f GHz	AboutView	3.49 Ghz (CPU clock speed)	%.2f ГГц
 2001 by Andy Ritger based on the Generalized Timing Formula	AboutView		2001 by Andy Ritger грунтуецца на Generalized Timing Formula
 …and the many people making donations!\n\n	AboutView		…і тым, хто рабіў саве ахвяраванні!\n\n

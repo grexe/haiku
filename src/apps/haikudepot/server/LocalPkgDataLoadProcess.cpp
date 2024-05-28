@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-2022, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2018-2023, Andrew Lindesay <apl@lindesay.co.nz>.
  * Copyright 2013-2014, Stephan Aßmus <superstippi@gmx.de>.
  * Copyright 2013, Rene Gollent, rene@gollent.com.
  * Copyright 2013, Ingo Weinhold, ingo_weinhold@gmx.de.
@@ -28,8 +28,6 @@
 #include "Logger.h"
 #include "PackageInfo.h"
 #include "PackageManager.h"
-#include "PackageUtils.h"
-#include "RepositoryUrlUtils.h"
 
 #include <package/Context.h>
 #include <package/manager/Exceptions.h>
@@ -120,7 +118,7 @@ LocalPkgDataLoadProcess::RunInternal()
 			repoName, &repoConfig);
 
 		if (getRepositoryConfigStatus == B_OK) {
-			depotInfoRef->SetURL(repoConfig.Identifier());
+			depotInfoRef->SetIdentifier(repoConfig.Identifier());
 			HDDEBUG("[%s] local repository [%s] identifier; [%s]",
 				Name(), repoName.String(), repoConfig.Identifier().String());
 		} else {
@@ -200,8 +198,6 @@ LocalPkgDataLoadProcess::RunInternal()
 			if (!modelInfo.IsSet())
 				return B_ERROR;
 
-			modelInfo->SetSize(_DeriveSize(modelInfo));
-
 			foundPackages[repoPackageInfo.Name()] = modelInfo;
 		}
 
@@ -227,8 +223,7 @@ LocalPkgDataLoadProcess::RunInternal()
 			std::vector<DepotInfoRef>::iterator it;
 
 			for (it = depots.begin(); it != depots.end(); it++) {
-				if (RepositoryUrlUtils::EqualsNormalized(
-					(*it)->URL(), remoteRepository->Config().Identifier())) {
+				if ((*it)->Identifier() == remoteRepository->Config().Identifier()) {
 					break;
 				}
 			}
@@ -380,26 +375,6 @@ LocalPkgDataLoadProcess::RunInternal()
 	HDDEBUG("did refresh the package list");
 
 	return B_OK;
-}
-
-
-off_t
-LocalPkgDataLoadProcess::_DeriveSize(const PackageInfoRef package) const
-{
-	BPath path;
-	if (PackageUtils::DeriveLocalFilePath(package.Get(), path) == B_OK) {
-		BEntry entry(path.Path());
-		struct stat s = {};
-		if (entry.GetStat(&s) == B_OK)
-			return s.st_size;
-		else {
-			HDDEBUG("unable to get the size of local file [%s]", path.Path());
-		}
-	}
-	else {
-		HDDEBUG("unable to get the local file of package [%s]", package->Name().String());
-	}
-	return 0;
 }
 
 

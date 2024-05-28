@@ -73,7 +73,7 @@ private:
 			// FFmpeg related members
 			// TODO: Refactor common base class from AVCodec[De|En]Coder!
 			CodecID				fCodecID;
-			AVCodec*			fCodec;
+			const AVCodec*		fCodec;
 			AVCodecContext*		fCodecContext;
 			
 			enum {
@@ -88,7 +88,11 @@ private:
 			SwsContext*			fSwsContext;
 
 			// For encoded audio:
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+			AVFifo*				fAudioFifo;
+#else
 			AVFifoBuffer*		fAudioFifo;
+#endif
 
 			int64				fFramesWritten;
 

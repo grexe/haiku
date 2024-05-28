@@ -329,9 +329,7 @@ socket_receive_no_buffer(net_socket* socket, msghdr* header, void* data,
 static void
 print_socket_line(net_socket_private* socket, const char* prefix)
 {
-	BReference<net_socket_private> parent;
-	if (socket->parent.PrivatePointer() != NULL)
-		parent = socket->parent.GetReference();
+	BReference<net_socket_private> parent = socket->parent.GetReference();
 	kprintf("%s%p %2d.%2d.%2d %6" B_PRId32 " %p %p  %p%s\n", prefix, socket,
 		socket->family, socket->type, socket->protocol, socket->owner,
 		socket->first_protocol, socket->first_info, parent.Get(),
@@ -352,9 +350,7 @@ dump_socket(int argc, char** argv)
 	kprintf("SOCKET %p\n", socket);
 	kprintf("  family.type.protocol: %d.%d.%d\n",
 		socket->family, socket->type, socket->protocol);
-	BReference<net_socket_private> parent;
-	if (socket->parent.PrivatePointer() != NULL)
-		parent = socket->parent.GetReference();
+	BReference<net_socket_private> parent = socket->parent.GetReference();
 	kprintf("  parent:               %p\n", parent.Get());
 	kprintf("  first protocol:       %p\n", socket->first_protocol);
 	kprintf("  first module_info:    %p\n", socket->first_info);
@@ -456,63 +452,6 @@ socket_free(net_socket* _socket)
 	net_socket_private* socket = (net_socket_private*)_socket;
 	socket->first_info->free(socket->first_protocol);
 	socket->ReleaseReference();
-}
-
-
-status_t
-socket_readv(net_socket* socket, const iovec* vecs, size_t vecCount,
-	size_t* _length)
-{
-	return -1;
-}
-
-
-status_t
-socket_writev(net_socket* socket, const iovec* vecs, size_t vecCount,
-	size_t* _length)
-{
-	if (socket->peer.ss_len == 0)
-		return ECONNRESET;
-
-	if (socket->address.ss_len == 0) {
-		// try to bind first
-		status_t status = socket_bind(socket, NULL, 0);
-		if (status != B_OK)
-			return status;
-	}
-
-	// TODO: useful, maybe even computed header space!
-	net_buffer* buffer = gNetBufferModule.create(256);
-	if (buffer == NULL)
-		return ENOBUFS;
-
-	// copy data into buffer
-
-	for (uint32 i = 0; i < vecCount; i++) {
-		if (gNetBufferModule.append(buffer, vecs[i].iov_base,
-				vecs[i].iov_len) < B_OK) {
-			gNetBufferModule.free(buffer);
-			return ENOBUFS;
-		}
-	}
-
-	memcpy(buffer->source, &socket->address, socket->address.ss_len);
-	memcpy(buffer->destination, &socket->peer, socket->peer.ss_len);
-	size_t size = buffer->size;
-
-	ssize_t bytesWritten = socket->first_info->send_data(socket->first_protocol,
-		buffer);
-	if (bytesWritten < B_OK) {
-		if (buffer->size != size) {
-			// this appears to be a partial write
-			*_length = size - buffer->size;
-		}
-		gNetBufferModule.free(buffer);
-		return bytesWritten;
-	}
-
-	*_length = bytesWritten;
-	return B_OK;
 }
 
 
@@ -709,7 +648,7 @@ socket_spawn_pending(net_socket* _parent, net_socket** _socket)
 	// inherit parent's properties
 	socket->send = parent->send;
 	socket->receive = parent->receive;
-	socket->options = parent->options & ~SO_ACCEPTCONN;
+	socket->options = parent->options & (SO_KEEPALIVE | SO_DONTROUTE | SO_LINGER | SO_OOBINLINE);
 	socket->linger = parent->linger;
 	socket->owner = parent->owner;
 	memcpy(&socket->address, &parent->address, parent->address.ss_len);
@@ -1046,9 +985,7 @@ socket_getpeername(net_socket* _socket, struct sockaddr* address,
 	socklen_t* _addressLength)
 {
 	net_socket_private* socket = (net_socket_private*)_socket;
-	BReference<net_socket_private> parent;
-	if (socket->parent.PrivatePointer() != NULL)
-		parent = socket->parent.GetReference();
+	BReference<net_socket_private> parent = socket->parent.GetReference();
 
 	if ((!parent.IsSet() && !socket->is_connected) || socket->peer.ss_len == 0)
 		return ENOTCONN;
@@ -1219,24 +1156,29 @@ ssize_t
 socket_receive(net_socket* socket, msghdr* header, void* data, size_t length,
 	int flags)
 {
+	const int originalFlags = flags;
+
+	// MSG_NOSIGNAL is only meaningful for send(), not receive(), but it is
+	// sometimes specified anyway. Mask it off to avoid unnecessary errors.
+	flags &= ~MSG_NOSIGNAL;
+
 	// If the protocol sports read_data_no_buffer() we use it.
 	if (socket->first_info->read_data_no_buffer != NULL)
 		return socket_receive_no_buffer(socket, header, data, length, flags);
 
+	// Mask off flags handled in this function.
+	flags &= ~(MSG_TRUNC);
+
 	size_t totalLength = length;
-	net_buffer* buffer;
-	int i;
+	if (header != NULL) {
+		ASSERT(data == header->msg_iov[0].iov_base);
 
-	// the convention to this function is that have header been
-	// present, { data, length } would have been iovec[0] and is
-	// always considered like that
-
-	if (header) {
 		// calculate the length considering all of the extra buffers
-		for (i = 1; i < header->msg_iovlen; i++)
+		for (int i = 1; i < header->msg_iovlen; i++)
 			totalLength += header->msg_iov[i].iov_len;
 	}
 
+	net_buffer* buffer;
 	status_t status = socket->first_info->read_data(
 		socket->first_protocol, totalLength, flags, &buffer);
 	if (status != B_OK)
@@ -1261,11 +1203,9 @@ socket_receive(net_socket* socket, msghdr* header, void* data, size_t length,
 
 	// TODO: - returning a NULL buffer when received 0 bytes
 	//         may not make much sense as we still need the address
-	//       - gNetBufferModule.read() uses memcpy() instead of user_memcpy
 
 	size_t nameLen = 0;
-
-	if (header) {
+	if (header != NULL) {
 		// TODO: - consider the control buffer options
 		nameLen = header->msg_namelen;
 		header->msg_namelen = 0;
@@ -1275,24 +1215,27 @@ socket_receive(net_socket* socket, msghdr* header, void* data, size_t length,
 	if (buffer == NULL)
 		return 0;
 
-	size_t bytesReceived = buffer->size, bytesCopied = 0;
+	const size_t bytesReceived = buffer->size;
+	size_t bytesCopied = 0;
 
-	length = min_c(bytesReceived, length);
-	if (gNetBufferModule.read(buffer, 0, data, length) < B_OK) {
+	size_t toRead = min_c(bytesReceived, length);
+	status = gNetBufferModule.read(buffer, 0, data, toRead);
+	if (status != B_OK) {
 		gNetBufferModule.free(buffer);
+
+		if (status == B_BAD_ADDRESS)
+			return status;
 		return ENOBUFS;
 	}
 
-	// if first copy was a success, proceed to following
-	// copies as required
-	bytesCopied += length;
+	// if first copy was a success, proceed to following copies as required
+	bytesCopied += toRead;
 
-	if (header) {
-		// we only start considering at iovec[1]
-		// as { data, length } is iovec[0]
-		for (i = 1; i < header->msg_iovlen && bytesCopied < bytesReceived; i++) {
+	if (header != NULL) {
+		// We start at iovec[1] as { data, length } is iovec[0].
+		for (int i = 1; i < header->msg_iovlen && bytesCopied < bytesReceived; i++) {
 			iovec& vec = header->msg_iov[i];
-			size_t toRead = min_c(bytesReceived - bytesCopied, vec.iov_len);
+			toRead = min_c(bytesReceived - bytesCopied, vec.iov_len);
 			if (gNetBufferModule.read(buffer, bytesCopied, vec.iov_base,
 					toRead) < B_OK) {
 				break;
@@ -1310,10 +1253,10 @@ socket_receive(net_socket* socket, msghdr* header, void* data, size_t length,
 	gNetBufferModule.free(buffer);
 
 	if (bytesCopied < bytesReceived) {
-		if (header)
+		if (header != NULL)
 			header->msg_flags = MSG_TRUNC;
 
-		if (flags & MSG_TRUNC)
+		if ((originalFlags & MSG_TRUNC) != 0)
 			return bytesReceived;
 	}
 
@@ -1325,10 +1268,10 @@ ssize_t
 socket_send(net_socket* socket, msghdr* header, const void* data, size_t length,
 	int flags)
 {
-	const sockaddr* address = NULL;
-	socklen_t addressLength = 0;
-	size_t bytesLeft = length;
+	const bool nosignal = ((flags & MSG_NOSIGNAL) != 0);
+	flags &= ~MSG_NOSIGNAL;
 
+	size_t bytesLeft = length;
 	if (length > SSIZE_MAX)
 		return B_BAD_VALUE;
 
@@ -1337,6 +1280,8 @@ socket_send(net_socket* socket, msghdr* header, const void* data, size_t length,
 		ancillary_data_container, void, delete_ancillary_data_container>
 		ancillaryDataDeleter;
 
+	const sockaddr* address = NULL;
+	socklen_t addressLength = 0;
 	if (header != NULL) {
 		address = (const sockaddr*)header->msg_name;
 		addressLength = header->msg_namelen;
@@ -1394,6 +1339,11 @@ socket_send(net_socket* socket, msghdr* header, const void* data, size_t length,
 		ssize_t written = socket->first_info->send_data_no_buffer(
 			socket->first_protocol, vecs, vecCount, ancillaryData, address,
 			addressLength, flags);
+
+		// we only send signals when called from userland
+		if (written == EPIPE && is_syscall() && !nosignal)
+			send_signal(find_thread(NULL), SIGPIPE);
+
 		if (written > 0)
 			ancillaryDataDeleter.Detach();
 		return written;
@@ -1469,6 +1419,10 @@ socket_send(net_socket* socket, msghdr* header, const void* data, size_t length,
 
 		status = socket->first_info->send_data(socket->first_protocol, buffer);
 		if (status != B_OK) {
+			// we only send signals when called from userland
+			if (status == EPIPE && is_syscall() && !nosignal)
+				send_signal(find_thread(NULL), SIGPIPE);
+
 			size_t sizeAfterSend = buffer->size;
 			gNetBufferModule.free(buffer);
 
@@ -1731,8 +1685,6 @@ net_socket_module_info gNetSocketModule = {
 	socket_close,
 	socket_free,
 
-	socket_readv,
-	socket_writev,
 	socket_control,
 
 	socket_read_avail,

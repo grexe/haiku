@@ -1066,23 +1066,16 @@ FUSEVolume::DoIO(void* _node, void* _cookie, const IORequestInfo& requestInfo)
 			requestInfo.length);
 	}
 
+	size_t bytes = 0;
 	if (error == B_OK) {
-		size_t bytesTransferred = 0;
-		while (bytesTransferred < requestInfo.length) {
-			size_t bytes = requestInfo.length - bytesTransferred;
-			error = _InternalIO(node, cookie, path, requestInfo.offset + bytesTransferred,
-				buffer + bytesTransferred, bytes, requestInfo.isWrite);
-
-			if (error == B_OK)
-				bytesTransferred += bytes;
-			else
-				break;
-		}
+		bytes = requestInfo.length;
+		error = _InternalIO(node, cookie, path, requestInfo.offset,
+			buffer, bytes, requestInfo.isWrite);
 	}
 
 	if (error == B_OK && !requestInfo.isWrite) {
-		error = UserlandFS::KernelEmu::write_to_io_request(GetID(), requestInfo.id, buffer,
-			requestInfo.length);
+		error = UserlandFS::KernelEmu::write_to_io_request(GetID(), requestInfo.id,
+			buffer, bytes);
 	}
 
 	UserlandFS::KernelEmu::notify_io_request(GetID(), requestInfo.id, error);
@@ -1809,6 +1802,10 @@ FUSEVolume::Open(void* _node, int openMode, void** _cookie)
 	}
 
 	if (S_ISREG(node->type)) {
+		// The caching logic does not seem to work quite right with many
+		// filesystems (e.g. sshfs is one such): read past the end of a file
+		// returns errors instead of no data, for instance.
+#if 0
 		if (cookie->direct_io || llCookie.direct_io) {
 			if (node->cacheCount > 0) {
 				// In some very rare cases, for the same node, the first `open`
@@ -1839,6 +1836,7 @@ FUSEVolume::Open(void* _node, int openMode, void** _cookie)
 			// the cache from being deleted at close().
 			node->cacheCount += 1 + cookie->keep_cache + llCookie.keep_cache;
 		}
+#endif
 	}
 
 	cookieDeleter.Detach();

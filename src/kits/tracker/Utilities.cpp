@@ -87,6 +87,14 @@ const float kExactMatchScore = INFINITY;
 bool gLocalizedNamePreferred;
 
 
+float
+ReadOnlyTint(rgb_color base)
+{
+	// darken tint if read-only (or lighten if dark)
+	return base.IsLight() ? B_DARKEN_1_TINT : 0.85;
+}
+
+
 bool
 SecondaryMouseButtonDown(int32 modifiers, int32 buttons)
 {
@@ -1348,6 +1356,13 @@ HexDump(const void* buf, int32 length)
 			break;
 	}
 	fflush(stdout);
+}
+
+
+int
+CompareLabels(const BMenuItem* item1, const BMenuItem* item2)
+{
+	return strcasecmp(item1->Label(), item2->Label());
 }
 
 

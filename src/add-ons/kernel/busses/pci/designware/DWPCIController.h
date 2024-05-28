@@ -12,6 +12,7 @@
 
 #include <AutoDeleterOS.h>
 #include <lock.h>
+#include <util/Vector.h>
 
 
 #define CHECK_RET(err) {status_t _err = (err); if (_err < B_OK) return _err;}
@@ -164,9 +165,9 @@ public:
 
 			status_t			Init(PciDbiRegs volatile* dbiRegs, int32 msiIrq);
 
-			status_t			AllocateVectors(uint8 count, uint8& startVector, uint64& address,
-									uint16& data) final;
-			void				FreeVectors(uint8 count, uint8 startVector) final;
+			status_t			AllocateVectors(uint32 count, uint32& startVector, uint64& address,
+									uint32& data) final;
+			void				FreeVectors(uint32 count, uint32 startVector) final;
 
 
 private:
@@ -178,7 +179,7 @@ private:
 
 			uint32				fAllocatedMsiIrqs[1];
 			phys_addr_t			fMsiPhysAddr {};
-			long				fMsiStartIrq {};
+			int32				fMsiStartIrq {};
 			uint64				fMsiData {};
 };
 
@@ -231,7 +232,7 @@ private:
 	addr_t fConfigBase {};
 	size_t fConfigSize {};
 
-	pci_resource_range fResourceRanges[kPciRangeEnd] {};
+	Vector<pci_resource_range> fResourceRanges;
 	InterruptMapMask fInterruptMapMask {};
 	uint32 fInterruptMapLen {};
 	ArrayDeleter<InterruptMap> fInterruptMap;

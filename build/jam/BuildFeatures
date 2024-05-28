@@ -112,11 +112,11 @@ if [ IsPackageAvailable icu_devel ] {
 		;
 
 	EnableBuildFeatures icu ;
-} else if [ IsPackageAvailable icu66_devel ] {
+} else if [ IsPackageAvailable icu74_devel ] {
 	ExtractBuildFeatureArchives icu :
-		file: base icu66
+		file: base icu74
 			runtime: lib
-		file: devel icu66_devel
+		file: devel icu74_devel
 			depends: base
 			libraries:
 				$(developLibDir)/libicudata.so
@@ -235,14 +235,14 @@ if [ IsPackageAvailable mesa_devel ] {
 
 
 # FFmpeg
-if [ IsPackageAvailable ffmpeg_devel ] {
+if [ IsPackageAvailable ffmpeg6_devel ] {
 	local ffmpegLibs = libavformat.so libavcodec.so libavfilter.so libswscale.so
 		libavutil.so libswresample.so ;
 
 	ExtractBuildFeatureArchives ffmpeg :
-		file: base ffmpeg
+		file: base ffmpeg6
 			runtime: lib
-		file: devel ffmpeg_devel
+		file: devel ffmpeg6_devel
 			depends: base
 			libraries: $(developLibDir)/$(ffmpegLibs)
 			headers: $(developHeadersDir)
@@ -319,11 +319,11 @@ if [ IsPackageAvailable fontconfig_devel ] {
 }
 
 # Gutenprint
-if [ IsPackageAvailable gutenprint8_devel ] {
+if [ IsPackageAvailable gutenprint9_devel ] {
 	ExtractBuildFeatureArchives gutenprint :
-		file: base gutenprint8
+		file: base gutenprint9
 			runtime: lib
-		file: devel gutenprint8_devel
+		file: devel gutenprint9_devel
 			depends: base
 			library: $(developLibDir)/libgutenprint.so
 			headers: $(developHeadersDir) $(developHeadersDir)/gutenprint
@@ -669,11 +669,11 @@ if [ IsPackageAvailable libwebp_devel ] {
 
 
 # libavif
-if [ IsPackageAvailable libavif_devel ] {
+if [ IsPackageAvailable libavif1.0_devel ] {
 	ExtractBuildFeatureArchives libavif :
-		file: base libavif
+		file: base libavif1.0
 			runtime: lib
-		file: devel libavif_devel
+		file: devel libavif1.0_devel
 			depends: base
 			library: $(developLibDir)/libavif.so
 			headers: $(developHeadersDir) $(developHeadersDir)/avif

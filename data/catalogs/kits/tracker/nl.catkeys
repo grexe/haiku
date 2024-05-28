@@ -1,4 +1,4 @@
-1	dutch; flemish	x-vnd.Haiku-libtracker	4267611234
+1	dutch; flemish	x-vnd.Haiku-libtracker	1893940391
 Created	ContainerWindow		Gemaakt
 Icon	AttributesView		Icoon
 Open and make preferred	OpenWithWindow		Openen en bevoorkeuren
@@ -114,7 +114,6 @@ Hide dotfiles	SettingsView		Verberg dot-bestanden
 Trash	Model		Prullenbak
 Enable type-ahead filtering	SettingsView		Zoeken-tijdens-typen toepassen
 copy	FSUtils	filename copy	kopie
-New folder%ld	FSUtils		Nieuwe map%ld
 Location	OpenWithWindow		Locatie
 Resize to fit	QueryContainerWindow		Grootte passend maken
 List folders first	SettingsView		Toon mappen eerst
@@ -158,7 +157,6 @@ The Tracker must be running to see Info windows.	PoseView		Tracker moet actief z
 Tracker preferences	TrackerSettingsWindow		Tracker voorkeuren
 Read	FilePermissionsView		Lezen
 There was an error writing the attribute.	WidgetAttributeText		Er was een fout bij het schrijven van het attribuut.
-Path	Default Query Columns		Pad
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Als de map %target hernoemd wordt, dan functioneert %osName mogelijk niet goed meer!\n\nWeet u zeker dat u wilt doorgaan?
 Filesystem:	InfoWindow		Bestandssysteem:
 Could not open \"%name\" (%error). 	FSUtils		\"%name\" kon niet geopend worden (%error).
@@ -244,7 +242,6 @@ Recent queries	FindPanel		Recente zoekopdrachten
 Mount all	MountMenu		Betrek alles
 Size	Default Query Columns		Grootte
 Favorites	FavoritesMenu		Favorieten
-Delete	FilePanelPriv		Verwijderen
 <No recent items>	FavoritesMenu		<Geen recente items>
 Formula %formula	FindPanel	FindResultTitle	Formule %formula
 Preparing to create links…	StatusWindow		Voorbereiden om koppelingen te maken...
@@ -450,7 +447,6 @@ Move to Trash	FilePanelPriv		Verpaats naar de prullenbak
 is	FindPanel		is
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Als de systeemmap of diens inhoud hernoemd wordt, dan start %osName niet meer!\n\nWeet u zeker dat u wilt doorgaan?\n\nOm de systeemmap of diens inhoud niettemin te hernoemen, houd de Shift-knop ingedrukt en klik op \"Naam wijzigen\".
 Permissions	FilePermissionsView		Rechten
-New folder %ld	FSUtils		Nieuwe map %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" is in een oud programmaformaat. Zorg dat u een bijgewerkte versie krijgt, of compileer deze zelf.
 Only the boot disk	AutoMounterSettings		Alleen de opstartschijf
 Message	AttributesView		Bericht

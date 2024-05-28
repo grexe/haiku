@@ -313,8 +313,7 @@ ethernet_send_data(net_device *_device, net_buffer *buffer)
 			if (gBufferModule->count_iovecs(allocated) > 1) {
 				dprintf("ethernet_send_data: no write buffer, cannot perform scatter I/O\n");
 				gBufferModule->free(allocated);
-				device->stats.send.errors++;
-				return B_NOT_SUPPORTED;
+				return EMSGSIZE;
 			}
 
 			gBufferModule->get_iovecs(buffer, &iovec, 1);
@@ -328,14 +327,10 @@ ethernet_send_data(net_device *_device, net_buffer *buffer)
 //dprintf("sent: %ld\n", bytesWritten);
 
 	if (bytesWritten < 0) {
-		device->stats.send.errors++;
 		if (allocated)
 			gBufferModule->free(allocated);
 		return errno;
 	}
-
-	device->stats.send.packets++;
-	device->stats.send.bytes += bytesWritten;
 
 	gBufferModule->free(original);
 	if (allocated)
@@ -382,7 +377,6 @@ ethernet_receive_data(net_device *_device, net_buffer **_buffer)
 
 	bytesRead = read(device->fd, iovec.iov_base, iovec.iov_len);
 	if (bytesRead < 0) {
-		device->stats.receive.errors++;
 		status = errno;
 		goto err;
 	}
@@ -393,12 +387,9 @@ ethernet_receive_data(net_device *_device, net_buffer **_buffer)
 	else
 		status = gBufferModule->trim(buffer, bytesRead);
 	if (status < B_OK) {
-		device->stats.receive.dropped++;
+		atomic_add((int32*)&device->stats.receive.dropped, 1);
 		goto err;
 	}
-
-	device->stats.receive.bytes += bytesRead;
-	device->stats.receive.packets++;
 
 	*_buffer = buffer;
 	return B_OK;

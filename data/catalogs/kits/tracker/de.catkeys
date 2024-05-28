@@ -1,4 +1,4 @@
-1	german	x-vnd.Haiku-libtracker	3980729574
+1	german	x-vnd.Haiku-libtracker	757591988
 Created	ContainerWindow		Erstellt
 Icon	AttributesView		Icon
 Open and make preferred	OpenWithWindow		Öffnen und zur Bevorzugten machen
@@ -26,7 +26,7 @@ Unmount	ContainerWindow		Aushängen
 Eject when unmounting	AutoMounterSettings		Auswerfen beim Aushängen
 Searching for disks to mount…	StatusWindow		Es werden Datenträger zum Einhängen gesucht …
 Value	AttributesView		Wert
-Information	InfoWindow		Information
+Information	InfoWindow		Informationen
 Error emptying Trash	FSUtils		Fehler beim Leeren des Papierkorbs
 Opens with:	InfoWindow		Wird geöffnet mit:
 Size	QueryPoseView		Größe
@@ -107,13 +107,12 @@ Edit templates…	TemplatesMenu		Vorlagen bearbeiten …
 {0, plural, one{# byte} other{# bytes}}	FSUtils		{0, plural, one{(# Byte)} other{(# Bytes)}}
 8-bit integer	AttributesView		Integer 8-bit
 8-bit unsigned integer	AttributesView		Integer 8-bit, vorzeichenlos
-%s info	InfoWindow	window title	%s-Info
+%s info	InfoWindow	window title	Infos zu '%s'
 %capacity (%used used -- %free free)	InfoWindow		%capacity (%used benutzt – %free frei)
 Hide dotfiles	SettingsView		Mit Punkt (.) beginnende Dateien ausblenden
 Trash	Model		Papierkorb
 Enable type-ahead filtering	SettingsView		Filtern während der Eingabe
 copy	FSUtils	filename copy	Kopie
-New folder%ld	FSUtils		Neuer Ordner%ld
 Location	OpenWithWindow		Ort
 Resize to fit	QueryContainerWindow		Optimale Größe
 List folders first	SettingsView		Ordner zuerst listen
@@ -156,12 +155,11 @@ The Tracker must be running to see Info windows.	PoseView		Um Info-Fenster zeige
 Tracker preferences	TrackerSettingsWindow		Tracker-Einstellungen
 Read	FilePermissionsView		Lesen
 There was an error writing the attribute.	WidgetAttributeText		Fehler beim Schreiben des Attributs.
-Path	Default Query Columns		Pfad
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Wird %target umbenannt, kann es sein dass %osName nicht mehr richtig funktioniert!\n\nTrotzdem umbenennen?
 Filesystem:	InfoWindow		Dateisystem:
 Could not open \"%name\" (%error). 	FSUtils		\"%name\" konnte nicht geöffnet werden (%error).
 Media parameter group	AttributesView		Media-Parametergruppe
-%name info	InfoWindow	InfoWindow Title	%name-Info
+%name info	InfoWindow	InfoWindow Title	Infos zu '%name'
 If you move the home folder, %osName may not behave properly!\n\nAre you sure you want to do this?\n\nTo move the home folder anyway, hold down the Shift key and click \"Move\".	FSUtils		Wird der Home-Ordner verschoben, kann es sein dass %osName nicht mehr richtig funktioniert!\n\nTrotzdem verschieben?\n\nUm den Home-Ordner trotzdem zu verschieben, Shift-Taste gedrückt halten und \"Verschieben\" klicken.
 Property info	AttributesView		Property-Info
 Sorry, you can't create links in the Trash.	PoseView		Im Papierkorb können keine Verknüpfungen erstellt werden.
@@ -172,7 +170,7 @@ Preferences…	ContainerWindow		Einstellungen ...
 Could not open \"%document\" because application \"%app\" is in the Trash. 	FSUtils		Die Datei \"%document\" kann nicht geöffnet werden, weil sich das zugehörige Programm \"%app\" im Papierkorb befindet.
 Work Phone	Person Query Columns		Telefon (geschäftlich)
 Close	ContainerWindow		Schließen
-Get info	ContainerWindow		Datei-Info
+Get info	ContainerWindow		Informationen
 MIME Type	AttributesView		MIME-Typ
 Show folder location in title tab	SettingsView		Ordnerpfad im Fenstertitel zeigen
 There was an error resolving the link.	Tracker		Fehler beim Auflösen der Verknüpfung.
@@ -242,7 +240,6 @@ Recent queries	FindPanel		Letzte Queries
 Mount all	MountMenu		Alle einhängen
 Size	Default Query Columns		Größe
 Favorites	FavoritesMenu		Favoriten
-Delete	FilePanelPriv		Löschen
 <No recent items>	FavoritesMenu		<Keine letzten Objekte>
 Formula %formula	FindPanel	FindResultTitle	Formel %formula
 Preparing to create links…	StatusWindow		Erstellen von Verknüpfungen wird vorbereitet …
@@ -286,7 +283,7 @@ calculating…	InfoWindow		Berechnung läuft …
 Preferred for file	OpenWithWindow		Bevorzugt für Datei
 OK	AutoMounterSettings		OK
 copying	FSUtils		kopiert
-Get info	FilePanelPriv		Infos
+Get info	FilePanelPriv		Informationen
 MIME String	AttributesView		MIME Zeichenkette
 Delete	ContainerWindow		Löschen
 Execute	FilePermissionsView		Ausführen
@@ -297,6 +294,7 @@ Desktop	Model		Desktop
 Select all	ContainerWindow		Alles auswählen
 Error calculating folder size.	InfoWindow		Fehler beim Ermitteln der Ordnergröße.
 Delete	FSUtils		Löschen
+Duplicate	FilePanelPriv		Duplizieren
 Edit name	ContainerWindow		Umbenennen
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		\"%document\" konnte nicht geöffnet werden (Fehlendes Symbol: %symbol).\n
 ASCII Text	AttributesView		ASCII Text
@@ -329,9 +327,11 @@ To: %dir	StatusWindow		Nach: %dir
 Paste layout	ContainerWindow		Anordnung einfügen
 Cancel	Tracker		Abbrechen
 yes	AttributesView		ja
+Error copying file \"%name\":\n\t%error\n\n	FSUtils		Fehler beim Kopieren von \"%name\":\n\t%error\n\n
 Make active printer	ContainerWindow		Zum aktiven Drucker machen
 Copy to	ContainerWindow		Kopieren nach
 Name	SelectionWindow		Name:
+Location	Default Query Columns		Ort
 by attribute	FindPanel		nach Attribut
 Write	FilePermissionsView		Schreiben
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Wird der System-Ordner oder dessen Inhalt verändert, kann %osName nicht mehr gestartet werden!\n\nÄnderungen trotzdem durchführen?\n\nUm den System-Ordner oder dessen Inhalt trotzdem zu ändern, Shift-Taste gedrückt halten und \"Ich bin sicher\" klicken.
@@ -399,6 +399,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Das Boot-Laufwerk \"%name\" k
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		\"%document\" konnte nicht mit der Anwendung \"%app\" geöffnet werden (Fehlendes Symbol: %symbol).\n
 New folder	ContainerWindow		Neuer Ordner
 Name	OpenWithWindow		Name
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Informationen
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Es ist ein Problem beim Ersetzen von \"%name\" aufgetreten. Das Objekt könnte geöffnet oder gerade in Benutzung sein.
 Windows	TrackerSettingsWindow		Fenster
 Show space bars on volumes	SettingsView		Speicherplatzbalken bei Datenträgern anzeigen
@@ -450,7 +451,6 @@ Move to Trash	FilePanelPriv		In Papierkorb verschieben
 is	FindPanel		ist
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Wird der System-Ordner oder dessen Inhalt umbenannt, kann %osName nicht mehr gestartet werden!\n\nTrotzdem umbenennen?\n\nUm den System-Ordner oder dessen Inhalt trotzdem umzubenennen, Shift-Taste gedrückt halten und \"Umbenennen\" klicken.
 Permissions	FilePermissionsView		Berechtigungen
-New folder %ld	FSUtils		Neuer Ordner %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" hat ein veraltetest Programmformat. Die Anwendung muss neu kompiliert, bzw. eine aktualisierte Version installiert werden.
 Only the boot disk	AutoMounterSettings		Nur den Boot-Datenträger
 Message	AttributesView		Message
@@ -473,6 +473,7 @@ Color	AttributesView		Farbe
 Copy layout	ContainerWindow		Anordnung kopieren
 Duplicate	ContainerWindow		Duplizieren
 16-bit integer	AttributesView		Integer 16-bit
+Note: file names in the destination file system are not case-sensitive.\n	FSUtils		Das Ziel-Dateisystem unterscheidet bei Dateinamen keine Groß-/Kleinschreibung.\n
 Untitled clipping	PoseView		Unbenannter Ausschnitt
 The file \"%name\" already exists in the specified folder. Do you want to replace it?	FilePanelPriv		Die Datei \"%name\" existiert bereits in diesem Ordner. Soll sie ersetzt werden?
 , indexed	InfoWindow		, indiziert

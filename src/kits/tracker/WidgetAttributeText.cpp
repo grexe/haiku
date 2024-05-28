@@ -50,6 +50,7 @@ All rights reserved.
 #include <Debug.h>
 #include <Locale.h>
 #include <NodeInfo.h>
+#include <NumberFormat.h>
 #include <Path.h>
 #include <StringFormat.h>
 #include <StringForSize.h>
@@ -96,21 +97,18 @@ TruncFileSizeBase(BString* outString, int64 value, const View* view,
 
 	if (value < kKBSize) {
 		if (view->StringWidth(buffer.String()) > width) {
-			buffer.SetToFormat(B_TRANSLATE_COMMENT("%lld B",
-				"The filesize symbol for byte"), value);
+			buffer.SetToFormat(B_TRANSLATE_COMMENT("%lld B", "The filesize symbol for byte"),
+				(long long int)value);
 		}
 	} else {
 		// strip off an insignificant zero so we don't get readings
 		// such as 1.00
-		char* period = 0;
-		for (char* tmp = const_cast<char*>(buffer.String()); *tmp != '\0'; tmp++) {
-			if (*tmp == '.')
-				period = tmp;
-		}
-		if (period && period[1] && period[2] == '0') {
-			// move the rest of the string over the insignificant zero
-			for (char* tmp = &period[2]; *tmp; tmp++)
-				*tmp = tmp[1];
+		BNumberFormat numberFormat;
+		BString separator(numberFormat.GetSeparator(B_DECIMAL_SEPARATOR));
+		if (!separator.IsEmpty()) {
+			int32 position = buffer.FindFirst(separator);
+			if (position != B_ERROR && buffer.ByteAt(position + 2) == '0')
+				buffer.Remove(position + 2, 1);
 		}
 		float resultWidth = view->StringWidth(buffer);
 		if (resultWidth <= width) {
@@ -372,7 +370,7 @@ WidgetAttributeText::Width(const BPoseView* pose)
 
 
 void
-WidgetAttributeText::SetUpEditing(BTextView*)
+WidgetAttributeText::SetupEditing(BTextView*)
 {
 	ASSERT(fColumn->Editable());
 }
@@ -765,7 +763,7 @@ NameAttributeText::FitValue(BString* outString, const BPoseView* view)
 
 
 void
-NameAttributeText::SetUpEditing(BTextView* textView)
+NameAttributeText::SetupEditing(BTextView* textView)
 {
 	DisallowFilenameKeys(textView);
 
@@ -858,7 +856,7 @@ RealNameAttributeText::FitValue(BString* outString, const BPoseView* view)
 
 
 void
-RealNameAttributeText::SetUpEditing(BTextView* textView)
+RealNameAttributeText::SetupEditing(BTextView* textView)
 {
 	DisallowFilenameKeys(textView);
 
@@ -995,13 +993,14 @@ SizeAttributeText::ReadValue()
 
 	if (fModel->IsVolume()) {
 		BVolume volume(fModel->NodeRef()->device);
-
+		fValueIsDefined = volume.Capacity() != 0;
 		return volume.Capacity();
 	}
 
 	if (fModel->IsDirectory() || fModel->IsQuery()
 		|| fModel->IsQueryTemplate() || fModel->IsSymLink()
 		|| fModel->IsVirtualDirectory()) {
+		fValueIsDefined = false;
 		return kUnknownSize;
 	}
 
@@ -1012,27 +1011,31 @@ SizeAttributeText::ReadValue()
 
 
 void
-SizeAttributeText::FitValue(BString* outString, const BPoseView* view)
+SizeAttributeText::FitValue(BString* outString, const BPoseView* poseView)
 {
 	if (fValueDirty)
 		fValue = ReadValue();
 
 	fOldWidth = fColumn->Width();
-	fTruncatedWidth = TruncFileSize(outString, fValue, view, fOldWidth);
+	if (!fValueIsDefined) {
+		*outString = "-";
+		fTruncatedWidth = poseView->StringWidth("-");
+	} else
+		fTruncatedWidth = TruncFileSize(outString, fValue, poseView, fOldWidth);
 	fDirty = false;
 }
 
 
 float
-SizeAttributeText::PreferredWidth(const BPoseView* pose) const
+SizeAttributeText::PreferredWidth(const BPoseView* poseView) const
 {
-	if (fValueIsDefined) {
-		BString widthString;
-		TruncFileSize(&widthString, fValue, pose, 100000);
-		return pose->StringWidth(widthString.String());
-	}
+	if (!fValueIsDefined)
+		return poseView->StringWidth("-");
 
-	return pose->StringWidth("-");
+	BString widthString;
+	TruncFileSize(&widthString, fValue, poseView, 100000);
+
+	return poseView->StringWidth(widthString.String());
 }
 
 
@@ -1543,7 +1546,7 @@ GenericAttributeText::CommitEditedText(BTextView* textView)
 
 
 void
-GenericAttributeText::SetUpEditing(BTextView* textView)
+GenericAttributeText::SetupEditing(BTextView* textView)
 {
 	textView->SetMaxBytes(kGenericReadBufferSize - 1);
 	textView->SetText(fFullValueText.String(), fFullValueText.Length());
@@ -1842,12 +1845,12 @@ CheckboxAttributeText::CheckboxAttributeText(const Model* model,
 
 
 void
-CheckboxAttributeText::SetUpEditing(BTextView* view)
+CheckboxAttributeText::SetupEditing(BTextView* view)
 {
 	// TODO: support editing for real!
 	BString outString;
 	GenericAttributeText::FitValue(&outString, NULL);
-	GenericAttributeText::SetUpEditing(view);
+	GenericAttributeText::SetupEditing(view);
 }
 
 
@@ -1912,12 +1915,12 @@ RatingAttributeText::RatingAttributeText(const Model* model,
 
 
 void
-RatingAttributeText::SetUpEditing(BTextView* view)
+RatingAttributeText::SetupEditing(BTextView* view)
 {
 	// TODO: support editing for real!
 	BString outString;
 	GenericAttributeText::FitValue(&outString, NULL);
-	GenericAttributeText::SetUpEditing(view);
+	GenericAttributeText::SetupEditing(view);
 }
 
 
@@ -1963,8 +1966,10 @@ RatingAttributeText::FitValue(BString* ratingString, const BPoseView* view)
 
 	for (int32 i = 0; i < fCount; i++) {
 		int64 n = i * steps;
-		if (rating > n)
+		if (rating > n + steps / 2)
 			fFullValueText += "★";
+		else if (rating > n)
+			fFullValueText += "⯪";
 		else
 			fFullValueText += "☆";
 	}

@@ -1,12 +1,14 @@
-1	russian	x-vnd.Haiku-WebPositive	1510673556
+1	russian	x-vnd.Haiku-WebPositive	2942427387
 Authentication required	Authentication Panel		Требуется авторизация
 Previous	WebPositive Window		Ранее
+Copy	Console Window		Копировать
 (Finish: %date)	Download Window		(Завершение: %date)
 Open bookmarks confirmation	WebPositive Window		Подтверждение открытия закладок
 Download folder:	Settings Window		Папка для загрузок:
 Close window	WebPositive Window		Закрыть окно
 Find:	WebPositive Window		Найти:
 Script console	WebPositive Window		Консоль сценариев
+There was an error setting up the bookmark.	WebPositive Window		При настройке закладки произошла ошибка.
 Fonts	Settings Window		Шрифты
 Path	Cookie Manager		Путь
 Bookmarks	WebPositive Window		Закладки
@@ -44,6 +46,7 @@ New tabs:	Settings Window		Новые вкладки:
 %url failed	WebPositive Window	Loading URL failed. Don't translate variable %url.	Не удалось обработать %url
 Open downloads folder	Download Window		Открыть папку загрузок
 Proxy server	Settings Window		Прокси-сервер
+Darn!	WebPositive		Непруха!
 Decrease size	WebPositive Window		Уменьшить размер
 Default fixed font size:	Settings Window		Размер моноширинного шрифта:
 Sans serif font:	Settings Window		Шрифт без засечек:
@@ -52,9 +55,10 @@ The download could not be opened.	Download Window		Невозможно откр
 Cookies for %s	Cookie Manager		Куки для %s
 Close	Download Window		Закрыть
 WebPositive	System name		WebPositive
-%s - Search term	Settings Window		%s - Термин для поиска
+%s - Search term	Settings Window		%s - Условия поиска
 Reload	WebPositive Window		Обновить
 Expiration	Cookie Manager		Срок действия
+Your CPU is too old and does not support the SSE2 extensions, without which WebPositive cannot run. We recommend installing NetSurf instead.	WebPositive		Ваш процессор слишком старый и не поддерживает расширения SSE2, без которых WebPositive не может работать. Рекомендуем установить NetSurf.
 Download finished	Download Window		Загрузка завершена
 Cookie manager	WebPositive Window		Менеджер куков
 OK	Authentication Panel		OK
@@ -68,7 +72,7 @@ Back	WebPositive Window		Назад
 Yesterday	WebPositive Window		Вчера
 Quit	WebPositive		Выход
 Download aborted	Download Window		Загрузка прервана
-Number of days to keep links in History menu:	Settings Window		Количество дней, которые надо держать ссылки в меню История:
+Number of days to keep links in History menu:	Settings Window		Количество дней хранения ссылок в меню «История»:
 Password:	Authentication Panel		Пароль:
 Forward	WebPositive Window		Вперёд
 Clear	Console Window		Очистить
@@ -99,21 +103,22 @@ Apply	Settings Window		Применить
 There was an error trying to show the Bookmarks folder.\n\nError: %error	WebPositive Window	Don't translate variable %error	Произошла ошибка при открытии папки с закладками.\n\nОшибка: %error
 Revert	Settings Window		Вернуть
 Copy	WebPositive Window		Копировать
+{0, plural,one{Last line repeated # time.}other{Last line repeated # times.}}	Console Window		{0, plural,one{Крайняя строка повторена́ # раз.} few{Крайняя строка повторена́ # раза.} other{Крайняя строка повторена́ # раз.}}
 Default standard font size:	Settings Window		Размер стандартного шрифта:
 Custom	Settings Window		Вручную
 Bookmark this page	WebPositive Window		Добавить в закладки
 Show tabs if only one page is open	Settings Window		Всегда показывать панель вкладок, даже если открыта только одна вкладка.
-Remove	Download Window		Удалить
 Close tab	WebPositive Window		Закрыть вкладку
+Remove	Download Window		Удалить
 About	WebPositive Window		О программе
-There are still downloads in progress, do you really want to quit WebPositive now?	WebPositive		WebPositive все еще загружает файлы, вы уверены, что хотите закрыть его сейчас?
+There are still downloads in progress, do you really want to quit WebPositive now?	WebPositive		WebPositive всё ещё загружает файлы, Вы уверены, что хотите закрыть его сейчас?
 Continue downloads	WebPositive		Продолжить загрузку
 Proxy server requires authentication	Settings Window		Прокси требует проверки подлинности
 Cancel	Settings Window		Отмена
 Reset size	WebPositive Window		Сбросить размер
 History	WebPositive Window		История
 Do you really want to clear the browsing history?	WebPositive Window		Вы действительно хотите очистить историю посещений?
-Find next occurrence of search terms	WebPositive Window	find bar next button tooltip	Найти вперед
+Find next occurrence of search terms	WebPositive Window	find bar next button tooltip	Найти вперёд
 Fixed font:	Settings Window		Моноширинный шрифт:
 Quit	WebPositive Window		Выход
 Find previous occurrence of search terms	WebPositive Window	find bar previous button tooltip	Найти назад
@@ -148,6 +153,7 @@ The quick brown fox jumps over the lazy dog.	Font Selection view	Don't translate
 Start up:	Settings Window		При запуске:
 Confirmation	WebPositive Window		Подтверждение
 Session cookie	Cookie Manager		Куки сессии
+No SSE2 support	WebPositive		Без поддержки SSE2
 Open all	WebPositive Window		Открыть все
 Cut	WebPositive Window		Вырезать
 Downloads	Download Window		Загрузки

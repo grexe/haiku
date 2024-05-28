@@ -1,4 +1,4 @@
-1	hungarian	x-vnd.Haiku-libtracker	746720348
+1	hungarian	x-vnd.Haiku-libtracker	2482866522
 Created	ContainerWindow		Létrehozva
 Icon	AttributesView		Ikon
 Open and make preferred	OpenWithWindow		Megnyitás és előnyben részesítés
@@ -8,6 +8,7 @@ Error moving \"%name\" to Trash. (%error)	FSUtils		Hiba történt a Szemetesbe m
 Or	FindPanel		Vagy
 MIME Description	AttributesView		MIME leírása
 before	FindPanel		előtte
+New folder%d	FSUtils		Új mappa %d
 Volume icons	TrackerSettingsWindow		Lemez ikonok
 Ignore case	SelectionWindow		Nem betűérzékeny
 Current folder	ContainerWindow		Jelenlegi mappa
@@ -115,7 +116,6 @@ Hide dotfiles	SettingsView		Ponttal kezdődő fájlnevek elrejtése
 Trash	Model		Szemetes
 Enable type-ahead filtering	SettingsView		Gépelés közbeni szűrés engedélyezése
 copy	FSUtils	filename copy	másolata
-New folder%ld	FSUtils		Új mappa%ld
 Location	OpenWithWindow		Hely
 Resize to fit	QueryContainerWindow		Átméretezés hogy elférjen
 List folders first	SettingsView		A mappákat listázza elsőként
@@ -159,7 +159,6 @@ The Tracker must be running to see Info windows.	PoseView		Az információs abla
 Tracker preferences	TrackerSettingsWindow		Nyomkövető beállítása
 Read	FilePermissionsView		Olvasás
 There was an error writing the attribute.	WidgetAttributeText		Hiba történt a jellemző írása közben.
-Path	Default Query Columns		Útvonal
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		%target átnevezésekor nem biztos, hogy megfelelően működik a %osName!\n\nBiztosan ezt akarod tenni?
 Filesystem:	InfoWindow		Fájlrendszer:
 Could not open \"%name\" (%error). 	FSUtils		Nem sikerült megnyitni: \"%name\" (%error).
@@ -245,7 +244,6 @@ Recent queries	FindPanel		Előző keresések
 Mount all	MountMenu		Összes csatolása
 Size	Default Query Columns		Méret
 Favorites	FavoritesMenu		Kedvencek
-Delete	FilePanelPriv		Törlés
 <No recent items>	FavoritesMenu		<Nincsenek korábbi elemek>
 Formula %formula	FindPanel	FindResultTitle	%formula képlet
 Preparing to create links…	StatusWindow		Felkészülés a hivatkozások létrehozására…
@@ -268,6 +266,7 @@ Don't automount	AutoMounterSettings		Ne csatoljon automatikusan
 Node ref	AttributesView		Node ref
 Could not find application \"%appname\"	OpenWithWindow		A program (\"%appname\") nem található
 Unmatched parenthesis.	libtracker		Páratlan zárójel.
+New folder %d	FSUtils		Új mappa %d
 Extended attribute	AttributesView		Kiegészített jellemzők
 Unmatched brackets.	libtracker		Páratlan kapcsos-zárójel.
 Error %error loading Add-On %name.	ContainerWindow		Hiba történt a bővítmény (%name) betöltése közben: %error.
@@ -301,6 +300,7 @@ Select all	ContainerWindow		Mind kijelölése
 apps	B_APPS_DIRECTORY		Programok
 Error calculating folder size.	InfoWindow		Hiba történt a mappa méretének számítása közben.
 Delete	FSUtils		Törlés
+Duplicate	FilePanelPriv		Ismétlődő
 Edit name	ContainerWindow		Név szerkesztése
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Nem sikerült megnyitni a dokumentumot (\"%document\"): hiányzik egy szimbólum: %symbol\n
 ASCII Text	AttributesView		ASCII Szöveg
@@ -334,9 +334,11 @@ To: %dir	StatusWindow		Ide: %dir
 Paste layout	ContainerWindow		Elrendezés beillesztése
 Cancel	Tracker		Mégse
 yes	AttributesView		igen
+Error copying file \"%name\":\n\t%error\n\n	FSUtils		Hia történt a fájl \"%name\" másolása közben:\n\t%error\n\n
 Make active printer	ContainerWindow		Beállítás aktív nyomtatónak
 Copy to	ContainerWindow		Másolás
 Name	SelectionWindow		A név
+Location	Default Query Columns		Hely
 by attribute	FindPanel		jellemző szerint
 Write	FilePermissionsView		Írás
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Ha megváltoztatos a rendszermappát vagy annak tartalmát, akkor a %osName nem fog elindulni!\n\nBiztosan ezt akarod tenni?\n\nA rendszermappa vagy annak tartalmának bármilyen módosításához tartsd lenyomva a Shift billentyűt, és kattints a \"Tudom, mit csinálok\" gombra.
@@ -404,6 +406,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Nem sikerült a lemez (\"%nam
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		Nem sikerült megnyitni a dokumentumot (\"%document\") a programmal (\"%app\"): hiányzik egy szimbólum: %symbol\n
 New folder	ContainerWindow		Új mappa
 Name	OpenWithWindow		Név
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Információk
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Hiba történt a felülírás közben: \"%name\". Lehet, hogy az elem épp használatban van.
 Windows	TrackerSettingsWindow		Ablakok
 Show space bars on volumes	SettingsView		Telítettség megjelenítése a lemezeken
@@ -455,7 +458,6 @@ Move to Trash	FilePanelPriv		Mozgatás a Szemetesbe
 is	FindPanel		egyenlő
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Ha átnevezed a rendszermappát vagy annak tartalmát, akkor a %osName nem indítható!\n\nBiztosan ezt akarod tenni?\n\nA rendszermappa vagy annak tartalmának átnevezéséhez tartsd lenyomva a Shift billentyűt, és kattints az \"Átnevezés\" gombra.
 Permissions	FilePermissionsView		Jogosultságok
-New folder %ld	FSUtils		Új mappa %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" egy régebbi futtatható fájl. Frissítés vagy újra felépítés szükséges.
 Only the boot disk	AutoMounterSettings		Csak a rendszer lemezt
 Message	AttributesView		Üzenet
@@ -478,6 +480,7 @@ Color	AttributesView		Szín
 Copy layout	ContainerWindow		Elrendezés másolása
 Duplicate	ContainerWindow		Megkettőzés
 16-bit integer	AttributesView		16-bites egész
+Note: file names in the destination file system are not case-sensitive.\n	FSUtils		Megjegyzés: a fájlnevek a cél-fájlrendszeren nem kis-/nagybetű érzékenyek.\n
 Untitled clipping	PoseView		Névtelen kivágás
 The file \"%name\" already exists in the specified folder. Do you want to replace it?	FilePanelPriv		A megadott mappában már létezik egy ilyen nevű fájl: \"%name\". Szeretnéd felülírni?
 , indexed	InfoWindow		, indexelt

@@ -1697,6 +1697,7 @@ device_node::_GetNextDriverPath(void*& cookie, KPath& _path)
 				break;
 			case PCI_display:
 				_AddPath(*stack, "drivers", "graphics");
+				_AddPath(*stack, "busses", "virtio");
 				break;
 			case PCI_multimedia:
 				switch (subType) {
@@ -1769,6 +1770,7 @@ device_node::_GetNextDriverPath(void*& cookie, KPath& _path)
 					_AddPath(*stack, "busses/virtio");
 					_AddPath(*stack, "bus_managers/pci");
 					_AddPath(*stack, "busses/pci");
+					_AddPath(*stack, "busses/mmc");
 				}
 				break;
 		}

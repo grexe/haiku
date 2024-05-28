@@ -46,14 +46,15 @@ MsiInterruptCtrlDW::Init(PciDbiRegs volatile* dbiRegs, int32 msiIrq)
 
 	msi_set_interface(static_cast<MSIInterface*>(this));
 
-	dprintf("  fMsiStartIrq: %ld\n", fMsiStartIrq);
+	dprintf("  fMsiStartIrq: %" B_PRId32 "\n", fMsiStartIrq);
 
 	return B_OK;
 }
 
 
 status_t
-MsiInterruptCtrlDW::AllocateVectors(uint8 count, uint8& startVector, uint64& address, uint16& data)
+MsiInterruptCtrlDW::AllocateVectors(uint32 count, uint32& startVector, uint64& address,
+	uint32& data)
 {
 	if (count != 1)
 		return B_ERROR;
@@ -74,7 +75,7 @@ MsiInterruptCtrlDW::AllocateVectors(uint8 count, uint8& startVector, uint64& add
 
 
 void
-MsiInterruptCtrlDW::FreeVectors(uint8 count, uint8 startVector)
+MsiInterruptCtrlDW::FreeVectors(uint32 count, uint32 startVector)
 {
 	int32 irq = (int32)startVector - fMsiStartIrq;
 	while (count > 0) {

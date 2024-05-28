@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2017-2024, Andrew Lindesay <apl@lindesay.co.nz>.
  * All rights reserved. Distributed under the terms of the MIT License.
  */
 
@@ -203,13 +203,11 @@ PackageFillingPkgListener::Complete()
 
 
 ServerPkgDataUpdateProcess::ServerPkgDataUpdateProcess(
-	BString naturalLanguageCode,
 	BString depotName,
 	Model *model,
 	uint32 serverProcessOptions)
 	:
 	AbstractSingleFileServerProcess(serverProcessOptions),
-	fNaturalLanguageCode(naturalLanguageCode),
 	fModel(model),
 	fDepotName(depotName)
 {
@@ -246,7 +244,7 @@ ServerPkgDataUpdateProcess::UrlPathComponent()
 	BString urlPath;
 	urlPath.SetToFormat("/__pkg/all-%s-%s.json.gz",
 		_DeriveWebAppRepositorySourceCode().String(),
-		fNaturalLanguageCode.String());
+		fModel->Language()->PreferredLanguage()->ID());
 	return urlPath;
 }
 

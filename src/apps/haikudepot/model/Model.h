@@ -11,10 +11,13 @@
 #include <Locker.h>
 
 #include "AbstractProcess.h"
-#include "PackageIconTarRepository.h"
+#include "DepotInfo.h"
 #include "LanguageModel.h"
+#include "PackageIconTarRepository.h"
 #include "PackageInfo.h"
+#include "PackageScreenshotRepository.h"
 #include "RatingStability.h"
+#include "ScreenshotCoordinate.h"
 #include "WebAppInterface.h"
 
 
@@ -46,7 +49,11 @@ public:
 
 	virtual	void				AuthorizationChanged() = 0;
 	virtual void				CategoryListChanged() = 0;
+	virtual void				ScreenshotCached(const ScreenshotCoordinate& coordinate) = 0;
 };
+
+
+typedef BReference<ModelListener> ModelListenerRef;
 
 
 class PackageConsumer {
@@ -57,10 +64,7 @@ public:
 };
 
 
-typedef BReference<ModelListener> ModelListenerRef;
-
-
-class Model {
+class Model : public PackageScreenshotRepositoryListener {
 public:
 								Model();
 	virtual						~Model();
@@ -69,6 +73,8 @@ public:
 			PackageIconRepository&
 								GetPackageIconRepository();
 			status_t			InitPackageIconRepository();
+			PackageScreenshotRepository*
+								GetPackageScreenshotRepository();
 
 			BLocker*			Lock()
 									{ return &fLock; }
@@ -137,10 +143,9 @@ public:
 	static	const uint32		POPULATE_CACHED_RATING	= 1 << 0;
 	static	const uint32		POPULATE_CACHED_ICON	= 1 << 1;
 	static	const uint32		POPULATE_USER_RATINGS	= 1 << 2;
-	static	const uint32		POPULATE_SCREEN_SHOTS	= 1 << 3;
-	static	const uint32		POPULATE_CHANGELOG		= 1 << 4;
-	static	const uint32		POPULATE_CATEGORIES		= 1 << 5;
-	static	const uint32		POPULATE_FORCE			= 1 << 6;
+	static	const uint32		POPULATE_CHANGELOG		= 1 << 3;
+	static	const uint32		POPULATE_CATEGORIES		= 1 << 4;
+	static	const uint32		POPULATE_FORCE			= 1 << 5;
 
 			bool				CanPopulatePackage(
 									const PackageInfoRef& package);
@@ -162,6 +167,9 @@ public:
 			status_t			DumpExportPkgDataPath(BPath& path,
 									const BString& repositorySourceCode);
 
+			// PackageScreenshotRepositoryListener
+    virtual	void				ScreenshotCached(const ScreenshotCoordinate& coord);
+
 private:
 			void				_AddCategory(const CategoryRef& category);
 
@@ -176,11 +184,6 @@ private:
 
 			void				_PopulatePackageChangelog(
 									const PackageInfoRef& package);
-
-			void				_PopulatePackageScreenshot(
-									const PackageInfoRef& package,
-									const ScreenshotInfoRef& info,
-									int32 scaledWidth, bool fromCacheOnly);
 
 			void				_NotifyAuthorizationChanged();
 			void				_NotifyCategoryListChanged();
@@ -209,10 +212,12 @@ private:
 			bool				fShowDevelopPackages;
 			bool				fCanShareAnonymousUsageData;
 
+			WebAppInterface		fWebAppInterface;
 			LanguageModel		fLanguageModel;
 			PackageIconTarRepository
 								fPackageIconRepository;
-			WebAppInterface		fWebAppInterface;
+			PackageScreenshotRepository*
+								fPackageScreenshotRepository;
 
 			std::vector<ModelListenerRef>
 								fListeners;

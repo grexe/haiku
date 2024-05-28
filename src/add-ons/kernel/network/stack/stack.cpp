@@ -22,6 +22,7 @@
 
 #include <lock.h>
 #include <util/AutoLock.h>
+#include <util/Vector.h>
 
 #include <KernelExport.h>
 
@@ -360,7 +361,7 @@ chain::Add(ChainTable* chains, int family, int type, int protocol,
 		if (module == NULL)
 			break;
 
-		TRACE(("  [%ld] %s\n", count, module));
+		TRACE(("  [%" B_PRId32 "] %s\n", count, module));
 		chain->modules[count] = strdup(module);
 		if (chain->modules[count] == NULL
 			|| ++count >= MAX_CHAIN_MODULES) {
@@ -611,7 +612,7 @@ get_domain_receiving_protocol(net_domain* _domain, uint32 type,
 	struct net_domain_private* domain = (net_domain_private*)_domain;
 	struct chain* chain;
 
-	TRACE(("get_domain_receiving_protocol(family %d, type %lu)\n",
+	TRACE(("get_domain_receiving_protocol(family %d, type %" B_PRIu32 ")\n",
 		domain->family, type));
 
 	{
@@ -743,6 +744,7 @@ scan_modules(const char* path)
 	if (cookie == NULL)
 		return;
 
+	Vector<module_info*> modules;
 	while (true) {
 		char name[B_FILE_NAME_LENGTH];
 		size_t length = sizeof(name);
@@ -751,15 +753,19 @@ scan_modules(const char* path)
 
 		TRACE(("scan %s\n", name));
 
+		// we don't need the module right now, but we give it a chance
+		// to register itself
 		module_info* module;
-		if (get_module(name, &module) == B_OK) {
-			// we don't need the module right now, but we give it a chance
-			// to register itself
-			put_module(name);
-		}
+		if (get_module(name, &module) == B_OK)
+			modules.Add(module);
 	}
 
 	close_module_list(cookie);
+
+	// We don't need the modules right now, so put them all.
+	// (This is done at the end to avoid repeated loading/unloading of dependencies.)
+	for (int32 i = 0; i < modules.Count(); i++)
+		put_module(modules[i]->name);
 }
 
 
@@ -832,6 +838,8 @@ init_stack()
 
 	// TODO: for now!
 	register_domain_datalink_protocols(AF_INET, IFT_LOOP,
+		"network/datalink_protocols/loopback_frame/v1", NULL);
+	register_domain_datalink_protocols(AF_INET, IFT_TUNNEL,
 		"network/datalink_protocols/loopback_frame/v1", NULL);
 #if 0 // PPP is not (currently) included in the build
 	register_domain_datalink_protocols(AF_INET, IFT_PPP,

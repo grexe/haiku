@@ -37,6 +37,11 @@ Device::Device(usb_device device)
 	fProductID = deviceDescriptor->product_id;
 	fUSBVersion = deviceDescriptor->usb_version;
 
+#if 1
+	if (fUSBVersion >= 0x200)
+		return;
+#endif
+
 	fBuffersReadySem = create_sem(0, DRIVER_NAME "_buffers_ready");
 	if (fBuffersReadySem < B_OK) {
 		TRACE(ERR, "Error of creating ready "
@@ -700,7 +705,7 @@ Device::_MultiBufferExchange(multi_buffer_info* multiInfo)
 	}
 
 	status_t status = acquire_sem_etc(fBuffersReadySem, 1,
-		B_RELATIVE_TIMEOUT | B_CAN_INTERRUPT, 50000);
+		B_CAN_INTERRUPT, 0);
 	if (status == B_TIMED_OUT) {
 		TRACE(ERR, "Timeout during buffers exchange.\n");
 		return status;

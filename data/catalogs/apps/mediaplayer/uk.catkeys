@@ -1,4 +1,4 @@
-1	ukrainian	x-vnd.Haiku-MediaPlayer	834755355
+1	ukrainian	x-vnd.Haiku-MediaPlayer	787895969
 Remove Entry into Trash	MediaPlayer-RemovePLItemsCmd		Видалити запис до смітника
 Close	MediaPlayer-PlaylistWindow		Закрити
 Volume of background clips	MediaPlayer-SettingsWindow		Гучність фонових кліпів
@@ -75,6 +75,7 @@ Audio	MediaPlayer-Main		Аудіо
 Quit	MediaPlayer-Main		Вийти
 Redo	MediaPlayer-PlaylistWindow		Повтор дії
 Move Entry	MediaPlayer-MovePLItemsCmd		Перемістити запис
+Reset rating	MediaPlayer-Main		Скинути рейтинг
 <unknown>	PlaylistItem-author		<невідомий>
 Cancel	MediaPlayer-SettingsWindow		Скасувати
 Large	MediaPlayer-SettingsWindow		Великий
@@ -102,8 +103,8 @@ none	Subtitles menu		пусто
 Save Playlist	MediaPlayer-PlaylistWindow		Зберегти Плейлист
 Overlay	MediaPlayer-InfoWin		Оверлей
 2.35 : 1 (Cinemascope)	MediaPlayer-Main		2.35 : 1 (CinemaScope)
-Rating	MediaPlayer-Main		Рейтинг
-Internal error (out of memory). Saving the playlist failed.	MediaPlayer-PlaylistWindow		Внутрішня помилка (нестача памяті). Збій збереження списку відтворення.
+Rating	MediaPlayer-Main		Оцінка
+Internal error (out of memory). Saving the playlist failed.	MediaPlayer-PlaylistWindow		Внутрішня помилка (нестача пам'яті). Збій збереження списку відтворення.
 Video	MediaPlayer-Main		Відео
 There is no decoder installed to handle the file format, or the decoder has trouble with the specific version of the format.	MediaPlayer-Main		Відсутній декодер для обробки файлів такого типу, або декодер не розпізнає конкретну версію формату.
 Lock Peaks	MediaPlayer-PeakView		Блокувати піки
@@ -111,7 +112,7 @@ none	Audio track menu		пусто
 Open network stream	MediaPlayer-NetworkStream		Відкрити мережевий потік
 Automatically start playing	MediaPlayer-SettingsWindow		Почати відтворення автоматично
 Undo	MediaPlayer-PlaylistWindow		Відкат дії
-Display mode	MediaPlayer-InfoWin		Режим показу
+Display mode	MediaPlayer-InfoWin		Метод виводу
 Bottom of video	MediaPlayer-SettingsWindow		Нижня частина відео
 Small	MediaPlayer-SettingsWindow		Малий
 Settings…	MediaPlayer-Main		Налаштування…

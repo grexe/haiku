@@ -1,12 +1,14 @@
-1	spanish; castilian	x-vnd.Haiku-WebPositive	1510673556
+1	spanish; castilian	x-vnd.Haiku-WebPositive	2813509533
 Authentication required	Authentication Panel		Autenticación requerida
 Previous	WebPositive Window		Anterior
+Copy	Console Window		Copiar
 (Finish: %date)	Download Window		(Finaliza: %date)
 Open bookmarks confirmation	WebPositive Window		Confirmación para abrir marcadores
 Download folder:	Settings Window		Carpeta de descargas:
 Close window	WebPositive Window		Cerrar ventana
 Find:	WebPositive Window		Buscar:
 Script console	WebPositive Window		Consola de scripts
+There was an error setting up the bookmark.	WebPositive Window		Ha ocurrido un error al configurar el marcador.
 Fonts	Settings Window		Tipos de letra
 Path	Cookie Manager		Ruta
 Bookmarks	WebPositive Window		Marcadores
@@ -55,6 +57,7 @@ WebPositive	System name		WebPositive
 %s - Search term	Settings Window		%s - Término de búsqueda
 Reload	WebPositive Window		Recargar
 Expiration	Cookie Manager		Caducidad
+Your CPU is too old and does not support the SSE2 extensions, without which WebPositive cannot run. We recommend installing NetSurf instead.	WebPositive		Su CPU es demasiado antigua y no soporta la extensión SSE2, sin la cual WebPositive no puede ejecutarse. En cambio le recomendamos instalar NetSurf.
 Download finished	Download Window		Descarga finalizada
 Cookie manager	WebPositive Window		Gestor de cookies
 OK	Authentication Panel		Aceptar
@@ -99,12 +102,13 @@ Apply	Settings Window		Aplicar
 There was an error trying to show the Bookmarks folder.\n\nError: %error	WebPositive Window	Don't translate variable %error	Hubo un error al intentar mostrar la carpeta de Marcadores.\n\nError: %error
 Revert	Settings Window		Revertir
 Copy	WebPositive Window		Copiar
+{0, plural,one{Last line repeated # time.}other{Last line repeated # times.}}	Console Window		{0, plural,one{La última línea se repitió # vez.}other{La última línea se repitió # veces.}}
 Default standard font size:	Settings Window		Tamaño de texto predeterminado:
 Custom	Settings Window		Personalizado
 Bookmark this page	WebPositive Window		Agregar esta página a marcadores
 Show tabs if only one page is open	Settings Window		Mostrar pestañas si sólo hay una página abierta
-Remove	Download Window		Quitar
 Close tab	WebPositive Window		Cerrar pestaña
+Remove	Download Window		Quitar
 About	WebPositive Window		Acerca de
 There are still downloads in progress, do you really want to quit WebPositive now?	WebPositive		Todavía hay descargas en progreso. ¿Desea cerrar WebPositive ahora?
 Continue downloads	WebPositive		Continuar descargas
@@ -148,6 +152,7 @@ The quick brown fox jumps over the lazy dog.	Font Selection view	Don't translate
 Start up:	Settings Window		Iniciar:
 Confirmation	WebPositive Window		Confirmación
 Session cookie	Cookie Manager		Cookie de sesión
+No SSE2 support	WebPositive		No tiene soporte de SSE2.
 Open all	WebPositive Window		Abrir todos
 Cut	WebPositive Window		Cortar
 Downloads	Download Window		Descargas

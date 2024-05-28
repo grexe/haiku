@@ -8,7 +8,7 @@
  *
  * 1. Copyright Notice
  *
- * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
+ * Some or all of this work - Copyright (c) 1999 - 2023, Intel Corp.
  * All rights reserved.
  *
  * 2. License
@@ -197,15 +197,15 @@ struct mutex;
 #endif
 
 /* Based on FreeBSD's due to lack of documentation */
-extern int AcpiOsAcquireGlobalLock(uint32 *lock);
-extern int AcpiOsReleaseGlobalLock(uint32 *lock);
+extern int AcpiOsAcquireGlobalLock(volatile uint32_t *lock);
+extern int AcpiOsReleaseGlobalLock(volatile uint32_t *lock);
 
 #define ACPI_ACQUIRE_GLOBAL_LOCK(GLptr, Acq)    do {                \
-        (Acq) = AcpiOsAcquireGlobalLock((uint32 *)&((GLptr)->GlobalLock));    \
+        (Acq) = AcpiOsAcquireGlobalLock(&((GLptr)->GlobalLock));    \
 } while (0)
 
 #define ACPI_RELEASE_GLOBAL_LOCK(GLptr, Acq)    do {                \
-        (Acq) = AcpiOsReleaseGlobalLock((uint32 *)&((GLptr)->GlobalLock));    \
+        (Acq) = AcpiOsReleaseGlobalLock(&((GLptr)->GlobalLock));    \
 } while (0)
 
 #else /* _KERNEL_MODE */

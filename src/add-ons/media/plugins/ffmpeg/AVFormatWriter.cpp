@@ -72,7 +72,7 @@ public:
 private:
 			AVFormatContext*	fFormatContext;
 			AVStream*			fStream;
-			AVPacket			fPacket;
+			AVPacket*			fPacket;
 			// Since different threads may write to the target,
 			// we need to protect the file position and I/O by a lock.
 			BLocker*			fStreamLock;
@@ -87,13 +87,25 @@ AVFormatWriter::StreamCookie::StreamCookie(AVFormatContext* context,
 	fStream(NULL),
 	fStreamLock(streamLock)
 {
-	av_init_packet(&fPacket);
+	fPacket = av_packet_alloc();
 }
 
 
 AVFormatWriter::StreamCookie::~StreamCookie()
 {
 	// fStream is freed automatically when the codec context is closed
+	av_packet_free(&fPacket);
+}
+
+
+static void
+set_channel_count(AVCodecParameters* context, int count)
+{
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	context->ch_layout.nb_channels = count;
+#else
+	context->channels = count;
+#endif
 }
 
 
@@ -105,7 +117,7 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 
 	BAutolock _(fStreamLock);
 
-	fPacket.stream_index = fFormatContext->nb_streams;
+	fPacket->stream_index = fFormatContext->nb_streams;
 	fStream = avformat_new_stream(fFormatContext, NULL);
 
 	if (fStream == NULL) {
@@ -113,7 +125,7 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 		return B_ERROR;
 	}
 
-	fStream->id = fPacket.stream_index;
+	fStream->id = fPacket->stream_index;
 
 //	TRACE("  fStream->codecpar: %p\n", fStream->codecpar);
 	// TODO: This is a hack for now! Use avcodec_find_encoder_by_name()
@@ -160,7 +172,7 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 		fStream->codecpar->sample_rate = (int)format->u.raw_audio.frame_rate;
 
 		// channels
-		fStream->codecpar->channels = format->u.raw_audio.channel_count;
+		set_channel_count(fStream->codecpar, format->u.raw_audio.channel_count);
 
 		// set fStream to the audio format we want to use. This is only a hint
 		// (each encoder has a different set of accepted formats)
@@ -189,7 +201,7 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 
 		// Now negociate the actual format with the encoder
 		// First check if the requested format is acceptable
-		AVCodec* codec = avcodec_find_encoder(fStream->codecpar->codec_id);
+		const AVCodec* codec = avcodec_find_encoder(fStream->codecpar->codec_id);
 
 		if (codec == NULL)
 			return B_MEDIA_BAD_FORMAT;
@@ -233,6 +245,17 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 			}
 		}
 
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+		if (format->u.raw_audio.channel_mask == 0) {
+			// guess the channel mask...
+			av_channel_layout_default(&fStream->codecpar->ch_layout,
+				format->u.raw_audio.channel_count);
+		} else {
+			// The bits match 1:1 for media_multi_channels and FFmpeg defines.
+			av_channel_layout_from_mask(&fStream->codecpar->ch_layout,
+				format->u.raw_audio.channel_mask);
+		}
+#else
 		if (format->u.raw_audio.channel_mask == 0) {
 			// guess the channel mask...
 			switch (format->u.raw_audio.channel_count) {
@@ -266,6 +289,7 @@ AVFormatWriter::StreamCookie::Init(media_format* format,
 			// The bits match 1:1 for media_multi_channels and FFmpeg defines.
 			fStream->codecpar->channel_layout = format->u.raw_audio.channel_mask;
 		}
+#endif
 	}
 
 	TRACE("  stream->time_base: (%d/%d)\n",
@@ -302,21 +326,21 @@ AVFormatWriter::StreamCookie::WriteChunk(const void* chunkBuffer,
 
 	BAutolock _(fStreamLock);
 
-	fPacket.data = const_cast<uint8_t*>((const uint8_t*)chunkBuffer);
-	fPacket.size = chunkSize;
-	fPacket.stream_index = fStream->index;
+	fPacket->data = const_cast<uint8_t*>((const uint8_t*)chunkBuffer);
+	fPacket->size = chunkSize;
+	fPacket->stream_index = fStream->index;
 
-	fPacket.pts = int64_t((double)encodeInfo->start_time
+	fPacket->pts = int64_t((double)encodeInfo->start_time
 		* fStream->time_base.den / (1000000.0 * fStream->time_base.num)
 		+ 0.5);
 
-	fPacket.dts = fPacket.pts;
+	fPacket->dts = fPacket->pts;
 
-	fPacket.flags = 0;
+	fPacket->flags = 0;
 	if ((encodeInfo->flags & B_MEDIA_KEY_FRAME) != 0)
-		fPacket.flags |= AV_PKT_FLAG_KEY;
+		fPacket->flags |= AV_PKT_FLAG_KEY;
 
-	TRACE_PACKET("  PTS: %" PRId64 " (stream->time_base: (%d/%d)\n", fPacket.pts,
+	TRACE_PACKET("  PTS: %" PRId64 " (stream->time_base: (%d/%d)\n", fPacket->pts,
 		fStream->time_base.num, fStream->time_base.den);
 
 #if 0
@@ -325,11 +349,11 @@ AVFormatWriter::StreamCookie::WriteChunk(const void* chunkBuffer,
 	// more than one stream. For the moment, this crashes in AVPacket
 	// shuffling inside libavformat. Maybe if we want to use this, we
 	// need to allocate a separate AVPacket and copy the chunk buffer.
-	int result = av_interleaved_write_frame(fFormatContext, &fPacket);
+	int result = av_interleaved_write_frame(fFormatContext, fPacket);
 	if (result < 0)
 		TRACE("  av_interleaved_write_frame(): %d\n", result);
 #else
-	int result = av_write_frame(fFormatContext, &fPacket);
+	int result = av_write_frame(fFormatContext, fPacket);
 	if (result < 0)
 		TRACE("  av_write_frame(): %d\n", result);
 #endif

@@ -57,7 +57,7 @@ es1370_mem_new(es1370_dev *card, size_t size)
 	if ((mem = malloc(sizeof(*mem))) == NULL)
 		return (NULL);
 
-	mem->area = alloc_mem(&mem->phy_base, &mem->log_base, size, "es1370 buffer");
+	mem->area = alloc_mem(&mem->phy_base, &mem->log_base, size, "es1370 buffer", false);
 	mem->size = size;
 	if (mem->area < B_OK) {
 		free(mem);
@@ -385,21 +385,17 @@ init_hardware(void)
 	int ix=0;
 	pci_info info;
 	status_t err = ENODEV;
-	
-	LOG_CREATE();
-
-	PRINT(("init_hardware()\n"));
 
 	if (get_module(pci_name, (module_info **)&pci))
 		return ENOSYS;
 
 	while ((*pci->get_nth_pci_info)(ix, &info) == B_OK) {
-		if (info.vendor_id == 0x1274 
-			&& (info.device_id == 0x5000
-			/*|| info.device_id == 0x1371
-			|| info.device_id == 0x5880*/)
-			)
-		 {
+		if (info.vendor_id == 0x1274 && (info.device_id == 0x5000
+			/*|| info.device_id == 0x1371 || info.device_id == 0x5880*/))
+		{
+			LOG_CREATE();
+			PRINT(("init_hardware()\n"));
+
 			err = B_OK;
 		}
 		ix++;

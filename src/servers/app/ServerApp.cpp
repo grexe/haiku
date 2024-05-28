@@ -1581,6 +1581,8 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 
 			// Attached Data:
 			// 1) char* - path to font on disk
+			// 2) uint16 - index in font file
+			// 3) uint16 - instance
 
 			// Returns:
 			// 1) uint16 - family ID of added font
@@ -1597,9 +1599,12 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 
 			uint16 familyID, styleID;
 			char* fontPath;
+			uint16 index, instance;
 			link.ReadString(&fontPath);
+			link.Read<uint16>(&index);
+			link.Read<uint16>(&instance);
 
-			status_t status = fAppFontManager->AddUserFontFromFile(fontPath,
+			status_t status = fAppFontManager->AddUserFontFromFile(fontPath, index, instance,
 				familyID, styleID);
 
 			if (status != B_OK) {
@@ -1632,6 +1637,8 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 			// 1) area_id - id of memory area where font resides
 			// 2) size_t - size of memory area for font
 			// 3) size_t - offset to start of font memory
+			// 4) uint16 - index in font buffer
+			// 5) uint16 - instance
 
 			// Returns:
 			// 1) uint16 - family ID of added font
@@ -1650,10 +1657,13 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 			area_info fontAreaInfo;
 			char* area_addr;
 			size_t size, offset;
+			uint16 index, instance;
 
 			link.Read<int32>(&fontAreaID);
 			link.Read<size_t>(&size);
 			link.Read<size_t>(&offset);
+			link.Read<uint16>(&index);
+			link.Read<uint16>(&instance);
 			fontAreaCloneID = clone_area("user font",
 				(void **)&area_addr,
 				B_ANY_ADDRESS,
@@ -1702,7 +1712,7 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 
 			uint16 familyID, styleID;
 
-			status = fAppFontManager->AddUserFontFromMemory(fontData, size,
+			status = fAppFontManager->AddUserFontFromMemory(fontData, size, index, instance,
 				familyID, styleID);
 
 			if (status != B_OK) {
@@ -2004,7 +2014,7 @@ ServerApp::_DispatchMessage(int32 code, BPrivate::LinkReceiver& link)
 			// 1) font_family - name of font family to use
 			// 2) font_style - name of style in family
 			// 3) family ID - only used if 1) is empty
-			// 4) style ID - only used if 2) is empty
+			// 4) style ID - only used if 1) and 2) are empty
 			// 5) face - the font's current face
 
 			// Returns:

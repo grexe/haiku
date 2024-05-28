@@ -217,15 +217,15 @@ acpi_std_ops(int32 op,...)
 
 			if (checkAndLogFailure(AcpiInitializeSubsystem(),
 					"AcpiInitializeSubsystem failed"))
-				goto err;
+				goto err_dpc;
 
 			if (checkAndLogFailure(AcpiInitializeTables(NULL, 0, TRUE),
 					"AcpiInitializeTables failed"))
-				goto err;
+				goto err_acpi;
 
 			if (checkAndLogFailure(AcpiLoadTables(),
 					"AcpiLoadTables failed"))
-				goto err;
+				goto err_acpi;
 
 			/* Install the default address space handlers. */
 
@@ -234,12 +234,12 @@ acpi_std_ops(int32 op,...)
 			if (checkAndLogFailure(AcpiEnableSubsystem(
 						ACPI_FULL_INITIALIZATION),
 					"AcpiEnableSubsystem failed"))
-				goto err;
+				goto err_acpi;
 
 			if (checkAndLogFailure(AcpiInitializeObjects(
 						ACPI_FULL_INITIALIZATION),
 					"AcpiInitializeObjects failed"))
-				goto err;
+				goto err_acpi;
 
 			//TODO: Walk namespace init ALL _PRW's
 
@@ -261,7 +261,13 @@ acpi_std_ops(int32 op,...)
 			TRACE("ACPI initialized\n");
 			return B_OK;
 
-		err:
+		err_acpi:
+			checkAndLogFailure(AcpiTerminate(), "AcpiTerminate failed");
+
+		err_dpc:
+			gDPC->delete_dpc_queue(gDPCHandle);
+			gDPCHandle = NULL;
+
 			return B_ERROR;
 		}
 
@@ -525,7 +531,7 @@ get_device(const char* hid, uint32 index, char* result, size_t resultLength)
 
 status_t
 get_device_info(const char *path, char** hid, char** cidList,
-	size_t cidListCount, char** uid)
+	size_t cidListCount, char** uid, char** cls)
 {
 	ACPI_HANDLE handle;
 	ACPI_DEVICE_INFO *info;
@@ -551,6 +557,11 @@ get_device_info(const char *path, char** hid, char** cidList,
 
 	if ((info->Valid & ACPI_VALID_UID) != 0 && uid != NULL)
 		*uid = strndup(info->UniqueId.String, info->UniqueId.Length);
+
+	if ((info->Valid & ACPI_VALID_CLS) != 0 && cls != NULL
+		&& info->ClassCode.Length >= ACPI_PCICLS_STRING_SIZE) {
+		*cls = strndup(info->ClassCode.String, info->ClassCode.Length);
+	}
 
 	AcpiOsFree(info);
 	return B_OK;

@@ -106,6 +106,25 @@ public:
 };
 
 
+typedef int (*compare_func)(const BMenuItem*, const BMenuItem*);
+
+struct MenuItemComparator
+{
+	MenuItemComparator(compare_func compareFunc)
+		:
+		fCompareFunc(compareFunc)
+	{
+	}
+
+	bool operator () (const BMenuItem* item1, const BMenuItem* item2) {
+		return fCompareFunc(item1, item2) < 0;
+	}
+
+private:
+	compare_func fCompareFunc;
+};
+
+
 }	// namespace BPrivate
 
 
@@ -493,10 +512,6 @@ BMenu::KeyDown(const char* bytes, int32 numBytes)
 	// TODO: Test how it works on BeOS R5 and implement this correctly
 	switch (bytes[0]) {
 		case B_UP_ARROW:
-			if (fLayout == B_ITEMS_IN_COLUMN)
-				_SelectNextItem(fSelected, false);
-			break;
-
 		case B_DOWN_ARROW:
 		{
 			BMenuBar* bar = dynamic_cast<BMenuBar*>(Supermenu());
@@ -505,7 +520,7 @@ BMenu::KeyDown(const char* bytes, int32 numBytes)
 				bar->fState = MENU_STATE_KEY_TO_SUBMENU;
 			}
 			if (fLayout == B_ITEMS_IN_COLUMN)
-				_SelectNextItem(fSelected, true);
+				_SelectNextItem(fSelected, bytes[0] == B_DOWN_ARROW);
 			break;
 		}
 
@@ -1455,7 +1470,11 @@ BMenu::SetTrackingHook(menu_tracking_hook func, void* state)
 void
 BMenu::SortItems(int (*compare)(const BMenuItem*, const BMenuItem*))
 {
-	fItems.SortItems((int (*)(const void*, const void*))compare);
+	BMenuItem** begin = (BMenuItem**)fItems.Items();
+	BMenuItem** end = begin + fItems.CountItems();
+
+	std::stable_sort(begin, end, BPrivate::MenuItemComparator(compare));
+
 	InvalidateLayout();
 	if (Window() != NULL && !Window()->IsHidden() && LockLooper()) {
 		_LayoutItems(0);

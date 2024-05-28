@@ -161,9 +161,6 @@ x86_unexpected_exception(iframe* frame)
 				// TODO: Determine the correct cause via the FPU status
 				// register!
 			signalAddress = frame->ip;
-			// clear any pending exceptions, otherwise loading a new control word
-			// could raise exceptions.
-			asm volatile("fnclex");
 			break;
 
 		case 17: 	// Alignment Check Exception (#AC)
@@ -363,7 +360,7 @@ x86_page_fault_exception(struct iframe* frame)
 
 
 void
-x86_set_irq_source(int irq, irq_source source)
+x86_set_irq_source(int32 irq, irq_source source)
 {
 	sVectorSources[irq] = source;
 }
@@ -373,21 +370,21 @@ x86_set_irq_source(int irq, irq_source source)
 
 
 void
-arch_int_enable_io_interrupt(int irq)
+arch_int_enable_io_interrupt(int32 irq)
 {
 	sCurrentPIC->enable_io_interrupt(irq);
 }
 
 
 void
-arch_int_disable_io_interrupt(int irq)
+arch_int_disable_io_interrupt(int32 irq)
 {
 	sCurrentPIC->disable_io_interrupt(irq);
 }
 
 
 void
-arch_int_configure_io_interrupt(int irq, uint32 config)
+arch_int_configure_io_interrupt(int32 irq, uint32 config)
 {
 	sCurrentPIC->configure_io_interrupt(irq, config);
 }

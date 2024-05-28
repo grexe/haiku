@@ -179,9 +179,9 @@ public:
 void DisallowMetaKeys(BTextView*);
 void DisallowFilenameKeys(BTextView*);
 
-
 bool ValidateStream(BMallocIO*, uint32, int32 version);
 
+float ReadOnlyTint(rgb_color base);
 
 bool SecondaryMouseButtonDown(int32 modifiers, int32 buttons);
 uint32 HashString(const char* string, uint32 seed);
@@ -400,6 +400,7 @@ void StringFromStream(BString*, BMallocIO*, bool endianSwap = false);
 void StringToStream(const BString*, BMallocIO*);
 int32 ArchiveSize(const BString*);
 
+extern int CompareLabels(const BMenuItem*, const BMenuItem*);
 extern void EnableNamedMenuItem(BMenu* menu, const char* itemName, bool on);
 extern void MarkNamedMenuItem(BMenu* menu, const char* itemName, bool on);
 extern void EnableNamedMenuItem(BMenu* menu, uint32 commandName, bool on);
@@ -553,6 +554,15 @@ inline uint64 SwapUInt64(uint64 value) { return B_SWAP_INT64(value); }
 extern const float kExactMatchScore;
 float ComputeTypeAheadScore(const char* text, const char* match,
 	bool wordMode = false);
+
+
+inline float
+ActualFontHeight(const BView* view)
+{
+	font_height height;
+	view->GetFontHeight(&height);
+	return height.ascent + height.descent + 1;
+}
 
 } // namespace BPrivate
 

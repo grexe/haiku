@@ -1,4 +1,4 @@
-1	bokmål, norwegian; norwegian bokmål	x-vnd.Haiku-libtracker	746720348
+1	bokmål, norwegian; norwegian bokmål	x-vnd.Haiku-libtracker	1124891868
 Created	ContainerWindow		Opprettet
 Icon	AttributesView		Ikon
 Open and make preferred	OpenWithWindow		Åpne og gjør til standard
@@ -9,7 +9,7 @@ Or	FindPanel		Eller
 MIME Description	AttributesView		MIME-beskrivelse
 before	FindPanel		før
 Volume icons	TrackerSettingsWindow		Volumikoner
-Ignore case	SelectionWindow		Ikke skill mellom stor og liten bokstav
+Ignore case	SelectionWindow		Ikke skill mellom store og små bokstaver
 Current folder	ContainerWindow		Nåværende mappe
 Finish: %time - Over %finishtime left	StatusWindow		Ferdig: %time - Mer enn %finishtime left
 Mount all disks now	AutoMounterSettings		Monter alle disker nå
@@ -115,7 +115,6 @@ Hide dotfiles	SettingsView		Skjul punktfiler
 Trash	Model		Søppelkurv
 Enable type-ahead filtering	SettingsView		Aktiver forhåndsfiltrering
 copy	FSUtils	filename copy	kopi
-New folder%ld	FSUtils		Ny mappe%ld
 Location	OpenWithWindow		Sted
 Resize to fit	QueryContainerWindow		Tilpass størrelse
 List folders first	SettingsView		List mapper først
@@ -159,7 +158,6 @@ The Tracker must be running to see Info windows.	PoseView		Tracker må kjøre fo
 Tracker preferences	TrackerSettingsWindow		Tracker-innstillinger
 Read	FilePermissionsView		Lese
 There was an error writing the attribute.	WidgetAttributeText		Det oppsto en feil da attributten skulle skrives.
-Path	Default Query Columns		Sti
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Hvis du endrer navn på %target er det mulig %osName ikke oppfører seg som forventet!\n\nEr du sikker på at du vil gjøre dette?
 Filesystem:	InfoWindow		Filsystem:
 Could not open \"%name\" (%error). 	FSUtils		Kunne ikke åpne \"%name\" (%error).
@@ -245,7 +243,6 @@ Recent queries	FindPanel		Nylige forespørsler
 Mount all	MountMenu		Monter alle
 Size	Default Query Columns		Størrelse
 Favorites	FavoritesMenu		Favoritter
-Delete	FilePanelPriv		Slett
 <No recent items>	FavoritesMenu		<Ingen nylige elementer>
 Formula %formula	FindPanel	FindResultTitle	Formel %formula
 Preparing to create links…	StatusWindow		Forbereder opprettelse av lenker...
@@ -271,7 +268,7 @@ Unmatched parenthesis.	libtracker		Umatched parentes.
 Extended attribute	AttributesView		Utvidet attributt
 Unmatched brackets.	libtracker		Umatched klammeparentes.
 Error %error loading Add-On %name.	ContainerWindow		Feil %error ved lasting av tillegg %name.
-You are trying to replace the item:\n\t%name%dest\nwith:\n\t%name%src\n\nWould you like to replace it with the one you are %movemode?	FSUtils		Du prøver å erstatte objektet:\n\t%name%dest\nmed:\n\t%name%src\n\nØnsker du å erstatte det med det du er %movemode?
+You are trying to replace the item:\n\t%name%dest\nwith:\n\t%name%src\n\nWould you like to replace it with the one you are %movemode?	FSUtils		Du prøver å erstatte objektet:\n\t%name%dest\nmed:\n\t%name%src\n\nØnsker du å erstatte dette med det du %movemode?
 Empty Trash	ContainerWindow		Tøm søppelkurven
 no supporting apps	OpenWithWindow		ingen støttende programmer
 32-bit unsigned integer	AttributesView		32-bit unsigned integer
@@ -301,6 +298,7 @@ Select all	ContainerWindow		Merk alle
 apps	B_APPS_DIRECTORY		apps
 Error calculating folder size.	InfoWindow		Feil ved beregning av mappestørrelse
 Delete	FSUtils		Slett
+Duplicate	FilePanelPriv		Dupliser
 Edit name	ContainerWindow		Rediger navn
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		Kunne ikke åpne \"%document\" (Manglende symbol: %symbol). \n
 ASCII Text	AttributesView		ASCII-tekst
@@ -337,6 +335,7 @@ yes	AttributesView		ja
 Make active printer	ContainerWindow		Sett som aktiv skriver
 Copy to	ContainerWindow		Kopier til
 Name	SelectionWindow		Navn
+Location	Default Query Columns		Plassering
 by attribute	FindPanel		etter attributt
 Write	FilePermissionsView		Skriv
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		Hvis du endrer systemmappen eller dens innhold, vil du ikke kunne starte %osName!\n\nEr du sikker på at du vil gjøre dette?\n\nFor å endre systemmappen eller dens innhold uansett, hold nede Shift-tasten og klikk på \"Jeg vet hva jeg gjør\".
@@ -404,6 +403,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		Kan ikke avmontere oppstartsv
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		Kunne ikke åpne \"%document\" med programmet \"%app\" (Manglende symbol: %symbol). \n
 New folder	ContainerWindow		Ny mappe
 Name	OpenWithWindow		Navn
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	Få informasjon
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		Det oppstoproblem ved erstatting av \"%name\". Elementet kan være åpent eller opptatt.
 Windows	TrackerSettingsWindow		Vinduer
 Show space bars on volumes	SettingsView		Vis kapasitetsindikator på volumer
@@ -455,7 +455,6 @@ Move to Trash	FilePanelPriv		Flytt til søppelkurv
 is	FindPanel		er
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Hvis du gir nytt navn til systemmappen eller dens innhold, vil du ikke kunne starte %osName!\n\nEr du sikker på at du vil gjøre dette?\n\nFor å gi nytt navn til systemmappen eller innholdet uansett, hold nede Shift-tasten og klikk på \"Gi nytt navn\".
 Permissions	FilePermissionsView		Tillatelser
-New folder %ld	FSUtils		Ny mappe %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" er en eldre kjørbar fil. Skaff deg en oppdatert versjon eller kompiler applikasjonen på nytt.
 Only the boot disk	AutoMounterSettings		Kun oppstartsdisken
 Message	AttributesView		Melding

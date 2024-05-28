@@ -1150,9 +1150,21 @@ ipv4_free(net_protocol* protocol)
 
 
 status_t
-ipv4_connect(net_protocol* protocol, const struct sockaddr* address)
+ipv4_connect(net_protocol* _protocol, const struct sockaddr* address)
 {
-	return B_ERROR;
+	ipv4_protocol* protocol = (ipv4_protocol*)_protocol;
+	RawSocket* raw = protocol->raw;
+	if (raw == NULL)
+		return B_ERROR;
+	if (address->sa_len != sizeof(struct sockaddr_in))
+		return B_BAD_VALUE;
+	if (address->sa_family != AF_INET)
+		return EAFNOSUPPORT;
+
+	memcpy(&protocol->socket->peer, address, sizeof(struct sockaddr_in));
+	sSocketModule->set_connected(protocol->socket);
+
+	return B_OK;
 }
 
 
@@ -1698,6 +1710,10 @@ ipv4_get_mtu(net_protocol* protocol, const struct sockaddr* address)
 		mtu = route->interface_address->interface->device->mtu;
 
 	sDatalinkModule->put_route(sDomain, route);
+
+	if (mtu > 0xffff)
+		mtu = 0xffff;
+
 	return mtu - sizeof(ipv4_header);
 }
 
@@ -1707,6 +1723,8 @@ ipv4_receive_data(net_buffer* buffer)
 {
 	TRACE("ipv4_receive_data(%p [%" B_PRIu32 " bytes])", buffer, buffer->size);
 
+	uint16 headerLength = 0;
+	{
 	NetBufferHeaderReader<ipv4_header> bufferHeader(buffer);
 	if (bufferHeader.Status() != B_OK)
 		return bufferHeader.Status();
@@ -1718,7 +1736,7 @@ ipv4_receive_data(net_buffer* buffer)
 		return B_BAD_TYPE;
 
 	uint16 packetLength = header.TotalLength();
-	uint16 headerLength = header.HeaderLength();
+	headerLength = header.HeaderLength();
 	if (packetLength > buffer->size
 		|| headerLength < sizeof(ipv4_header))
 		return B_BAD_DATA;
@@ -1810,13 +1828,13 @@ ipv4_receive_data(net_buffer* buffer)
 	// Since the buffer might have been changed (reassembled fragment)
 	// we must no longer access bufferHeader or header anymore after
 	// this point
+	}
 
 	bool rawDelivered = raw_receive_data(buffer);
 
 	// Preserve the ipv4 header for ICMP processing
 	gBufferModule->store_header(buffer);
-
-	bufferHeader.Remove(headerLength);
+	gBufferModule->remove_header(buffer, headerLength);
 		// the header is of variable size and may include IP options
 		// (TODO: that we ignore for now)
 

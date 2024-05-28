@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2008, Haiku, Inc. All Rights Reserved.
+ * Copyright 2006-2023, Haiku, Inc. All Rights Reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
@@ -7,13 +7,12 @@
  */
 
 
-#define _KERNEL_DEBUG_H
-	// avoid including the private kernel debug.h header
-
 #include "argv.h"
 #include "tcp.h"
+#include "pcap.h"
 #include "utility.h"
 
+#include <AutoDeleter.h>
 #include <NetBufferUtilities.h>
 #include <net_buffer.h>
 #include <net_datalink.h>
@@ -22,14 +21,18 @@
 #include <net_stack.h>
 #include <slab/Slab.h>
 #include <util/AutoLock.h>
+#include <util/DoublyLinkedList.h>
 
 #include <KernelExport.h>
 #include <Select.h>
 #include <module.h>
 #include <Locker.h>
 
-#include <ctype.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
+
+#include <ctype.h>
+#include <errno.h>
 #include <new>
 #include <set>
 #include <stdio.h>
@@ -47,18 +50,24 @@ struct context {
 };
 
 struct cmd_entry {
-	char*	name;
+	const char*	name;
 	void	(*func)(int argc, char **argv);
-	char*	help;
+	const char*	help;
 };
 
-struct net_socket_private : net_socket {
-	struct list_link		link;
+
+struct net_socket_private;
+typedef DoublyLinkedList<net_socket_private> SocketList;
+
+struct net_socket_private : net_socket,
+		DoublyLinkedListLinkImpl<net_socket_private> {
+	struct net_socket		*parent;
+
 	team_id					owner;
 	uint32					max_backlog;
 	uint32					child_count;
-	struct list				pending_children;
-	struct list				connected_children;
+	SocketList				pending_children;
+	SocketList				connected_children;
 
 	struct select_sync_pool	*select_pool;
 	mutex					lock;
@@ -79,22 +88,23 @@ extern module_info *modules[];
 
 
 extern struct net_protocol_module_info gDomainModule;
-struct net_interface gInterface;
+struct net_interface_address gInterfaceAddress = {};
 extern struct net_socket_module_info gNetSocketModule;
 struct net_protocol_module_info *gTCPModule;
 struct net_socket *gServerSocket, *gClientSocket;
 static struct context sClientContext, sServerContext;
 
-static vint32 sPacketNumber = 1;
+static int32 sPacketNumber = 1;
 static double sRandomDrop = 0.0;
-static set<uint32> sDropList;
+static std::set<uint32> sDropList;
 static bigtime_t sRoundTripTime = 0;
 static bool sIncreasingRoundTrip = false;
 static bool sRandomRoundTrip = false;
-static bool sTCPDump = true;
+static void (*sPacketMonitor)(net_buffer *, int32, bool) = NULL;
+static int sPcapFD = -1;
 static bigtime_t sStartTime;
 static double sRandomReorder = 0.0;
-static set<uint32> sReorderList;
+static std::set<uint32> sReorderList;
 static bool sSimultaneousConnect = false;
 static bool sSimultaneousClose = false;
 static bool sServerActiveClose = false;
@@ -102,7 +112,7 @@ static bool sServerActiveClose = false;
 static struct net_domain sDomain = {
 	"ipv4",
 	AF_INET,
-	{},
+
 	&gDomainModule,
 	&gIPv4AddressModule
 };
@@ -281,9 +291,6 @@ socket_create(int family, int type, int protocol, net_socket **_socket)
 	socket->receive.low_water_mark = 1;
 	socket->receive.timeout = B_INFINITE_TIMEOUT;
 
-	list_init_etc(&socket->pending_children, offsetof(net_socket_private, link));
-	list_init_etc(&socket->connected_children, offsetof(net_socket_private, link));
-
 	socket->first_protocol = gTCPModule->init_protocol(socket);
 	if (socket->first_protocol == NULL) {
 		fprintf(stderr, "tcp_tester: cannot create protocol\n");
@@ -365,7 +372,7 @@ socket_bind(net_socket *socket, const struct sockaddr *address, socklen_t addres
 
 	memcpy(&socket->address, address, sizeof(sockaddr));
 
-	status_t status = socket->first_info->bind(socket->first_protocol, 
+	status_t status = socket->first_info->bind(socket->first_protocol,
 		(sockaddr *)address);
 	if (status < B_OK) {
 		// clear address again, as binding failed
@@ -463,6 +470,20 @@ socket_recv(net_socket *socket, void *data, size_t length, int flags)
 }
 
 
+bool
+socket_acquire(net_socket* _socket)
+{
+	return true;
+}
+
+
+bool
+socket_release(net_socket* _socket)
+{
+	return true;
+}
+
+
 status_t
 socket_spawn_pending(net_socket *_parent, net_socket **_socket)
 {
@@ -491,7 +512,7 @@ socket_spawn_pending(net_socket *_parent, net_socket **_socket)
 	memcpy(&socket->peer, &parent->peer, parent->peer.ss_len);
 
 	// add to the parent's list of pending connections
-	list_add_item(&parent->pending_children, socket);
+	parent->pending_children.Add(socket);
 	socket->parent = parent;
 	parent->child_count++;
 
@@ -507,7 +528,7 @@ socket_dequeue_connected(net_socket *_parent, net_socket **_socket)
 
 	mutex_lock(&parent->lock);
 
-	net_socket *socket = (net_socket *)list_remove_head_item(&parent->connected_children);
+	net_socket_private *socket = parent->connected_children.RemoveHead();
 	if (socket != NULL) {
 		socket->parent = NULL;
 		parent->child_count--;
@@ -526,14 +547,7 @@ socket_count_connected(net_socket *_parent)
 
 	MutexLocker _(parent->lock);
 
-	ssize_t count = 0;
-	void *item = NULL;
-	while ((item = list_get_next_item(&parent->connected_children,
-			item)) != NULL) {
-		count++;
-	}
-
-	return count;
+	return parent->connected_children.Count();
 }
 
 
@@ -548,15 +562,15 @@ socket_set_max_backlog(net_socket *_socket, uint32 backlog)
 
 	mutex_lock(&socket->lock);
 
-	// first remove the pending connections, then the already connected ones as needed	
-	net_socket *child;
+	// first remove the pending connections, then the already connected ones as needed
+	net_socket_private *child;
 	while (socket->child_count > backlog
-		&& (child = (net_socket *)list_remove_tail_item(&socket->pending_children)) != NULL) {
+		&& (child = socket->pending_children.RemoveTail()) != NULL) {
 		child->parent = NULL;
 		socket->child_count--;
 	}
 	while (socket->child_count > backlog
-		&& (child = (net_socket *)list_remove_tail_item(&socket->connected_children)) != NULL) {
+		&& (child = socket->connected_children.RemoveTail()) != NULL) {
 		child->parent = NULL;
 		socket_delete(child);
 		socket->child_count--;
@@ -568,21 +582,26 @@ socket_set_max_backlog(net_socket *_socket, uint32 backlog)
 }
 
 
-/*!
-	The socket has been connected. It will be moved to the connected queue
-	of its parent socket.
-*/
+bool
+socket_has_parent(net_socket* _socket)
+{
+	net_socket_private* socket = (net_socket_private*)_socket;
+	return socket->parent != NULL;
+}
+
+
 status_t
 socket_connected(net_socket *socket)
 {
-	net_socket_private *parent = (net_socket_private *)socket->parent;
+	net_socket_private *socket_private = (net_socket_private *)socket;
+	net_socket_private *parent = (net_socket_private *)socket_private->parent;
 	if (parent == NULL)
 		return B_BAD_VALUE;
 
 	mutex_lock(&parent->lock);
 
-	list_remove_item(&parent->pending_children, socket);
-	list_add_item(&parent->connected_children, socket);
+	parent->pending_children.Remove(socket_private);
+	parent->connected_children.Add(socket_private);
 
 	mutex_unlock(&parent->lock);
 	return B_OK;
@@ -634,8 +653,6 @@ net_socket_module_info gNetSocketModule = {
 	NULL, // close,
 	NULL, // free,
 
-	NULL, // readv,
-	NULL, // writev,
 	NULL, // control,
 
 	NULL, // read_avail,
@@ -648,13 +665,17 @@ net_socket_module_info gNetSocketModule = {
 	NULL, // set_option,
 	NULL, // get_next_stat,
 
+	socket_acquire,
+	socket_release,
+
 	// connections
 	socket_spawn_pending,
-	socket_delete,
 	socket_dequeue_connected,
 	socket_count_connected,
 	socket_set_max_backlog,
+	socket_has_parent,
 	socket_connected,
+	NULL, // set_aborted
 
 	// notifications
 	NULL, // request_notification,
@@ -718,7 +739,7 @@ datalink_send_data(struct net_route *route, net_buffer *buffer)
 {
 	struct context* context = (struct context*)route->gateway;
 
-	buffer->interface = &gInterface;
+	buffer->interface_address = &gInterfaceAddress;
 
 	context->lock.Lock();
 	list_add_item(&context->list, buffer);
@@ -750,6 +771,12 @@ get_route(struct net_domain *_domain, const struct sockaddr *address)
 }
 
 
+static void
+put_route(struct net_domain* _domain, net_route* route)
+{
+}
+
+
 net_datalink_module_info gNetDatalinkModule = {
 	{
 		NET_DATALINK_MODULE_NAME,
@@ -757,21 +784,32 @@ net_datalink_module_info gNetDatalinkModule = {
 		std_ops
 	},
 
-	NULL, //datalink_control,
+	NULL, // control
 	datalink_send_data,
 	datalink_send_datagram,
 
-	NULL, //is_local_address,
-	NULL, //datalink_get_interface,
-	NULL, //datalink_get_interface_with_address,
+	NULL, // is_local_address
+	NULL, // is_local_link_address
 
-	NULL, //add_route,
-	NULL, //remove_route,
+	NULL, // get_interface
+	NULL, // get_interface_with_address
+	NULL, // put_interface
+
+	NULL, // get_interface_address
+	NULL, // get_next_interface_address,
+	NULL, // put_interface_address
+
+	NULL, // join_multicast
+	NULL, // leave_multicast
+
+	NULL, // add_route,
+	NULL, // remove_route,
 	get_route,
-	NULL, //put_route,
-	NULL, //register_route_info,
-	NULL, //unregister_route_info,
-	NULL, //update_route_info
+	NULL, // get_buffer_route
+	put_route,
+	NULL, // register_route_info,
+	NULL, // unregister_route_info,
+	NULL, // update_route_info
 };
 
 
@@ -913,8 +951,6 @@ domain_get_mtu(net_protocol *protocol, const struct sockaddr *address)
 status_t
 domain_receive_data(net_buffer *buffer)
 {
-	static bigtime_t lastTime = 0;
-
 	uint32 packetNumber = atomic_add(&sPacketNumber, 1);
 
 	bool drop = false;
@@ -932,97 +968,8 @@ domain_receive_data(net_buffer *buffer)
 		snooze(sRoundTripTime / 2 + add);
 	}
 
-	if (sTCPDump) {
-		NetBufferHeaderReader<tcp_header> bufferHeader(buffer);
-		if (bufferHeader.Status() < B_OK)
-			return bufferHeader.Status();
-
-		tcp_header &header = bufferHeader.Data();
-
-		bigtime_t now = system_time();
-		if (lastTime == 0)
-			lastTime = now;
-
-		printf("\33[0m% 3ld %8.6f (%8.6f) ", packetNumber, (now - sStartTime) / 1000000.0,
-			(now - lastTime) / 1000000.0);
-		lastTime = now;
-
-		if (is_server((sockaddr *)buffer->source))
-			printf("\33[31mserver > client: ");
-		else
-			printf("client > server: ");
-
-		int32 length = buffer->size - header.HeaderLength();
-
-		if ((header.flags & TCP_FLAG_PUSH) != 0)
-			putchar('P');
-		if ((header.flags & TCP_FLAG_SYNCHRONIZE) != 0)
-			putchar('S');
-		if ((header.flags & TCP_FLAG_FINISH) != 0)
-			putchar('F');
-		if ((header.flags & TCP_FLAG_RESET) != 0)
-			putchar('R');
-		if ((header.flags
-			& (TCP_FLAG_SYNCHRONIZE | TCP_FLAG_FINISH | TCP_FLAG_PUSH | TCP_FLAG_RESET)) == 0)
-			putchar('.');
-
-		printf(" %lu:%lu (%lu)", header.Sequence(), header.Sequence() + length, length);
-		if ((header.flags & TCP_FLAG_ACKNOWLEDGE) != 0)
-			printf(" ack %lu", header.Acknowledge());
-
-		printf(" win %u", header.AdvertisedWindow());
-
-		if (header.HeaderLength() > sizeof(tcp_header)) {
-			int32 size = header.HeaderLength() - sizeof(tcp_header);
-
-			tcp_option *option;
-			uint8 optionsBuffer[1024];
-			if (gBufferModule->direct_access(buffer, sizeof(tcp_header),
-					size, (void **)&option) != B_OK) {
-				if (size > 1024) {
-					printf("options too large to take into account (%ld bytes)\n", size);
-					size = 1024;
-				}
-
-				gBufferModule->read(buffer, sizeof(tcp_header), optionsBuffer, size);
-				option = (tcp_option *)optionsBuffer;
-			}
-
-			while (size > 0) {
-				uint32 length = 1;
-				switch (option->kind) {
-					case TCP_OPTION_END:
-					case TCP_OPTION_NOP:
-						break;
-					case TCP_OPTION_MAX_SEGMENT_SIZE:
-						printf(" <mss %u>", ntohs(option->max_segment_size));
-						length = 4;
-						break;
-					case TCP_OPTION_WINDOW_SHIFT:
-						printf(" <ws %u>", option->window_shift);
-						length = 3;
-						break;
-					case TCP_OPTION_TIMESTAMP:
-						printf(" <ts %lu:%lu>", option->timestamp.value, option->timestamp.reply);
-						length = 10;
-						break;
-
-					default:
-						length = option->length;
-						// make sure we don't end up in an endless loop
-						if (length == 0)
-							size = 0;
-						break;
-				}
-
-				size -= length;
-				option = (tcp_option *)((uint8 *)option + length);
-			}
-		}
-
-		if (drop)
-			printf(" <DROPPED>");
-		printf("\33[0m\n");
+	if (sPacketMonitor != NULL) {
+		sPacketMonitor(buffer, packetNumber, drop);
 	} else if (drop)
 		printf("<**** DROPPED %ld ****>\n", packetNumber);
 
@@ -1036,15 +983,15 @@ domain_receive_data(net_buffer *buffer)
 
 
 status_t
-domain_error(uint32 code, net_buffer *data)
+domain_error(net_error error, net_buffer* data)
 {
 	return B_ERROR;
 }
 
 
 status_t
-domain_error_reply(net_protocol *protocol, net_buffer *causedError, uint32 code,
-	void *errorData)
+domain_error_reply(net_protocol* self, net_buffer* cause,
+	net_error error, net_error_data* errorData)
 {
 	return B_ERROR;
 }
@@ -1086,6 +1033,188 @@ net_protocol_module_info gDomainModule = {
 	NULL, // attach_ancillary_data
 	NULL, // process_ancillary_data
 };
+
+
+//	#pragma mark - packet capture
+
+
+static void
+dump_printf(net_buffer* buffer, int32 packetNumber, bool willBeDropped)
+{
+	static bigtime_t lastTime = 0;
+
+	NetBufferHeaderReader<tcp_header> bufferHeader(buffer);
+	if (bufferHeader.Status() < B_OK)
+		return;
+
+	tcp_header &header = bufferHeader.Data();
+
+	bigtime_t now = system_time();
+	if (lastTime == 0)
+		lastTime = now;
+
+	printf("\33[0m% 3ld %8.6f (%8.6f) ", packetNumber, (now - sStartTime) / 1000000.0,
+		(now - lastTime) / 1000000.0);
+	lastTime = now;
+
+	if (is_server((sockaddr *)buffer->source))
+		printf("\33[31mserver > client: ");
+	else
+		printf("client > server: ");
+
+	int32 length = buffer->size - header.HeaderLength();
+
+	if ((header.flags & TCP_FLAG_PUSH) != 0)
+		putchar('P');
+	if ((header.flags & TCP_FLAG_SYNCHRONIZE) != 0)
+		putchar('S');
+	if ((header.flags & TCP_FLAG_FINISH) != 0)
+		putchar('F');
+	if ((header.flags & TCP_FLAG_RESET) != 0)
+		putchar('R');
+	if ((header.flags
+		& (TCP_FLAG_SYNCHRONIZE | TCP_FLAG_FINISH | TCP_FLAG_PUSH | TCP_FLAG_RESET)) == 0)
+		putchar('.');
+
+	printf(" %lu:%lu (%lu)", header.Sequence(), header.Sequence() + length, length);
+	if ((header.flags & TCP_FLAG_ACKNOWLEDGE) != 0)
+		printf(" ack %lu", header.Acknowledge());
+
+	printf(" win %u", header.AdvertisedWindow());
+
+	if (header.HeaderLength() > sizeof(tcp_header)) {
+		int32 size = header.HeaderLength() - sizeof(tcp_header);
+
+		tcp_option *option;
+		uint8 optionsBuffer[1024];
+		if (gBufferModule->direct_access(buffer, sizeof(tcp_header),
+				size, (void **)&option) != B_OK) {
+			if (size > 1024) {
+				printf("options too large to take into account (%ld bytes)\n", size);
+				size = 1024;
+			}
+
+			gBufferModule->read(buffer, sizeof(tcp_header), optionsBuffer, size);
+			option = (tcp_option *)optionsBuffer;
+		}
+
+		while (size > 0) {
+			uint32 length = 1;
+			switch (option->kind) {
+				case TCP_OPTION_END:
+				case TCP_OPTION_NOP:
+					break;
+				case TCP_OPTION_MAX_SEGMENT_SIZE:
+					printf(" <mss %u>", ntohs(option->max_segment_size));
+					length = 4;
+					break;
+				case TCP_OPTION_WINDOW_SHIFT:
+					printf(" <ws %u>", option->window_shift);
+					length = 3;
+					break;
+				case TCP_OPTION_TIMESTAMP:
+					printf(" <ts %lu:%lu>", option->timestamp.value, option->timestamp.reply);
+					length = 10;
+					break;
+
+				default:
+					length = option->length;
+					// make sure we don't end up in an endless loop
+					if (length == 0)
+						size = 0;
+					break;
+			}
+
+			size -= length;
+			option = (tcp_option *)((uint8 *)option + length);
+		}
+	}
+
+	if (willBeDropped)
+		printf(" <DROPPED>");
+	printf("\33[0m\n");
+}
+
+
+static void
+dump_pcap(net_buffer* buffer, int32 packetNumber, bool willBeDropped)
+{
+	if (willBeDropped) {
+		printf(" <DROPPED>\n");
+		return;
+	}
+
+	const bigtime_t time = real_time_clock_usecs();
+
+	struct pcap_packet_header pcap_header;
+	pcap_header.ts_sec = time / 1000000;
+	pcap_header.ts_usec = time % 1000000;
+	pcap_header.included_len = sizeof(struct ip) + buffer->size;
+	pcap_header.original_len = pcap_header.included_len;
+
+	struct ip ip_header;
+	ip_header.ip_v = IPVERSION;
+	ip_header.ip_hl = sizeof(struct ip) >> 2;
+	ip_header.ip_tos = 0;
+	ip_header.ip_len = htons(sizeof(struct ip) + buffer->size);
+	ip_header.ip_id = htons(packetNumber);
+	ip_header.ip_off = 0;
+	ip_header.ip_ttl = 254;
+	ip_header.ip_p = IPPROTO_TCP;
+	ip_header.ip_sum = 0;
+	ip_header.ip_src.s_addr = ((sockaddr_in*)buffer->source)->sin_addr.s_addr;
+	ip_header.ip_dst.s_addr = ((sockaddr_in*)buffer->destination)->sin_addr.s_addr;
+
+	size_t count = 16, used = 0;
+	iovec vecs[count];
+
+	vecs[used].iov_base = &pcap_header;
+	vecs[used].iov_len = sizeof(pcap_header);
+	used++;
+
+	vecs[used].iov_base = &ip_header;
+	vecs[used].iov_len = sizeof(ip_header);
+	used++;
+
+	used += gNetBufferModule.get_iovecs(buffer, vecs + used, count - used);
+
+	static mutex writesLock = MUTEX_INITIALIZER("pcap writes");
+	MutexLocker _(writesLock);
+	ssize_t written = writev(sPcapFD, vecs, used);
+	if (written != (pcap_header.included_len + sizeof(pcap_packet_header))) {
+		fprintf(stderr, "writing to pcap file failed\n");
+		exit(1);
+	}
+}
+
+
+static bool
+setup_dump_pcap(const char* file)
+{
+	sPcapFD = open(file, O_CREAT | O_WRONLY | O_TRUNC);
+	if (sPcapFD < 0) {
+		fprintf(stderr, "tcp_shell: Failed to open output pcap file: %d\n",
+			errno);
+		return false;
+	}
+
+	struct pcap_header header;
+	header.magic = PCAP_MAGIC;
+	header.version_major = 2;
+	header.version_minor = 4;
+	header.timezone = 0;
+	header.timestamp_accuracy = 0;
+	header.max_packet_length = 65535;
+	header.linktype = PCAP_LINKTYPE_IPV4;
+	if (write(sPcapFD, &header, sizeof(header)) != sizeof(header)) {
+		fprintf(stderr, "tcp_shell: Failed to write pcap file header: %d\n",
+			errno);
+		return false;
+	}
+
+	sPacketMonitor = dump_pcap;
+	return true;
+}
 
 
 //	#pragma mark - test
@@ -1237,7 +1366,7 @@ void
 setup_context(struct context& context, bool server)
 {
 	list_init(&context.list);
-	context.route.interface = &gInterface;
+	context.route.interface_address = &gInterfaceAddress;
 	context.route.gateway = (sockaddr *)&context;
 		// backpointer to the context
 	context.route.mtu = 1500;
@@ -1261,7 +1390,7 @@ cleanup_context(struct context& context)
 }
 
 
-//	#pragma mark -
+//  #pragma mark -
 
 
 static void do_help(int argc, char** argv);
@@ -1316,23 +1445,33 @@ do_connect(int argc, char** argv)
 }
 
 
+static ssize_t
+parse_size(const char* arg)
+{
+	char *unit;
+	ssize_t size = strtoul(arg, &unit, 0);
+	if (unit != NULL && unit[0]) {
+		if (unit[0] == 'k' || unit[0] == 'K')
+			size *= 1024;
+		else if (unit[0] == 'm' || unit[0] == 'M')
+			size *= 1024 * 1024;
+		else {
+			fprintf(stderr, "unknown unit specified!\n");
+			return -1;
+		}
+	}
+	return size;
+}
+
+
 static void
 do_send(int argc, char** argv)
 {
-	size_t size = 1024;
+	ssize_t size = 1024;
 	if (argc > 1 && isdigit(argv[1][0])) {
-		char *unit;
-		size = strtoul(argv[1], &unit, 0);
-		if (unit != NULL && unit[0]) {
-			if (unit[0] == 'k' || unit[0] == 'K')
-				size *= 1024;
-			else if (unit[0] == 'm' || unit[0] == 'M')
-				size *= 1024 * 1024;
-			else {
-				fprintf(stderr, "unknown unit specified!\n");
-				return;
-			}
-		}
+		size = parse_size(argv[1]);
+		if (size < 0)
+			return;
 	} else if (argc > 1) {
 		fprintf(stderr, "invalid args!\n");
 		return;
@@ -1348,6 +1487,7 @@ do_send(int argc, char** argv)
 		fprintf(stderr, "not enough memory!\n");
 		return;
 	}
+	MemoryDeleter bufferDeleter(buffer);
 
 	// initialize buffer with some not so random data
 	for (uint32 i = 0; i < size; i++) {
@@ -1358,6 +1498,43 @@ do_send(int argc, char** argv)
 	if (bytesWritten < B_OK) {
 		fprintf(stderr, "failed sending buffer: %s\n", strerror(bytesWritten));
 		return;
+	}
+}
+
+
+static void
+do_send_loop(int argc, char** argv)
+{
+	if (argc != 2 || !isdigit(argv[1][0])) {
+		fprintf(stderr, "invalid args!\n");
+		return;
+	}
+	ssize_t size = parse_size(argv[1]);
+	if (size < 0)
+		return;
+
+	const size_t bufferSize = 4096;
+	char *buffer = (char *)malloc(bufferSize);
+	if (buffer == NULL) {
+		fprintf(stderr, "not enough memory!\n");
+		return;
+	}
+	MemoryDeleter bufferDeleter(buffer);
+
+	// initialize buffer with some not so random data
+	for (uint32 i = 0; i < bufferSize; i++) {
+		buffer[i] = (char)(i & 0xff);
+	}
+
+	for (ssize_t total = 0; total < size; ) {
+		ssize_t bytesWritten = socket_send(gClientSocket, buffer, bufferSize, 0);
+		if (bytesWritten < B_OK) {
+			fprintf(stderr, "failed sending buffer (after %" B_PRIdSSIZE "): %s\n",
+				total, strerror(bytesWritten));
+			return;
+		}
+
+		total += bufferSize;
 	}
 }
 
@@ -1398,7 +1575,7 @@ do_drop(int argc, char** argv)
 
 		printf("Drop pakets:\n");
 
-		set<uint32>::iterator iterator = sDropList.begin();
+		std::set<uint32>::iterator iterator = sDropList.begin();
 		uint32 count = 0;
 		for (; iterator != sDropList.end(); iterator++) {
 			printf("%4lu\n", *iterator);
@@ -1455,7 +1632,7 @@ do_reorder(int argc, char** argv)
 
 		printf("Reorder packets:\n");
 
-		set<uint32>::iterator iterator = sReorderList.begin();
+		std::set<uint32>::iterator iterator = sReorderList.begin();
 		uint32 count = 0;
 		for (; iterator != sReorderList.end(); iterator++) {
 			printf("%4lu\n", *iterator);
@@ -1544,6 +1721,7 @@ do_dprintf(int argc, char** argv)
 static cmd_entry sBuiltinCommands[] = {
 	{"connect", do_connect, "Connects the client"},
 	{"send", do_send, "Sends data from the client to the server"},
+	{"send_loop", do_send_loop, "Sends data in a loop"},
 	{"close", do_close, "Performs an active or simultaneous close"},
 	{"dprintf", do_dprintf, "Toggles debug output"},
 	{"drop", do_drop, "Lets you drop packets during transfer"},
@@ -1570,8 +1748,18 @@ do_help(int argc, char** argv)
 
 
 int
-main(int argc, char** argv)
+main(int argc, char* argv[])
 {
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-w") == 0 && (i + 1) < argc) {
+			if (!setup_dump_pcap(argv[++i]))
+				return 1;
+		}
+	}
+
+	if (sPacketMonitor == NULL)
+		sPacketMonitor = dump_printf;
+
 	status_t status = init_timers();
 	if (status < B_OK) {
 		fprintf(stderr, "tcp_tester: Could not initialize timers: %s\n",
@@ -1594,8 +1782,8 @@ main(int argc, char** argv)
 	interfaceAddress.sin_len = sizeof(sockaddr_in);
 	interfaceAddress.sin_family = AF_INET;
 	interfaceAddress.sin_addr.s_addr = htonl(0xc0a80001);
-	gInterface.address = (sockaddr*)&interfaceAddress;
-	gInterface.domain = &sDomain;
+	gInterfaceAddress.local = (sockaddr*)&interfaceAddress;
+	gInterfaceAddress.domain = &sDomain;
 
 	status = get_module("network/protocols/tcp/v1", (module_info **)&gTCPModule);
 	if (status < B_OK) {

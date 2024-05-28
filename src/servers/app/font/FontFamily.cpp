@@ -63,24 +63,6 @@ FontFamily::FontFamily(const char *name, uint16 id)
 
 
 /*!
-	\brief Destructor
-
-	Deletes all attached styles. Note that a FontFamily must only be deleted
-	by the font manager.
-*/
-FontFamily::~FontFamily()
-{
-	for (int32 i = fStyles.CountItems(); i-- > 0;) {
-		FontStyle* style = fStyles.RemoveItemAt(i);
-
-		// we remove us before deleting the style, so that the font manager
-		// is not contacted to remove the style from us
-		style->_SetFontFamily(NULL, -1);
-	}
-}
-
-
-/*!
 	\brief Returns the name of the family
 	\return The family's name
 */
@@ -134,8 +116,6 @@ FontFamily::RemoveStyle(FontStyle* style)
 
 	if (!fStyles.RemoveItem(style))
 		return false;
-
-	style->_SetFontFamily(NULL, -1);
 
 	// force a refresh if a request for font flags is needed
 	fFlags = kInvalidFamilyFlags;
@@ -233,20 +213,6 @@ FontFamily::GetStyle(const char *name) const
 	if (alternative.FindFirst("Oblique") >= 0) {
 		alternative.ReplaceFirst("Oblique", "Italic");
 		return _FindStyle(alternative.String());
-	}
-
-	return NULL;
-}
-
-
-FontStyle*
-FontFamily::GetStyleByID(uint16 id) const
-{
-	int32 count = fStyles.CountItems();
-	for (int32 i = 0; i < count; i++) {
-		FontStyle* style = fStyles.ItemAt(i);
-		if (style->ID() == id)
-			return style;
 	}
 
 	return NULL;

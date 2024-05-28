@@ -338,7 +338,7 @@ pch_i2c_scan_bus_callback(acpi_handle object, uint32 nestingLevel,
 	char* hid = NULL;
 	char* cidList[8] = { NULL };
 	status = gACPI->get_device_info((const char*)buffer.pointer, &hid,
-		(char**)&cidList, 8, NULL);
+		(char**)&cidList, 8, NULL, NULL);
 	if (status != B_OK) {
 		ERROR("pch_i2c_scan_bus_callback get_device_info failed\n");
 		return status;
@@ -402,7 +402,7 @@ init_bus(device_node* node, void** bus_cookie)
 	gDeviceManager->put_node(parent);
 
 	TRACE_ALWAYS("init_bus() addr 0x%" B_PRIxPHYSADDR " size 0x%" B_PRIx64
-		" irq 0x%x\n", bus->base_addr, bus->map_size, bus->irq);
+		" irq 0x%" B_PRIx32 "\n", bus->base_addr, bus->map_size, bus->irq);
 
 	bus->registersArea = map_physical_memory("PCHI2C memory mapped registers",
 		bus->base_addr, bus->map_size, B_ANY_KERNEL_ADDRESS,

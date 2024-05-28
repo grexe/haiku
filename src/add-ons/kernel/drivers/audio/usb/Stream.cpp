@@ -2,7 +2,6 @@
  *	Driver for USB Audio Device Class devices.
  *	Copyright (c) 2009-13 S.Zharski <imker@gmx.li>
  *	Distributed under the terms of the MIT license.
- *
  */
 
 
@@ -313,7 +312,7 @@ Stream::_QueueNextTransfer(size_t queuedBuffer, bool start)
 	status_t status = gUSBModule->queue_isochronous(fStreamEndpoint,
 		fKernelBuffers + bufferSize * queuedBuffer, bufferSize,
 		fDescriptors + queuedBuffer * packetsCount, packetsCount,
-		&fStartingFrame, start ? USB_ISO_ASAP : 0,
+		&fStartingFrame, USB_ISO_ASAP,
 		Stream::_TransferCallback, this);
 
 	TRACE(DTA, "frame:%#010x\n", fStartingFrame);
@@ -325,9 +324,12 @@ void
 Stream::_TransferCallback(void* cookie, status_t status, void* data,
 	size_t actualLength)
 {
-	TRACE(DTA, "st:%#010x, data:%#010x, len:%d\n", status, data, actualLength);
-
 	Stream* stream = (Stream*)cookie;
+
+	TRACE(status == B_OK ? DTA : ERR,
+		"stream:%010x: status:%#010x, data:%#010x, len:%d\n",
+		stream->fStreamEndpoint, status, data, actualLength);
+
 	atomic_add(&stream->fInsideNotify, 1);
 	if (status == B_CANCELED || stream->fDevice->fRemoved || !stream->fIsRunning) {
 		TRACE(ERR, "Cancelled: c:%p st:%#010x, data:%#010x, len:%d\n",
@@ -336,7 +338,9 @@ Stream::_TransferCallback(void* cookie, status_t status, void* data,
 		return;
 	}
 
+#if 0
 	stream->_DumpDescriptors();
+#endif
 
 	if (atomic_add(&stream->fProcessedBuffers, 1) > (int32)kSamplesBufferCount)
 		TRACE(ERR, "Processed buffers overflow:%d\n", stream->fProcessedBuffers);

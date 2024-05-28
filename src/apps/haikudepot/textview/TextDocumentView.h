@@ -5,6 +5,7 @@
 #ifndef TEXT_DOCUMENT_VIEW_H
 #define TEXT_DOCUMENT_VIEW_H
 
+#include <Invoker.h>
 #include <String.h>
 #include <View.h>
 
@@ -17,7 +18,7 @@ class BClipboard;
 class BMessageRunner;
 
 
-class TextDocumentView : public BView {
+class TextDocumentView : public BView, public BInvoker {
 public:
 								TextDocumentView(const char* name = NULL);
 	virtual						~TextDocumentView();
@@ -47,6 +48,8 @@ public:
 	virtual	bool				HasHeightForWidth();
 	virtual	void				GetHeightForWidth(float width, float* min,
 									float* max, float* preferred);
+
+	virtual void				Relayout();
 
 	// TextDocumentView interface
 			void				SetTextDocument(

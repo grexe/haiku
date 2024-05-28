@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 
-#define MILLIS_IN_DAY (1000 * 60 * 60 * 24)
+#define MILLIS_IN_DAY 86400000L
 
 #define HDLOGLEVELCHAR(L) ( \
 	L == LOG_LEVEL_INFO ? 'I' \
@@ -32,10 +32,12 @@
 // conditional clauses in the code to prevent this otherwise would be
 // cumbersome.
 
-#define HDLOGPREFIX(L) printf("@%08" B_PRId64 " {%c} <t:%" B_PRId32 "> ", \
-	((system_time() / 1000) % MILLIS_IN_DAY), \
+// The time element @<time> is presented in milliseconds on the current day.
+
+#define HDLOGPREFIX(L) printf("@%08" B_PRId64 " {%c} <t:%" B_PRIu32 "> ", \
+	((system_time() / 1000L) % MILLIS_IN_DAY), \
 	HDLOGLEVELCHAR(L), \
-	abs(find_thread(NULL) % 1000) \
+	Logger::CurrentThreadIndicator() \
 );
 
 #define HDLOG(L, M...) do { if (Logger::IsLevelEnabled(L)) { \
@@ -77,6 +79,8 @@ public:
 	static	bool				IsInfoEnabled();
 	static	bool				IsDebugEnabled();
 	static	bool				IsTraceEnabled();
+
+	static	uint32				CurrentThreadIndicator();
 
 private:
 	static	log_level			fLevel;

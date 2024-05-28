@@ -1,4 +1,4 @@
-1	turkish	x-vnd.Haiku-MediaPlayer	834755355
+1	turkish	x-vnd.Haiku-MediaPlayer	787895969
 Remove Entry into Trash	MediaPlayer-RemovePLItemsCmd		Girdiyi çöpe at
 Close	MediaPlayer-PlaylistWindow		Kapat
 Volume of background clips	MediaPlayer-SettingsWindow		Arka plan kliplerinin ses düzeyi
@@ -37,7 +37,7 @@ Start media server	MediaPlayer-Main		Ortam sunucusu başlat
 It appears the media server is not running.\nWould you like to start it ?	MediaPlayer-Main		Ortam sunucusu çalışmıyor gibi görünüyor.\nBaşlatılsın mı?
 Location	MediaPlayer-InfoWin		Konum
 %lu × %lu	MediaPlayer-InfoWin	The '×' is the Unicode multiplication sign U+00D7	%lu × %lu
-Opening '%s'.	MediaPlayer-Main		'%s' açılıyor.
+Opening '%s'.	MediaPlayer-Main		“%s” açılıyor.
 Medium	MediaPlayer-SettingsWindow		Orta
 Play mode	MediaPlayer-SettingsWindow		Oynatma kipi
 Playlist	MediaPlayer-PlaylistWindow		Oynatma Listesi
@@ -75,6 +75,7 @@ Audio	MediaPlayer-Main		Ses
 Quit	MediaPlayer-Main		Çık
 Redo	MediaPlayer-PlaylistWindow		Yinele
 Move Entry	MediaPlayer-MovePLItemsCmd		Girdiyi taşı
+Reset rating	MediaPlayer-Main		Derecelendirmeyi sıfırla
 <unknown>	PlaylistItem-author		<bilinmeyen>
 Cancel	MediaPlayer-SettingsWindow		Vazgeç
 Large	MediaPlayer-SettingsWindow		Geniş
@@ -95,13 +96,13 @@ Always on top	MediaPlayer-Main		Her zaman üstte
 Open	MediaPlayer-PlaylistWindow		Aç
 always	MediaPlayer-SettingsWindow		Her zaman
 Loop video	MediaPlayer-SettingsWindow		Videoyu sürekli oynat
-Stream URL:	MediaPlayer-NetworkStream		Akış URL'si:
+Stream URL:	MediaPlayer-NetworkStream		Akış URL’si:
 <unknown>	PlaylistItem-album		<bilinmeyen>
 Stream settings	MediaPlayer-Main		Akış ayarları
 none	Subtitles menu		yok
 Save Playlist	MediaPlayer-PlaylistWindow		Oynatma listesini kaydet
 Overlay	MediaPlayer-InfoWin		Bindirme
-2.35 : 1 (Cinemascope)	MediaPlayer-Main		2.35 : 1 (Cinemascope)
+2.35 : 1 (Cinemascope)	MediaPlayer-Main		2,35 : 1 (Cinemascope)
 Rating	MediaPlayer-Main		Derecelendirme
 Internal error (out of memory). Saving the playlist failed.	MediaPlayer-PlaylistWindow		İç hata (yetersiz bellek). Oynatma listesi kaydedilemedi.
 Video	MediaPlayer-Main		Video
@@ -119,7 +120,7 @@ min	MediaPlayer-InfoWin	Minutes	dak
 Saving the playlist failed:\n\nError: 	MediaPlayer-PlaylistWindow		Oynatma listesi kaydedilemedi:\n\nHata: 
 Video	MediaPlayer-InfoWin		Video
 File info…	MediaPlayer-Main		Dosya bilgisi…
-1.85 : 1 (American)	MediaPlayer-Main		1.85 : 1 (Amerikan)
+1.85 : 1 (American)	MediaPlayer-Main		1,85 : 1 (Amerikan)
 <unnamed>	PlaylistItem-name		<adsız>
 Track	Video Track Menu		Parça
 Full screen	MediaPlayer-Main		Tam ekran

@@ -63,7 +63,11 @@ AVCodecEncoder::_Init()
 		TRACE("  found AVCodec for %u: %p\n", fCodecID, fCodec);
 	}
 
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	fAudioFifo = av_fifo_alloc2(0, 1, AV_FIFO_FLAG_AUTO_GROW);
+#else
 	fAudioFifo = av_fifo_alloc(0);
+#endif
 
 	// Initial parameters, so we know if the user changed them
 	fEncodeParameters.avg_field_size = 0;
@@ -79,7 +83,11 @@ AVCodecEncoder::~AVCodecEncoder()
 	if (fSwsContext != NULL)
 		sws_freeContext(fSwsContext);
 
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	av_fifo_freep2(&fAudioFifo);
+#else
 	av_fifo_free(fAudioFifo);
+#endif
 
 	if (fFrame != NULL) {
 		av_frame_free(&fFrame);
@@ -238,6 +246,28 @@ AVCodecEncoder::Encode(const void* buffer, int64 frameCount,
 // #pragma mark -
 
 
+static int
+get_channel_count(AVCodecContext* context)
+{
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	return context->ch_layout.nb_channels;
+#else
+	return context->channels;
+#endif
+}
+
+
+static void
+set_channel_count(AVCodecContext* context, int count)
+{
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	context->ch_layout.nb_channels = count;
+#else
+	context->channels = count;
+#endif
+}
+
+
 status_t
 AVCodecEncoder::_Setup()
 {
@@ -322,11 +352,10 @@ AVCodecEncoder::_Setup()
 		// frame rate
 		fCodecContext->sample_rate = (int)fInputFormat.u.raw_audio.frame_rate;
 		// channels
-		fCodecContext->channels = fInputFormat.u.raw_audio.channel_count;
+		set_channel_count(fCodecContext, fInputFormat.u.raw_audio.channel_count);
 		// raw bitrate
-		rawBitRate = fCodecContext->sample_rate * fCodecContext->channels
-			* (fInputFormat.u.raw_audio.format
-				& media_raw_audio_format::B_AUDIO_SIZE_MASK) * 8;
+		rawBitRate = fCodecContext->sample_rate * get_channel_count(fCodecContext)
+			* (fInputFormat.u.raw_audio.format & media_raw_audio_format::B_AUDIO_SIZE_MASK) * 8;
 		// sample format
 		switch (fInputFormat.u.raw_audio.format) {
 			case media_raw_audio_format::B_AUDIO_FLOAT:
@@ -350,6 +379,17 @@ AVCodecEncoder::_Setup()
 				return B_MEDIA_BAD_FORMAT;
 				break;
 		}
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+		if (fInputFormat.u.raw_audio.channel_mask == 0) {
+			// guess the channel mask...
+			av_channel_layout_default(&fCodecContext->ch_layout,
+				fInputFormat.u.raw_audio.channel_count);
+		} else {
+			// The bits match 1:1 for media_multi_channels and FFmpeg defines.
+			av_channel_layout_from_mask(&fCodecContext->ch_layout,
+				fInputFormat.u.raw_audio.channel_mask);
+		}
+#else
 		if (fInputFormat.u.raw_audio.channel_mask == 0) {
 			// guess the channel mask...
 			switch (fInputFormat.u.raw_audio.channel_count) {
@@ -383,6 +423,7 @@ AVCodecEncoder::_Setup()
 			// The bits match 1:1 for media_multi_channels and FFmpeg defines.
 			fCodecContext->channel_layout = fInputFormat.u.raw_audio.channel_mask;
 		}
+#endif
 	} else {
 		TRACE("  UNSUPPORTED MEDIA TYPE!\n");
 		return B_NOT_SUPPORTED;
@@ -390,8 +431,7 @@ AVCodecEncoder::_Setup()
 
 	// TODO: Support letting the user overwrite this via
 	// SetEncodeParameters(). See comments there...
-	int wantedBitRate = (int)(rawBitRate / fBitRateScale
-		* fEncodeParameters.quality);
+	int wantedBitRate = (int)(rawBitRate / fBitRateScale * fEncodeParameters.quality);
 	if (wantedBitRate == 0)
 		wantedBitRate = (int)(rawBitRate / fBitRateScale);
 
@@ -492,22 +532,33 @@ AVCodecEncoder::_EncodeAudio(const void* _buffer, int64 frameCount,
 	if (fCodecContext->frame_size > 1) {
 		// Encoded audio. Things work differently from raw audio. We need
 		// the fAudioFifo to pipe data.
-		if (av_fifo_realloc2(fAudioFifo,
-				av_fifo_size(fAudioFifo) + bufferSize) < 0) {
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+		if (av_fifo_grow2(fAudioFifo, bufferSize) < 0) {
+			TRACE("  av_fifo_grow2() failed\n");
+			return B_NO_MEMORY;
+		}
+		av_fifo_write(fAudioFifo, const_cast<uint8*>(buffer), bufferSize);
+#else
+		if (av_fifo_realloc2(fAudioFifo, av_fifo_size(fAudioFifo) + bufferSize) < 0) {
 			TRACE("  av_fifo_realloc2() failed\n");
-            return B_NO_MEMORY;
-        }
-        av_fifo_generic_write(fAudioFifo, const_cast<uint8*>(buffer),
-        	bufferSize, NULL);
+			return B_NO_MEMORY;
+		}
+		av_fifo_generic_write(fAudioFifo, const_cast<uint8*>(buffer), bufferSize, NULL);
+#endif
 
-		int frameBytes = fCodecContext->frame_size * inputFrameSize;
+		size_t frameBytes = fCodecContext->frame_size * inputFrameSize;
 		uint8* tempBuffer = new(std::nothrow) uint8[frameBytes];
 		if (tempBuffer == NULL)
 			return B_NO_MEMORY;
 
 		// Encode as many chunks as can be read from the FIFO.
-		while (av_fifo_size(fAudioFifo) >= frameBytes) {
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+		while (av_fifo_can_read(fAudioFifo) >= frameBytes) {
+			av_fifo_read(fAudioFifo, tempBuffer, frameBytes);
+#else
+		while (av_fifo_size(fAudioFifo) >= (int32)frameBytes) {
 			av_fifo_generic_read(fAudioFifo, tempBuffer, frameBytes, NULL);
+#endif
 
 			ret = _EncodeAudio(tempBuffer, frameBytes, fCodecContext->frame_size,
 				info);
@@ -534,12 +585,11 @@ AVCodecEncoder::_EncodeAudio(const uint8* buffer, size_t bufferSize,
 	status_t ret;
 
 	// Encode one audio chunk/frame.
-	AVPacket packet;
-	av_init_packet(&packet);
+	AVPacket* packet = av_packet_alloc();
 	// By leaving these NULL, we let the encoder allocate memory as it needs.
 	// This way we don't risk iving a too small buffer.
-	packet.data = NULL;
-	packet.size = 0;
+	packet->data = NULL;
+	packet->size = 0;
 
 	int gotPacket = 0;
 
@@ -547,11 +597,12 @@ AVCodecEncoder::_EncodeAudio(const uint8* buffer, size_t bufferSize,
 		av_frame_unref(fFrame);
 		fFrame->nb_samples = frameCount;
 
-		int count = avcodec_fill_audio_frame(fFrame, fCodecContext->channels,
-				fCodecContext->sample_fmt, (const uint8_t *) buffer, bufferSize, 1);
+		int count = avcodec_fill_audio_frame(fFrame, get_channel_count(fCodecContext),
+			fCodecContext->sample_fmt, (const uint8_t*)buffer, bufferSize, 1);
 
 		if (count < 0) {
 			TRACE("  avcodec_encode_audio() failed filling data: %d\n", count);
+			av_packet_free(&packet);
 			return B_ERROR;
 		}
 
@@ -561,11 +612,11 @@ AVCodecEncoder::_EncodeAudio(const uint8* buffer, size_t bufferSize,
 		fFramesWritten += fFrame->nb_samples;
 
 		ret = avcodec_send_frame(fCodecContext, fFrame);
-		gotPacket = avcodec_receive_packet(fCodecContext, &packet) == 0;
+		gotPacket = avcodec_receive_packet(fCodecContext, packet) == 0;
 	} else {
 		// If called with NULL, ask the encoder to flush any buffers it may
 		// have pending.
-		ret = avcodec_receive_packet(fCodecContext, &packet);
+		ret = avcodec_receive_packet(fCodecContext, packet);
 		gotPacket = (ret == 0);
 	}
 
@@ -574,6 +625,7 @@ AVCodecEncoder::_EncodeAudio(const uint8* buffer, size_t bufferSize,
 
 	if (ret != 0) {
 		TRACE("  avcodec_encode_audio() failed: %s\n", strerror(ret));
+		av_packet_free(&packet);
 		return B_ERROR;
 	}
 
@@ -581,23 +633,23 @@ AVCodecEncoder::_EncodeAudio(const uint8* buffer, size_t bufferSize,
 
 	if (gotPacket) {
 		// Setup media_encode_info, most important is the time stamp.
-		info->start_time = packet.pts;
+		info->start_time = packet->pts;
 
-		if (packet.flags & AV_PKT_FLAG_KEY)
+		if (packet->flags & AV_PKT_FLAG_KEY)
 			info->flags = B_MEDIA_KEY_FRAME;
 		else
 			info->flags = 0;
 
 		// We got a packet out of the encoder, write it to the output stream
-		ret = WriteChunk(packet.data, packet.size, info);
+		ret = WriteChunk(packet->data, packet->size, info);
 		if (ret != B_OK) {
 			TRACE("  error writing chunk: %s\n", strerror(ret));
-			av_packet_unref(&packet);
+			av_packet_free(&packet);
 			return ret;
 		}
 	}
 
-	av_packet_unref(&packet);
+	av_packet_free(&packet);
 	return B_OK;
 }
 

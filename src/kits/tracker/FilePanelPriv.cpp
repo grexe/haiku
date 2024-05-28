@@ -168,11 +168,10 @@ key_down_filter(BMessage* message, BHandler** handler, BMessageFilter* filter)
 
 TFilePanel::TFilePanel(file_panel_mode mode, BMessenger* target,
 	const BEntry* startDir, uint32 nodeFlavors, bool multipleSelection,
-	BMessage* message, BRefFilter* filter, uint32 containerWindowFlags,
-	window_look look, window_feel feel, bool hideWhenDone)
+	BMessage* message, BRefFilter* filter, uint32 openFlags, window_look look,
+	window_feel feel, uint32 windowFlags, uint32 workspace, bool hideWhenDone)
 	:
-	BContainerWindow(0, containerWindowFlags, look, feel, 0,
-		B_CURRENT_WORKSPACE, false),
+	BContainerWindow(0, openFlags, look, feel, windowFlags, workspace, false),
 	fDirMenu(NULL),
 	fDirMenuField(NULL),
 	fTextControl(NULL),
@@ -838,10 +837,6 @@ TFilePanel::Init(const BMessage*)
 			if (item && menu->RemoveItem(item))
 				delete item;
 
-			item = menu->FindItem(kDuplicateSelection);
-			if (item && menu->RemoveItem(item))
-				delete item;
-
 			// remove add-ons menu, identifier menu, separator
 			item = menu->FindItem(B_TRANSLATE("Add-ons"));
 			if (item) {
@@ -972,10 +967,9 @@ TFilePanel::AddFileContextMenus(BMenu* menu)
 		new BMessage(kGetInfo), 'I'));
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit name"),
 		new BMessage(kEditItem), 'E'));
-
-	menu->AddItem(new BMenuItem(TrackerSettings().DontMoveFilesToTrash()
-		? B_TRANSLATE("Delete")
-		: B_TRANSLATE("Move to Trash"),
+	menu->AddItem(new BMenuItem(B_TRANSLATE("Duplicate"),
+		new BMessage(kDuplicateSelection), 'D'));
+	menu->AddItem(new BMenuItem(B_TRANSLATE("Move to Trash"),
 		new BMessage(kMoveToTrash), 'T'));
 	menu->AddSeparatorItem();
 
@@ -1009,9 +1003,9 @@ TFilePanel::AddVolumeContextMenus(BMenu* menu)
 		new BMessage(kGetInfo), 'I'));
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit name"),
 		new BMessage(kEditItem), 'E'));
-	menu->AddSeparatorItem();
 
 #if CUT_COPY_PASTE_IN_CONTEXT_MENU
+	menu->AddSeparatorItem();
 	BMenuItem* pasteItem = new BMenuItem(B_TRANSLATE("Paste"),
 		new BMessage(B_PASTE), 'V');
 #endif
@@ -1079,14 +1073,13 @@ TFilePanel::MenusBeginning()
 		PoseView()->CommitActivePose();
 	}
 
-	int32 selectCount = PoseView()->CountSelected();
-
 	EnableNamedMenuItem(fMenuBar, kNewFolder, !TargetModel()->IsRoot()
 		&& !PoseView()->TargetVolumeIsReadOnly());
-	EnableNamedMenuItem(fMenuBar, kMoveToTrash, !TargetModel()->IsRoot()
-		&& selectCount > 0 && !PoseView()->SelectedVolumeIsReadOnly());
-	EnableNamedMenuItem(fMenuBar, kGetInfo, selectCount > 0);
-	EnableNamedMenuItem(fMenuBar, kEditItem, selectCount == 1);
+	EnableNamedMenuItem(fMenuBar, kDuplicateSelection,
+		PoseView()->CanMoveToTrashOrDuplicate());
+	EnableNamedMenuItem(fMenuBar, kMoveToTrash,
+		PoseView()->CanMoveToTrashOrDuplicate());
+	EnableNamedMenuItem(fMenuBar, kEditItem, PoseView()->CanEditName());
 
 	SetCutItem(fMenuBar);
 	SetCopyItem(fMenuBar);
@@ -1121,19 +1114,19 @@ TFilePanel::ShowContextMenu(BPoint where, const entry_ref* ref)
 			// Volume context menu
 			fContextMenu = fVolumeContextMenu;
 			EnableNamedMenuItem(fContextMenu, kOpenSelection, true);
-			EnableNamedMenuItem(fContextMenu, kGetInfo, true);
-			EnableNamedMenuItem(fContextMenu, kEditItem, !(model.IsDesktop()
-				|| model.IsRoot() || model.IsTrash()));
+			EnableNamedMenuItem(fContextMenu, kEditItem,
+				PoseView()->CanEditName());
 
 			SetPasteItem(fContextMenu);
 		} else {
 			// File context menu
 			fContextMenu = fFileContextMenu;
-			EnableNamedMenuItem(fContextMenu, kGetInfo, true);
-			EnableNamedMenuItem(fContextMenu, kEditItem, !(model.IsDesktop()
-				|| model.IsRoot() || model.IsTrash()));
+			EnableNamedMenuItem(fContextMenu, kEditItem,
+				PoseView()->CanEditName());
+			EnableNamedMenuItem(fContextMenu, kDuplicateSelection,
+				PoseView()->CanMoveToTrashOrDuplicate());
 			EnableNamedMenuItem(fContextMenu, kMoveToTrash,
-				!PoseView()->SelectedVolumeIsReadOnly());
+				PoseView()->CanMoveToTrashOrDuplicate());
 
 			SetCutItem(fContextMenu);
 			SetCopyItem(fContextMenu);
@@ -1147,9 +1140,6 @@ TFilePanel::ShowContextMenu(BPoint where, const entry_ref* ref)
 				&& !PoseView()->TargetVolumeIsReadOnly());
 		EnableNamedMenuItem(fContextMenu, kOpenParentDir,
 			!TargetModel()->IsRoot());
-		EnableNamedMenuItem(fContextMenu, kMoveToTrash,
-			!TargetModel()->IsRoot() && PoseView()->CountSelected() > 0
-				&& !PoseView()->SelectedVolumeIsReadOnly());
 
 		SetPasteItem(fContextMenu);
 	}
@@ -1240,7 +1230,7 @@ TFilePanel::MessageReceived(BMessage* message)
 
 	switch (message->what) {
 		case B_REFS_RECEIVED:
-			// item was double clicked in file panel (PoseView)
+			// item was double clicked in file panel (PoseView) or from the favorites menu
 			if (message->FindRef("refs", &ref) == B_OK) {
 				BEntry entry(&ref, true);
 				if (entry.InitCheck() == B_OK) {
@@ -1257,12 +1247,15 @@ TFilePanel::MessageReceived(BMessage* message)
 						SwitchDirMenuTo(&ref);
 					} else {
 						// Otherwise, we have a file or a link to a file.
-						// AdjustButton has already tested the flavor;
-						// all we have to do is see if the button is enabled.
-						BButton* button = dynamic_cast<BButton*>(
-							FindView("default button"));
-						if (button == NULL || !button->IsEnabled())
-							break;
+						// AdjustButton has already tested the flavor if it comes from the file
+						// panel; all we have to do is see if the button is enabled.
+						// In other cases, however, we can't rely on that. So first check for
+						// TrackerViewToken in the message to see if it's coming from the pose view
+						if (message->HasMessenger("TrackerViewToken")) {
+							BButton* button = dynamic_cast<BButton*>(FindView("default button"));
+							if (button == NULL || !button->IsEnabled())
+								break;
+						}
 
 						if (IsSavePanel()) {
 							int32 count = 0;

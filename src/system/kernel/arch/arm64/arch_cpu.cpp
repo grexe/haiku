@@ -62,18 +62,12 @@ arch_cpu_shutdown(bool reboot)
 void
 arch_cpu_sync_icache(void *address, size_t len)
 {
-}
-
-
-void
-arch_cpu_memory_read_barrier(void)
-{
-}
-
-
-void
-arch_cpu_memory_write_barrier(void)
-{
+	asm(
+		"dsb ishst\n"
+		"ic ialluis\n"
+		"dsb ish\n"
+		"isb"
+	);
 }
 
 

@@ -288,8 +288,7 @@ public:
 	// Move to trash calls try to select the next pose in the view
 	// when they are dones
 	virtual void MoveSelectionToTrash(bool selectNext = true);
-	virtual void DeleteSelection(bool selectNext = true,
-		bool askUser = true);
+	virtual void DeleteSelection(bool selectNext = true, bool confirm = true);
 	virtual void MoveEntryToTrash(const entry_ref*,
 		bool selectNext = true);
 
@@ -308,6 +307,8 @@ public:
 	int32 CountSelected() const;
 	bool SelectedVolumeIsReadOnly() const;
 	bool TargetVolumeIsReadOnly() const;
+	bool CanEditName() const;
+	bool CanMoveToTrashOrDuplicate() const;
 
 	void SetSelectionHandler(BLooper* looper);
 
@@ -422,7 +423,7 @@ public:
 
 protected:
 	// view setup
-	virtual void SetUpDefaultColumnsIfNeeded();
+	virtual void SetupDefaultColumnsIfNeeded();
 
 	virtual EntryListBase* InitDirentIterator(const entry_ref*);
 		// sets up an entry iterator for _add_poses_
@@ -666,9 +667,11 @@ protected:
 	void SendSelectionAsRefs(uint32 what, bool onlyQueries = false);
 	void MoveListToTrash(BObjectList<entry_ref>*, bool selectNext,
 		bool deleteDirectly);
-	void Delete(BObjectList<entry_ref>*, bool selectNext, bool askUser);
-	void Delete(const entry_ref&ref, bool selectNext, bool askUser);
+	void Delete(BObjectList<entry_ref>*, bool selectNext, bool confirm);
+	void Delete(const entry_ref&ref, bool selectNext, bool confirm);
 	void RestoreItemsFromTrash(BObjectList<entry_ref>*, bool selectNext);
+	void DoDelete();
+	void DoMoveToTrash();
 
 	void WatchParentOf(const entry_ref*);
 	void StopWatchingParentsOf(const entry_ref*);
@@ -678,7 +681,6 @@ protected:
 private:
 	void DrawOpenAnimation(BRect);
 	void ApplyBackgroundColor();
-	float BackTint() const;
 	rgb_color InvertedBackColor() const;
 
 	void MoveSelectionOrEntryToTrash(const entry_ref* ref, bool selectNext);
@@ -1041,24 +1043,11 @@ BPoseView::DeskTextColor() const
 	rgb_color textColor = HighColor();
 	rgb_color viewColor = ViewColor();
 
-	int textBrightness = BPrivate::perceptual_brightness(textColor);
-	int viewBrightness = BPrivate::perceptual_brightness(viewColor);
-	if (abs(viewBrightness - textBrightness) > 127) {
-		// The colors are different enough, we can use them as is
+	// The colors are different enough, we can use them as is
+	if (rgb_color::Contrast(viewColor, textColor) > 127)
 		return textColor;
-	} else {
-		if (viewBrightness > 127) {
-			textColor.red = 0;
-			textColor.green = 0;
-			textColor.blue = 0;
-		} else {
-			textColor.red = 255;
-			textColor.green = 255;
-			textColor.blue = 255;
-		}
 
-		return textColor;
-	}
+	return viewColor.IsLight() ? kBlack : kWhite;
 }
 
 

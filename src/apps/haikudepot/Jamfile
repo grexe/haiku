@@ -59,6 +59,7 @@ local sourceDirs =
 	edits_generic
 	model
 	packagemanagement
+	packagemodel
 	process
 	textview
 	ui
@@ -137,10 +138,10 @@ local applicationSources =
 	Model.cpp
 	PackageContentsView.cpp
 	PackageIconTarRepository.cpp
-	PackageInfo.cpp
 	PackageInfoListener.cpp
 	PackageInfoView.cpp
 	PackageListView.cpp
+	PackageScreenshotRepository.cpp
 	PasswordRequirements.cpp
 	RatePackageWindow.cpp
 	RatingView.cpp
@@ -148,6 +149,7 @@ local applicationSources =
 	RatingUtils.cpp
 	support.cpp
 	ScreenshotWindow.cpp
+	ScreenshotCoordinate.cpp
 	ScrollableGroupView.cpp
 	SettingsWindow.cpp
 	SharedBitmap.cpp
@@ -170,13 +172,26 @@ local applicationSources =
 	PackageManager.cpp
 	UninstallPackageProcess.cpp
 
+	#packagemodel
+	DepotInfo.cpp
+	Language.cpp
+	PackageCategory.cpp
+	PackageInfo.cpp
+	PublisherInfo.cpp
+	RatingSummary.cpp
+	ScreenshotInfo.cpp
+	UserInfo.cpp
+	UserRating.cpp
+
 	# network + server / local processes
 	AbstractProcess.cpp
 	AbstractProcessNode.cpp
 	AbstractServerProcess.cpp
 	AbstractSingleFileServerProcess.cpp
+	CacheScreenshotProcess.cpp
 	LocalPkgDataLoadProcess.cpp
 	LocalRepositoryUpdateProcess.cpp
+	PopulatePkgSizesProcess.cpp
 	ProcessCoordinator.cpp
 	ProcessCoordinatorFactory.cpp
 	ServerHelper.cpp
@@ -201,7 +216,6 @@ local applicationSources =
 	LanguageMenuUtils.cpp
 	LocaleUtils.cpp
 	PackageUtils.cpp
-	RepositoryUrlUtils.cpp
 	StorageUtils.cpp
 	StringUtils.cpp
 	LoggingUrlProtocolListener.cpp

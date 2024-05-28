@@ -229,7 +229,7 @@ ShowImageWindow::ShowImageWindow(BRect frame, const entry_ref& ref,
 		false, false, B_PLAIN_BORDER);
 	BGridLayout* gridLayout = new BGridLayout(0, 0);
 	fScrollArea->SetLayout(gridLayout);
-	gridLayout->SetInsets(1, 1, -1, -1);
+	gridLayout->SetInsets(0, 1, -1, -1);
 
 	fScrollArea->MoveTo(viewFrame.LeftTop());
 	fScrollArea->ResizeTo(viewFrame.Size());
@@ -281,7 +281,13 @@ ShowImageWindow::ShowImageWindow(BRect frame, const entry_ref& ref,
 	_BuildViewMenu(menu, false);
 	fBar->AddItem(menu);
 
-	fBar->AddItem(_BuildRatingMenu());
+	menu = new BMenu(B_TRANSLATE_CONTEXT("Attributes", "Menus"));
+	menu->AddItem(_BuildRatingMenu());
+	BMessage* message = new BMessage(MSG_SET_RATING);
+	message->AddInt32("rating", 0);
+	fResetRatingItem = new BMenuItem(B_TRANSLATE("Reset rating"), message);
+	menu->AddItem(fResetRatingItem);
+	fBar->AddItem(menu);
 
 	SetPulseRate(100000);
 		// every 1/10 second; ShowImageView needs it for marching ants
@@ -399,14 +405,13 @@ ShowImageWindow::_BuildRatingMenu()
 {
 	fRatingMenu = new BMenu(B_TRANSLATE("Rating"));
 	for (int32 i = 1; i <= 10; i++) {
-		BString label;
-		label << i;
 		BMessage* message = new BMessage(MSG_SET_RATING);
+		BString label;
+		fNumberFormat.Format(label, i);
 		message->AddInt32("rating", i);
 		fRatingMenu->AddItem(new BMenuItem(label.String(), message));
 	}
-	// NOTE: We may want to encapsulate the Rating menu within a more
-	// general "Attributes" menu.
+
 	return fRatingMenu;
 }
 
@@ -1144,15 +1149,21 @@ ShowImageWindow::_GetFileInfo(const entry_ref& ref)
 void
 ShowImageWindow::_UpdateStatusText(const BMessage* message)
 {
-	BString frameText;
+	BString frameText, height, width;
 	if (fImageView->Bitmap() != NULL) {
 		BRect bounds = fImageView->Bitmap()->Bounds();
-		frameText << bounds.IntegerWidth() + 1
-			<< "x" << bounds.IntegerHeight() + 1;
+		fNumberFormat.Format(width, bounds.IntegerWidth() + 1);
+		fNumberFormat.Format(height, bounds.IntegerHeight() + 1);
+		frameText.SetToFormat("%s × %s", width.String(), height.String());
 	}
-	BString pages;
-	if (fNavigator.PageCount() > 1)
-		pages << fNavigator.CurrentPage() << "/" << fNavigator.PageCount();
+
+	BString currentPage, pageCount, pages;
+	if (fNavigator.PageCount() > 1) {
+		fNumberFormat.Format(currentPage, fNavigator.CurrentPage());
+		fNumberFormat.Format(pageCount, fNavigator.PageCount());
+		pages.SetToFormat("%s / %s", currentPage.String(), pageCount.String());
+	}
+
 	fStatusView->Update(fNavigator.CurrentRef(), frameText, pages, fImageType,
 		fImageView->Zoom());
 }
@@ -1177,10 +1188,9 @@ void
 ShowImageWindow::_SaveAs(BMessage* message)
 {
 	// Read the translator and output type the user chose
-	translator_id outTranslator;
+	int32 outTranslator;
 	uint32 outType;
-	if (message->FindInt32(kTranslatorField,
-			reinterpret_cast<int32 *>(&outTranslator)) != B_OK
+	if (message->FindInt32(kTranslatorField, &outTranslator) != B_OK
 		|| message->FindInt32(kTypeField,
 			reinterpret_cast<int32 *>(&outType)) != B_OK)
 		return;
@@ -1195,6 +1205,7 @@ ShowImageWindow::_SaveAs(BMessage* message)
 	BMessenger target(this);
 	fSavePanel = new (std::nothrow) BFilePanel(B_SAVE_PANEL,
 		&target, NULL, 0, false, &panelMsg);
+
 	if (!fSavePanel)
 		return;
 
@@ -1205,6 +1216,12 @@ ShowImageWindow::_SaveAs(BMessage* message)
 			settings->GetString("SaveDirectory", NULL));
 		settings->Unlock();
 	}
+
+	// Prefill current image's file name in save dialog
+	BEntry entry = fImageView->Image();
+	BPath path(&entry);
+	const char* filename = path.Leaf();
+	fSavePanel->SetSaveText(filename);
 
 	fSavePanel->Window()->SetWorkspaces(B_CURRENT_WORKSPACE);
 	fSavePanel->Show();
@@ -1225,10 +1242,9 @@ ShowImageWindow::_SaveToFile(BMessage* message)
 
 	// Read in the translator and type to be used
 	// to save the output image
-	translator_id outTranslator;
+	int32 outTranslator;
 	uint32 outType;
-	if (message->FindInt32(kTranslatorField,
-			reinterpret_cast<int32 *>(&outTranslator)) != B_OK
+	if (message->FindInt32(kTranslatorField, &outTranslator) != B_OK
 		|| message->FindInt32(kTypeField,
 			reinterpret_cast<int32 *>(&outType)) != B_OK)
 		return;
@@ -1601,6 +1617,7 @@ ShowImageWindow::_UpdateRatingMenu()
 			break;
 		item->SetMarked(i == rating);
 	}
+	fResetRatingItem->SetEnabled(rating > 0);
 }
 
 

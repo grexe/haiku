@@ -1,4 +1,4 @@
-1	portuguese	x-vnd.Haiku-libtracker	4267611234
+1	portuguese	x-vnd.Haiku-libtracker	1893940391
 Created	ContainerWindow		Criado
 Icon	AttributesView		Ícone
 Open and make preferred	OpenWithWindow		Abrir e tornar preferida
@@ -114,7 +114,6 @@ Hide dotfiles	SettingsView		Esconder ficheiros com nome iniciando por ponto
 Trash	Model		Lixo
 Enable type-ahead filtering	SettingsView		Ativar filtragem imediata ao digitar
 copy	FSUtils	filename copy	cópia
-New folder%ld	FSUtils		Nova pasta%ld
 Location	OpenWithWindow		Localização
 Resize to fit	QueryContainerWindow		Redimensionar para caber
 List folders first	SettingsView		Listar pastas primeiro
@@ -158,7 +157,6 @@ The Tracker must be running to see Info windows.	PoseView		Para visualizar janel
 Tracker preferences	TrackerSettingsWindow		Preferências do Tracker
 Read	FilePermissionsView		Leitura
 There was an error writing the attribute.	WidgetAttributeText		Ocorreu um erro ao gravar o atributo.
-Path	Default Query Columns		Caminho
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		Se alterar o nome de %target, %osName poderá não funcionar corretamente!\n\nTem a certeza de que quer fazer isto?
 Filesystem:	InfoWindow		Sistema de ficheiros:
 Could not open \"%name\" (%error). 	FSUtils		Não foi possível abrir \"%name\" (%error). 
@@ -244,7 +242,6 @@ Recent queries	FindPanel		Consultas recentes
 Mount all	MountMenu		Montar tudo
 Size	Default Query Columns		Tamanho
 Favorites	FavoritesMenu		Favoritos
-Delete	FilePanelPriv		Apagar
 <No recent items>	FavoritesMenu		<Nenhum item recente>
 Formula %formula	FindPanel	FindResultTitle	Fórmula %formula
 Preparing to create links…	StatusWindow		A preparar para criar ligações…
@@ -450,7 +447,6 @@ Move to Trash	FilePanelPriv		Mover para o Lixo
 is	FindPanel		é
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		Se alterar o nome da pasta de sistema ou do seu conteúdo, deixará de conseguir arrancar o %osName!\n\nTem a certeza de que pretende fazer isso?\n\nPara alterar de qualquer modo o nome da pasta de sistema ou do seu conteúdo, mantenha premida a tecla  Maiúsculas (Shift) e clique  \"Alterar nome\".
 Permissions	FilePermissionsView		Permissões
-New folder %ld	FSUtils		Nova pasta %ld
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" é um executável antigo. Por favor, procure uma versão atualizada ou volte a compilar a aplicação.
 Only the boot disk	AutoMounterSettings		Apenas o disco de arranque
 Message	AttributesView		Mensagem

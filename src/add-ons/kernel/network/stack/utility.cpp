@@ -28,38 +28,6 @@
 #endif
 
 
-// internal Fifo class which doesn't maintain it's own lock
-// TODO: do we need this one for anything?
-class Fifo {
-public:
-	Fifo(const char* name, size_t maxBytes);
-	~Fifo();
-
-	status_t InitCheck() const;
-
-	status_t Enqueue(net_buffer* buffer);
-	status_t EnqueueAndNotify(net_buffer* _buffer, net_socket* socket,
-		uint8 event);
-	status_t Wait(mutex* lock, bigtime_t timeout);
-	net_buffer* Dequeue(bool clone);
-	status_t Clear();
-
-	void WakeAll();
-
-	bool IsEmpty() const { return current_bytes == 0; }
-
-//private:
-	// these field names are kept so we can use templatized
-	// functions together with net_fifo
-	sem_id		notify;
-	int32		waiting;
-	size_t		max_bytes;
-	size_t		current_bytes;
-	struct list	buffers;
-};
-
-
-
 static struct list sTimers;
 static mutex sTimerLock;
 static sem_id sTimerWaitSem;
@@ -67,60 +35,6 @@ static ConditionVariable sWaitForTimerCondition;
 static net_timer* sCurrentTimer;
 static thread_id sTimerThread;
 static bigtime_t sTimerTimeout;
-
-
-static inline void
-fifo_notify_one_reader(int32& waiting, sem_id sem)
-{
-	if (waiting > 0) {
-		waiting--;
-		release_sem_etc(sem, 1, B_DO_NOT_RESCHEDULE);
-	}
-}
-
-
-template<typename FifoType> static inline status_t
-base_fifo_init(FifoType* fifo, const char* name, size_t maxBytes)
-{
-	fifo->notify = create_sem(0, name);
-	fifo->max_bytes = maxBytes;
-	fifo->current_bytes = 0;
-	fifo->waiting = 0;
-	list_init(&fifo->buffers);
-
-	return fifo->notify;
-}
-
-
-template<typename FifoType> static inline status_t
-base_fifo_enqueue_buffer(FifoType* fifo, net_buffer* buffer)
-{
-	if (fifo->max_bytes > 0
-		&& fifo->current_bytes + buffer->size > fifo->max_bytes)
-		return ENOBUFS;
-
-	list_add_item(&fifo->buffers, buffer);
-	fifo->current_bytes += buffer->size;
-	fifo_notify_one_reader(fifo->waiting, fifo->notify);
-
-	return B_OK;
-}
-
-
-template<typename FifoType> static inline status_t
-base_fifo_clear(FifoType* fifo)
-{
-	while (true) {
-		net_buffer* buffer = (net_buffer*)list_remove_head_item(&fifo->buffers);
-		if (buffer == NULL)
-			break;
-
-		gNetBufferModule.free(buffer);
-	}
-
-	fifo->current_bytes = 0;
-	return B_OK;
-}
 
 
 // #pragma mark - UserBuffer
@@ -234,112 +148,35 @@ notify_socket(net_socket* socket, uint8 event, int32 value)
 }
 
 
-//	#pragma mark - FIFOs
-
-
-Fifo::Fifo(const char* name, size_t maxBytes)
+static inline void
+fifo_notify_one_reader(int32& waiting, sem_id sem)
 {
-	base_fifo_init(this, name, maxBytes);
-}
-
-
-Fifo::~Fifo()
-{
-	Clear();
-	delete_sem(notify);
-}
-
-
-status_t
-Fifo::InitCheck() const
-{
-	return !(notify < B_OK);
-}
-
-
-status_t
-Fifo::Enqueue(net_buffer* buffer)
-{
-	return base_fifo_enqueue_buffer(this, buffer);
-}
-
-
-status_t
-Fifo::EnqueueAndNotify(net_buffer* _buffer, net_socket* socket, uint8 event)
-{
-	net_buffer *buffer = gNetBufferModule.clone(_buffer, false);
-	if (buffer == NULL)
-		return B_NO_MEMORY;
-
-	status_t status = Enqueue(buffer);
-	if (status < B_OK)
-		gNetBufferModule.free(buffer);
-	else
-		notify_socket(socket, event, current_bytes);
-
-	return status;
-}
-
-
-status_t
-Fifo::Wait(mutex* lock, bigtime_t timeout)
-{
-	waiting++;
-	mutex_unlock(lock);
-	status_t status = acquire_sem_etc(notify, 1,
-		B_CAN_INTERRUPT | B_ABSOLUTE_TIMEOUT, timeout);
-	mutex_lock(lock);
-	return status;
-}
-
-
-net_buffer*
-Fifo::Dequeue(bool clone)
-{
-	net_buffer* buffer = (net_buffer*)list_get_first_item(&buffers);
-
-	// assert(buffer != NULL);
-
-	if (clone) {
-		buffer = gNetBufferModule.clone(buffer, false);
-		fifo_notify_one_reader(waiting, notify);
-	}else {
-		list_remove_item(&buffers, buffer);
-		current_bytes -= buffer->size;
+	if (waiting > 0) {
+		waiting--;
+		release_sem_etc(sem, 1, B_DO_NOT_RESCHEDULE);
 	}
-
-	return buffer;
 }
 
 
-status_t
-Fifo::Clear()
-{
-	return base_fifo_clear(this);
-}
-
-
-void
-Fifo::WakeAll()
-{
-#ifdef __HAIKU__
-	release_sem_etc(notify, 0, B_RELEASE_ALL);
-#else
-	release_sem_etc(notify, 0, waiting);
-#endif
-}
+//	#pragma mark - fifo
 
 
 status_t
 init_fifo(net_fifo* fifo, const char* name, size_t maxBytes)
 {
 	mutex_init_etc(&fifo->lock, name, MUTEX_FLAG_CLONE_NAME);
-
-	status_t status = base_fifo_init(fifo, name, maxBytes);
-	if (status < B_OK)
+	fifo->notify = create_sem(0, name);
+	if (fifo->notify < B_OK) {
 		mutex_destroy(&fifo->lock);
+		return fifo->notify;
+	}
 
-	return status;
+	fifo->max_bytes = maxBytes;
+	fifo->current_bytes = 0;
+	fifo->waiting = 0;
+	list_init(&fifo->buffers);
+
+	return B_OK;
 }
 
 
@@ -353,6 +190,21 @@ uninit_fifo(net_fifo* fifo)
 }
 
 
+static inline status_t
+base_fifo_enqueue_buffer(net_fifo* fifo, net_buffer* buffer)
+{
+	if (fifo->max_bytes > 0
+		&& fifo->current_bytes + buffer->size > fifo->max_bytes)
+		return ENOBUFS;
+
+	list_add_item(&fifo->buffers, buffer);
+	fifo->current_bytes += buffer->size;
+	fifo_notify_one_reader(fifo->waiting, fifo->notify);
+
+	return B_OK;
+}
+
+
 status_t
 fifo_enqueue_buffer(net_fifo* fifo, net_buffer* buffer)
 {
@@ -363,7 +215,7 @@ fifo_enqueue_buffer(net_fifo* fifo, net_buffer* buffer)
 
 /*!	Gets the first buffer from the FIFO. If there is no buffer, it
 	will wait depending on the \a flags and \a timeout.
-	The following flags are supported (the rest is ignored):
+	The following flags are supported:
 		MSG_DONTWAIT - ignores the timeout and never wait for a buffer; if your
 			socket is O_NONBLOCK, you should specify this flag. A \a timeout of
 			zero is equivalent to this flag, though.
@@ -374,8 +226,11 @@ ssize_t
 fifo_dequeue_buffer(net_fifo* fifo, uint32 flags, bigtime_t timeout,
 	net_buffer** _buffer)
 {
+	if ((flags & ~(MSG_DONTWAIT | MSG_PEEK)) != 0)
+		return EOPNOTSUPP;
+
 	MutexLocker locker(fifo->lock);
-	bool dontWait = (flags & MSG_DONTWAIT) != 0 || timeout == 0;
+	const bool dontWait = (flags & MSG_DONTWAIT) != 0 || timeout == 0;
 	status_t status;
 
 	while (true) {
@@ -429,7 +284,17 @@ status_t
 clear_fifo(net_fifo* fifo)
 {
 	MutexLocker locker(fifo->lock);
-	return base_fifo_clear(fifo);
+
+	while (true) {
+		net_buffer* buffer = (net_buffer*)list_remove_head_item(&fifo->buffers);
+		if (buffer == NULL)
+			break;
+
+		gNetBufferModule.free(buffer);
+	}
+
+	fifo->current_bytes = 0;
+	return B_OK;
 }
 
 

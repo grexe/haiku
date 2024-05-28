@@ -117,7 +117,7 @@ private:
 			bool				fIsAudio;
 
 			// FFmpeg related members
-			AVCodec*			fCodec;
+			const AVCodec*		fCodec;
 			AVCodecContext*		fCodecContext;
 			SwrContext*			fResampleContext;
 			uint8_t*			fDecodedData;
@@ -140,6 +140,7 @@ private:
 			color_space			fOutputColorSpace;
 			int32				fOutputFrameCount;
 			float				fOutputFrameRate;
+									// only for audio streams
 			int					fOutputFrameSize;
 									// sample size * channel count
 			int					fInputFrameSize;
@@ -154,7 +155,7 @@ private:
 			int32				fDecodedDataBufferOffset;
 			int32				fDecodedDataBufferSize;
 
-			AVPacket			fTempPacket;
+			AVPacket*			fTempPacket;
 
 			// video deinterlace feature
 			AVFilterContext*	fBufferSinkContext;

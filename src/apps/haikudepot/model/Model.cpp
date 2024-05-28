@@ -1,10 +1,9 @@
 /*
  * Copyright 2013-2014, Stephan Aßmus <superstippi@gmx.de>.
  * Copyright 2014, Axel Dörfler <axeld@pinc-software.de>.
- * Copyright 2016-2023, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2016-2024, Andrew Lindesay <apl@lindesay.co.nz>.
  * All rights reserved. Distributed under the terms of the MIT License.
  */
-
 #include "Model.h"
 
 #include <algorithm>
@@ -29,7 +28,6 @@
 #include "Logger.h"
 #include "LocaleUtils.h"
 #include "StorageUtils.h"
-#include "RepositoryUrlUtils.h"
 
 
 #undef B_TRANSLATION_CONTEXT
@@ -215,11 +213,15 @@ Model::Model()
 	fShowDevelopPackages(false),
 	fCanShareAnonymousUsageData(false)
 {
+	fPackageScreenshotRepository = new PackageScreenshotRepository(
+		PackageScreenshotRepositoryListenerRef(this),
+		&fWebAppInterface);
 }
 
 
 Model::~Model()
 {
+	delete fPackageScreenshotRepository;
 }
 
 
@@ -245,6 +247,13 @@ Model::InitPackageIconRepository()
 	if (result == B_OK)
 		result = fPackageIconRepository.Init(tarPath);
 	return result;
+}
+
+
+PackageScreenshotRepository*
+Model::GetPackageScreenshotRepository()
+{
+	return fPackageScreenshotRepository;
 }
 
 
@@ -531,7 +540,6 @@ Model::PopulatePackage(const PackageInfoRef& package, uint32 flags)
 	// packages loose their extra information after a certain amount of
 	// time when they have not been accessed/displayed in the UI. Otherwise
 	// HaikuDepot will consume more and more resources in the packages.
-	// Especially screen-shots will be a problem eventually.
 	{
 		BAutolock locker(&fLock);
 		bool alreadyPopulated = fPopulatedPackageNames.HasString(
@@ -657,7 +665,10 @@ Model::PopulatePackage(const PackageInfoRef& package, uint32 flags)
 					// Add the rating to the PackageInfo
 					UserRatingRef userRating(new UserRating(
 						UserInfo(user), rating,
-						comment, languageCode, versionString,
+						comment,
+						languageCode,
+							// note that language identifiers are "code" in HDS and "id" in Haiku
+						versionString,
 						(uint64) createTimestamp), true);
 					package->AddUserRating(userRating);
 					HDDEBUG("rating [%s] retrieved from server", code.String());
@@ -672,21 +683,6 @@ Model::PopulatePackage(const PackageInfoRef& package, uint32 flags)
 			}
 		} else
 			HDERROR("unable to retrieve user ratings");
-	}
-
-	if ((flags & POPULATE_SCREEN_SHOTS) != 0) {
-		std::vector<ScreenshotInfoRef> screenshotInfos;
-		{
-			BAutolock locker(&fLock);
-			for (int32 i = 0; i < package->CountScreenshotInfos(); i++)
-				screenshotInfos.push_back(package->ScreenshotInfoAtIndex(i));
-			package->ClearScreenshots();
-		}
-		std::vector<ScreenshotInfoRef>::iterator it;
-		for (it = screenshotInfos.begin(); it != screenshotInfos.end(); it++) {
-			const ScreenshotInfoRef& info = *it;
-			_PopulatePackageScreenshot(package, info, 320, false);
-		}
 	}
 }
 
@@ -838,7 +834,7 @@ Model::DumpExportRepositoryDataPath(BPath& path)
 {
 	BString leaf;
 	leaf.SetToFormat("repository-all_%s.json.gz",
-		Language()->PreferredLanguage()->Code());
+		Language()->PreferredLanguage()->ID());
 	return StorageUtils::LocalWorkingFilesPath(leaf, path);
 }
 
@@ -853,7 +849,7 @@ Model::DumpExportReferenceDataPath(BPath& path)
 {
 	BString leaf;
 	leaf.SetToFormat("reference-all_%s.json.gz",
-		Language()->PreferredLanguage()->Code());
+		Language()->PreferredLanguage()->ID());
 	return StorageUtils::LocalWorkingFilesPath(leaf, path);
 }
 
@@ -871,78 +867,8 @@ Model::DumpExportPkgDataPath(BPath& path,
 {
 	BString leaf;
 	leaf.SetToFormat("pkg-all-%s-%s.json.gz", repositorySourceCode.String(),
-		Language()->PreferredLanguage()->Code());
+		Language()->PreferredLanguage()->ID());
 	return StorageUtils::LocalWorkingFilesPath(leaf, path);
-}
-
-
-void
-Model::_PopulatePackageScreenshot(const PackageInfoRef& package,
-	const ScreenshotInfoRef& info, int32 scaledWidth, bool fromCacheOnly)
-{
-	// See if there is a cached screenshot
-	BFile screenshotFile;
-	BPath screenshotCachePath;
-
-	status_t result = StorageUtils::LocalWorkingDirectoryPath(
-		"Screenshots", screenshotCachePath);
-
-	if (result != B_OK) {
-		HDERROR("unable to get the screenshot dir - unable to proceed");
-		return;
-	}
-
-	bool fileExists = false;
-	BString screenshotName(info->Code());
-	screenshotName << "@" << scaledWidth;
-	screenshotName << ".png";
-	time_t modifiedTime;
-	if (screenshotCachePath.Append(screenshotName) == B_OK) {
-		// Try opening the file in read-only mode, which will fail if its
-		// not a file or does not exist.
-		fileExists = screenshotFile.SetTo(screenshotCachePath.Path(),
-			B_READ_ONLY) == B_OK;
-		if (fileExists)
-			screenshotFile.GetModificationTime(&modifiedTime);
-	}
-
-	if (fileExists) {
-		time_t now;
-		time(&now);
-		if (fromCacheOnly || now - modifiedTime < 60 * 60) {
-			// Cache file is recent enough, just use it and return.
-			BitmapRef bitmapRef(new(std::nothrow)SharedBitmap(screenshotFile),
-				true);
-			BAutolock locker(&fLock);
-			package->AddScreenshot(bitmapRef);
-			return;
-		}
-	}
-
-	if (fromCacheOnly)
-		return;
-
-	// Retrieve screenshot from web-app
-	BMallocIO buffer;
-
-	int32 scaledHeight = scaledWidth * info->Height() / info->Width();
-
-	status_t status = fWebAppInterface.RetrieveScreenshot(info->Code(),
-		scaledWidth, scaledHeight, &buffer);
-	if (status == B_OK) {
-		BitmapRef bitmapRef(new(std::nothrow)SharedBitmap(buffer), true);
-		BAutolock locker(&fLock);
-		package->AddScreenshot(bitmapRef);
-		locker.Unlock();
-		if (screenshotFile.SetTo(screenshotCachePath.Path(),
-				B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE) == B_OK) {
-			screenshotFile.Write(buffer.Buffer(), buffer.BufferLength());
-		}
-	} else {
-		HDERROR("Failed to retrieve screenshot for code '%s' "
-			"at %" B_PRIi32 "x%" B_PRIi32 ".", info->Code().String(),
-			scaledWidth, scaledHeight);
-	}
 }
 
 
@@ -1115,4 +1041,16 @@ Model::_AddCategory(const CategoryRef& category)
 	}
 
 	fCategories.insert(itInsertionPt, category);
+}
+
+
+void
+Model::ScreenshotCached(const ScreenshotCoordinate& coord)
+{
+	std::vector<ModelListenerRef>::const_iterator it;
+	for (it = fListeners.begin(); it != fListeners.end(); it++) {
+		const ModelListenerRef& listener = *it;
+		if (listener.IsSet())
+			listener->ScreenshotCached(coord);
+	}
 }

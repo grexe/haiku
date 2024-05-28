@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include <unicode/uchar.h>
+#include <unicode/uvernum.h>
 
 #include <Debug.h>
 
@@ -547,6 +548,7 @@ ICUCtypeData::_GetConverterForMbState(mbstate_t* mbState,
 	int32_t bufferSize = sizeof(mbState->data);
 	UConverter* clone
 		= ucnv_safeClone(icuConverter, mbState->data, &bufferSize, &icuStatus);
+
 	if (clone == NULL || !U_SUCCESS(icuStatus))
 		return B_ERROR;
 

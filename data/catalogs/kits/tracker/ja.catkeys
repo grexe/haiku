@@ -1,4 +1,4 @@
-1	japanese	x-vnd.Haiku-libtracker	746720348
+1	japanese	x-vnd.Haiku-libtracker	2482866522
 Created	ContainerWindow		作成日時
 Icon	AttributesView		アイコン
 Open and make preferred	OpenWithWindow		関連付けて開く
@@ -8,6 +8,7 @@ Error moving \"%name\" to Trash. (%error)	FSUtils		\"%name\" をごみ箱に捨�
 Or	FindPanel		または
 MIME Description	AttributesView		MIME 説明
 before	FindPanel		以前
+New folder%d	FSUtils		新規フォルダー%d
 Volume icons	TrackerSettingsWindow		ディスクアイコン
 Ignore case	SelectionWindow		大文字小文字を区別しない
 Current folder	ContainerWindow		現在のフォルダー
@@ -115,7 +116,6 @@ Hide dotfiles	SettingsView		ドットファイルを隠す
 Trash	Model		ごみ箱
 Enable type-ahead filtering	SettingsView		先行入力フィルターを有効にする
 copy	FSUtils	filename copy	コピー
-New folder%ld	FSUtils		新規フォルダー %ld 
 Location	OpenWithWindow		場所
 Resize to fit	QueryContainerWindow		最適な表示サイズに変更
 List folders first	SettingsView		フォルダーを先頭に表示
@@ -159,7 +159,6 @@ The Tracker must be running to see Info windows.	PoseView		情報ウィンドウ
 Tracker preferences	TrackerSettingsWindow		Tracker の設定
 Read	FilePermissionsView		読み取り
 There was an error writing the attribute.	WidgetAttributeText		属性の書き込み中にエラーが発生しました。
-Path	Default Query Columns		パス
 If you rename %target, %osName may not behave properly!\n\nAre you sure you want to do this?	FSUtils		%target の名前を変更すると、%osName は正しく動作しないかもしれません!\n\n名称を変更しますか?
 Filesystem:	InfoWindow		ファイルシステム:
 Could not open \"%name\" (%error). 	FSUtils		\"%name\" を開けません (%error)。
@@ -245,7 +244,6 @@ Recent queries	FindPanel		最近使ったクエリ
 Mount all	MountMenu		すべてマウント
 Size	Default Query Columns		サイズ
 Favorites	FavoritesMenu		お気に入り
-Delete	FilePanelPriv		削除
 <No recent items>	FavoritesMenu		<最近使った項目はありません>
 Formula %formula	FindPanel	FindResultTitle	式 %formula
 Preparing to create links…	StatusWindow		リンク作成の準備をしています...
@@ -268,6 +266,7 @@ Don't automount	AutoMounterSettings		自動マウントを使わない
 Node ref	AttributesView		Node ref
 Could not find application \"%appname\"	OpenWithWindow		アプリケーション \"%appname\" が見つかりません
 Unmatched parenthesis.	libtracker		括弧が不一致です。
+New folder %d	FSUtils		新規フォルダー %d
 Extended attribute	AttributesView		拡張属性
 Unmatched brackets.	libtracker		角括弧が不一致です。
 Error %error loading Add-On %name.	ContainerWindow		アドオン %name の読み込み中に %error エラーが発生。
@@ -301,6 +300,7 @@ Select all	ContainerWindow		すべて選択
 apps	B_APPS_DIRECTORY		アプリケーション
 Error calculating folder size.	InfoWindow		フォルダーサイズの計算中にエラー発生。
 Delete	FSUtils		削除
+Duplicate	FilePanelPriv		複製
 Edit name	ContainerWindow		名前の変更
 Could not open \"%document\" (Missing symbol: %symbol). \n	FSUtils		\"%document\" を開けません (シンボル %symbol  が見つかりません)。\n
 ASCII Text	AttributesView		ASCIIテキスト
@@ -334,9 +334,11 @@ To: %dir	StatusWindow		%dir
 Paste layout	ContainerWindow		レイアウトを貼り付け
 Cancel	Tracker		中止
 yes	AttributesView		はい
+Error copying file \"%name\":\n\t%error\n\n	FSUtils		ファイル \"%name\"をコピー中に以下のエラー発生:\n\t%error\n\n
 Make active printer	ContainerWindow		プリンターを有効にする
 Copy to	ContainerWindow		次へコピー
 Name	SelectionWindow		名前
+Location	Default Query Columns		場所
 by attribute	FindPanel		属性で検索
 Write	FilePermissionsView		書き込み
 If you alter the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo alter the system folder or its contents anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		システムフォルダーやその内容を変更すると、%osName が起動しなくなります!\n\n変更しますか?\n\nそれでもシステムフォルダーやその内容を変更するなら、シフトキーを押したまま \"私はなにをするか理解しています\" をクリックします。
@@ -404,6 +406,7 @@ Cannot unmount the boot volume \"%name\".	FSUtils		起動ボリューム \"%nam
 Could not open \"%document\" with application \"%app\" (Missing symbol: %symbol). \n	FSUtils		\"%document\" を \"%app\" で開けません (シンボル %symbol が見つかりません)。\n
 New folder	ContainerWindow		新しいフォルダー
 Name	OpenWithWindow		名前
+Get info	Tracker	Tracker's 'Get info' panel [ALT+I]	詳細情報…
 There was a problem trying to replace \"%name\". The item might be open or busy.	FSUtils		\"%name\" を置き換えようとしたら不具合が発生しました。項目は開いた状態か使用中かもしれません。
 Windows	TrackerSettingsWindow		ウィンドウ
 Show space bars on volumes	SettingsView		ディスク容量グラフの表示
@@ -455,7 +458,6 @@ Move to Trash	FilePanelPriv		ごみ箱に捨てる
 is	FindPanel		と等しい
 If you rename the system folder or its contents, you won't be able to boot %osName!\n\nAre you sure you want to do this?\n\nTo rename the system folder or its contents anyway, hold down the Shift key and click \"Rename\".	FSUtils		システムフォルダーやその内容の名前を変更すると、%osName が起動しなくなります!\n\n変更しますか?\n\nそれでもシステムフォルダーやその内容の名前を変更するなら、シフトキーを押しながら \"名前の変更\" をクリックしてください。
 Permissions	FilePermissionsView		アクセス権
-New folder %ld	FSUtils		新規フォルダー %ld 
 \"%name\" is a legacy executable. Please obtain an updated version or recompile the application.	FSUtils		\"%name\" は古い実行形式です。最新版を入手するか、アプリケーションを再コンパイルしてください。
 Only the boot disk	AutoMounterSettings		起動ディスクのみ
 Message	AttributesView		Message
@@ -478,6 +480,7 @@ Color	AttributesView		色
 Copy layout	ContainerWindow		レイアウトのコピー
 Duplicate	ContainerWindow		複製
 16-bit integer	AttributesView		16 ビット整数
+Note: file names in the destination file system are not case-sensitive.\n	FSUtils		注意: 転送先ファイルシステムのファイル名は大文字小文字を区別しません。\n
 Untitled clipping	PoseView		無名クリッピング
 The file \"%name\" already exists in the specified folder. Do you want to replace it?	FilePanelPriv		指定のフォルダーに \"%name\" というファイルがすでに存在します。置き換えますか?
 , indexed	InfoWindow		, インデックス有

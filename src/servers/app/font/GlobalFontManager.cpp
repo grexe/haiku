@@ -239,8 +239,8 @@ GlobalFontManager::MessageReceived(BMessage* message)
 							if (fromDirectory != NULL) {
 								// find style in source and move it to the target
 								nodeRef.node = node;
-								FontStyle* style = fromDirectory->FindStyle(nodeRef);
-								if (style != NULL) {
+								FontStyle* style;
+								while ((style = fromDirectory->FindStyle(nodeRef)) != NULL) {
 									fromDirectory->styles.RemoveItem(style, false);
 									directory->styles.AddItem(style);
 									style->UpdatePath(directory->directory);
@@ -353,12 +353,12 @@ GlobalFontManager::_LoadRecentFontMappings()
 		ttfontsPath.Append("ttfonts");
 
 		BPath veraFontPath = ttfontsPath;
-		veraFontPath.Append("NotoSansDisplay-Regular.ttf");
-		_AddDefaultMapping("Noto Sans Display", "Book", veraFontPath.Path());
+		veraFontPath.Append("NotoSans-Regular.ttf");
+		_AddDefaultMapping("Noto Sans", "Book", veraFontPath.Path());
 
 		veraFontPath.SetTo(ttfontsPath.Path());
-		veraFontPath.Append("NotoSansDisplay-Bold.ttf");
-		_AddDefaultMapping("Noto Sans Display", "Bold", veraFontPath.Path());
+		veraFontPath.Append("NotoSans-Bold.ttf");
+		_AddDefaultMapping("Noto Sans", "Bold", veraFontPath.Path());
 
 		veraFontPath.SetTo(ttfontsPath.Path());
 		veraFontPath.Append("NotoSansMono-Regular.ttf");
@@ -505,8 +505,8 @@ GlobalFontManager::_RemoveStyle(dev_t device, uint64 directoryNode, uint64 node)
 	if (directory != NULL) {
 		// find style in directory and remove it
 		nodeRef.node = node;
-		FontStyle* style = directory->FindStyle(nodeRef);
-		if (style != NULL)
+		FontStyle* style;
+		while ((style = directory->FindStyle(nodeRef)) != NULL)
 			_RemoveStyle(*directory, style);
 	}
 }
@@ -571,7 +571,7 @@ GlobalFontManager::GetStyle(uint16 familyID, uint16 styleID) const
 	\param family The font's family or NULL in which case \a familyID is used
 	\param style The font's style or NULL in which case \a styleID is used
 	\param familyID will only be used if \a family is NULL (or empty)
-	\param styleID will only be used if \a style is NULL (or empty)
+	\param styleID will only be used if \a family and \a style are NULL (or empty)
 	\param face is used to specify the style if both \a style is NULL or empty
 		and styleID is 0xffff.
 
@@ -584,6 +584,11 @@ GlobalFontManager::GetStyle(const char* familyName, const char* styleName,
 	ASSERT(IsLocked());
 
 	FontFamily* family;
+
+	if (styleID != 0xffff && (familyName == NULL || !familyName[0])
+		&& (styleName == NULL || !styleName[0])) {
+		return GetStyle(familyID, styleID);
+	}
 
 	// find family
 
@@ -612,9 +617,6 @@ GlobalFontManager::GetStyle(const char* familyName, const char* styleName,
 		_ScanFonts();
 		return family->GetStyle(styleName);
 	}
-
-	if (styleID != 0xffff)
-		return family->GetStyleByID(styleID);
 
 	// try to get from face
 	return family->GetStyleMatchingFace(face);
@@ -711,18 +713,39 @@ GlobalFontManager::_AddFont(font_directory& directory, BEntry& entry)
 		return status;
 
 	FT_Face face;
-	FT_Error error = FT_New_Face(gFreeTypeLibrary, path.Path(), 0, &face);
+	FT_Error error = FT_New_Face(gFreeTypeLibrary, path.Path(), -1, &face);
 	if (error != 0)
 		return B_ERROR;
+	FT_Long count = face->num_faces;
+	FT_Done_Face(face);
 
-	uint16 familyID, styleID;
-	status = FontManager::_AddFont(face, nodeRef, path.Path(), familyID, styleID);
-	if (status == B_NAME_IN_USE)
-		return B_OK;
-	if (status < B_OK)
-		return status;
+	for (FT_Long i = 0; i < count; i++) {
+		FT_Error error = FT_New_Face(gFreeTypeLibrary, path.Path(), -(i + 1), &face);
+		if (error != 0)
+			return B_ERROR;
+		uint32 variableCount = (face->style_flags & 0x7fff0000) >> 16;
+		FT_Done_Face(face);
 
-	directory.styles.AddItem(GetStyle(familyID, styleID));
+		uint32 j = variableCount == 0 ? 0 : 1;
+		do {
+			FT_Long faceIndex = i | (j << 16);
+			error = FT_New_Face(gFreeTypeLibrary, path.Path(), faceIndex, &face);
+			if (error != 0)
+				return B_ERROR;
+
+			uint16 familyID, styleID;
+			status = FontManager::_AddFont(face, nodeRef, path.Path(), familyID, styleID);
+			if (status == B_NAME_IN_USE) {
+				status = B_OK;
+				j++;
+				continue;
+			}
+			if (status < B_OK)
+				return status;
+			directory.styles.AddItem(GetStyle(familyID, styleID));
+			j++;
+		} while (j <= variableCount);
+	}
 
 	if (directory.AlreadyScanned())
 		directory.revision++;

@@ -21,6 +21,7 @@
 #include <string>
 
 #include <AboutWindow.h>
+#include <AppDefs.h>
 #include <AppFileInfo.h>
 #include <Application.h>
 #include <Bitmap.h>
@@ -94,6 +95,8 @@ static const float kWindowHeight = 300.0f;
 
 static const float kSysInfoMinWidth = 163.0f;
 static const float kSysInfoMinHeight = 193.0f;
+
+static const float kDraggerMargin = 6.0f;
 
 static const int32 kMsgScrollCreditsView = 'mviv';
 
@@ -215,10 +218,20 @@ private:
 };
 
 
+class SysInfoDragger : public BDragger {
+public:
+							SysInfoDragger(BView* target);
+
+	virtual	void			MessageReceived(BMessage* message);
+
+private:
+			BView*			fTarget;
+};
+
+
 class SysInfoView : public BView {
 public:
 							SysInfoView();
-							SysInfoView(BMessage* archive);
 	virtual					~SysInfoView();
 
 	virtual	status_t		Archive(BMessage* archive, bool deep = true) const;
@@ -240,6 +253,8 @@ private:
 			void			_AdjustTextColors() const;
 			rgb_color		_DesktopTextColor(int32 workspace = -1) const;
 			bool			_OnDesktop() const;
+			void			_ResizeBy(float, float);
+			void			_ResizeTo(float, float);
 
 			BStringView*	_CreateLabel(const char*, const char*);
 			void			_UpdateLabel(BStringView*);
@@ -252,6 +267,7 @@ private:
 			float			_BaseHeight();
 
 			BString			_GetOSVersion();
+			BString			_GetABIVersion();
 			BString			_GetCPUCount(system_info*);
 			BString			_GetCPUInfo();
 			BString			_GetCPUFrequency();
@@ -265,10 +281,10 @@ private:
 private:
 			rgb_color		fDesktopTextColor;
 
-			BStringView*	fOSVersionView;
+			BStringView*	fVersionLabelView;
+			BStringView*	fVersionInfoView;
 			BStringView*	fCPULabelView;
 			BStringView*	fCPUInfoView;
-			BStringView*	fCPUFreqView;
 			BStringView*	fMemSizeView;
 			BStringView*	fMemUsageView;
 			BStringView*	fKernelDateTimeView;
@@ -283,10 +299,8 @@ private:
 			float			fCachedBaseHeight;
 			float			fCachedMinHeight;
 
-			bool			fIsReplicant : 1;
-
 	static const uint8		kLabelCount = 5;
-	static const uint8		kSubtextCount = 7;
+	static const uint8		kSubtextCount = 5;
 };
 
 
@@ -410,14 +424,23 @@ AboutWindow::QuitRequested()
 
 LogoView::LogoView()
 	:
-	BView("logo", B_WILL_DRAW),
-	fLogo(BTranslationUtils::GetBitmap(B_PNG_FORMAT, "logo.png"))
+	BView("logo", B_WILL_DRAW)
 {
+	SetDrawingMode(B_OP_OVER);
+
+#ifdef HAIKU_DISTRO_COMPATIBILITY_OFFICIAL
+	rgb_color bgColor = ui_color(B_DOCUMENT_BACKGROUND_COLOR);
+	if (bgColor.IsLight())
+		fLogo = BTranslationUtils::GetBitmap(B_PNG_FORMAT, "logo.png");
+	else
+		fLogo = BTranslationUtils::GetBitmap(B_PNG_FORMAT, "logo_dark.png");
+#else
+	fLogo = BTranslationUtils::GetBitmap(B_PNG_FORMAT, "walter_logo.png");
+#endif
+
 	// Set view color to panel background color when fLogo is NULL
 	// to prevent a white pixel from being drawn.
-	if (fLogo != NULL)
-		SetViewColor(255, 255, 255);
-	else
+	if (fLogo == NULL)
 		SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
 }
 
@@ -454,7 +477,11 @@ LogoView::Draw(BRect updateRect)
 	if (fLogo == NULL)
 		return;
 
-	DrawBitmap(fLogo, BPoint((Bounds().Width() - fLogo->Bounds().Width()) / 2, 0));
+	BRect bounds(Bounds());
+	SetLowColor(ui_color(B_DOCUMENT_BACKGROUND_COLOR));
+	FillRect(bounds, B_SOLID_LOW);
+
+	DrawBitmap(fLogo, BPoint((bounds.Width() - fLogo->Bounds().Width()) / 2, 0));
 }
 
 
@@ -526,16 +553,41 @@ CropView::DoLayout()
 }
 
 
+//	#pragma mark - SysInfoDragger
+
+
+SysInfoDragger::SysInfoDragger(BView* target)
+	:
+	BDragger(BRect(0, 0, 7, 7), target, B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM),
+	fTarget(target)
+{
+}
+
+
+void
+SysInfoDragger::MessageReceived(BMessage* message)
+{
+	switch (message->what) {
+		case _SHOW_DRAG_HANDLES_:
+			if (fTarget != NULL)
+				fTarget->Invalidate();
+		default:
+			BDragger::MessageReceived(message);
+			break;
+	}
+}
+
+
 //	#pragma mark - SysInfoView
 
 
 SysInfoView::SysInfoView()
 	:
 	BView("AboutSystem", B_WILL_DRAW | B_PULSE_NEEDED),
-	fOSVersionView(NULL),
+	fVersionLabelView(NULL),
+	fVersionInfoView(NULL),
 	fCPULabelView(NULL),
 	fCPUInfoView(NULL),
-	fCPUFreqView(NULL),
 	fMemSizeView(NULL),
 	fMemUsageView(NULL),
 	fKernelDateTimeView(NULL),
@@ -544,8 +596,7 @@ SysInfoView::SysInfoView()
 	fCachedBaseWidth(kSysInfoMinWidth),
 	fCachedMinWidth(kSysInfoMinWidth),
 	fCachedBaseHeight(kSysInfoMinHeight),
-	fCachedMinHeight(kSysInfoMinHeight),
-	fIsReplicant(false)
+	fCachedMinHeight(kSysInfoMinHeight)
 {
 	// Begin construction of system information controls.
 	system_info sysInfo;
@@ -554,18 +605,15 @@ SysInfoView::SysInfoView()
 	// Create all the various labels for system infomation.
 
 	// OS Version / ABI
-	BStringView* osLabel = _CreateLabel("oslabel", B_TRANSLATE("Version:"));
-	fOSVersionView = _CreateSubtext("ostext", _GetOSVersion());
-	BStringView* abiText = _CreateSubtext("abitext", B_HAIKU_ABI_NAME);
+	fVersionLabelView = _CreateLabel("oslabel", _GetOSVersion());
+	fVersionInfoView = _CreateSubtext("ostext", _GetABIVersion());
 
 	// CPU count, type and clock speed
 	fCPULabelView = _CreateLabel("cpulabel", _GetCPUCount(&sysInfo));
 	fCPUInfoView = _CreateSubtext("cputext", _GetCPUInfo());
-	fCPUFreqView = _CreateSubtext("frequencytext", _GetCPUFrequency());
 
 	// Memory size and usage
-	BStringView* memoryLabel = _CreateLabel("memlabel", B_TRANSLATE("Memory:"));
-	fMemSizeView = _CreateSubtext("ramsizetext", _GetRamSize(&sysInfo));
+	fMemSizeView = _CreateLabel("memlabel", _GetRamSize(&sysInfo));
 	fMemUsageView = _CreateSubtext("ramusagetext", _GetRamUsage(&sysInfo));
 
 	// Kernel build time/date
@@ -586,17 +634,14 @@ SysInfoView::SysInfoView()
 	SetLayout(new BGroupLayout(B_VERTICAL, 0));
 	BLayoutBuilder::Group<>((BGroupLayout*)GetLayout())
 		// Version:
-		.Add(osLabel)
-		.Add(fOSVersionView)
-		.Add(abiText)
+		.Add(fVersionLabelView)
+		.Add(fVersionInfoView)
 		.AddStrut(offset)
 		// Processors:
 		.Add(fCPULabelView)
 		.Add(fCPUInfoView)
-		.Add(fCPUFreqView)
 		.AddStrut(offset)
 		// Memory:
-		.Add(memoryLabel)
 		.Add(fMemSizeView)
 		.Add(fMemUsageView)
 		.AddStrut(offset)
@@ -615,72 +660,6 @@ SysInfoView::SysInfoView()
 }
 
 
-SysInfoView::SysInfoView(BMessage* archive)
-	:
-	BView(archive),
-	fOSVersionView(NULL),
-	fCPULabelView(NULL),
-	fCPUInfoView(NULL),
-	fCPUFreqView(NULL),
-	fMemSizeView(NULL),
-	fMemUsageView(NULL),
-	fKernelDateTimeView(NULL),
-	fUptimeView(NULL),
-	fDragger(NULL),
-	fCachedBaseWidth(kSysInfoMinWidth),
-	fCachedMinWidth(kSysInfoMinWidth),
-	fCachedBaseHeight(kSysInfoMinHeight),
-	fCachedMinHeight(kSysInfoMinHeight),
-	fIsReplicant(true)
-{
-	BLayout* layout = GetLayout();
-	int32 itemCount = layout->CountItems() - 1;
-		// leave out dragger
-
-	system_info sysInfo;
-	get_system_info(&sysInfo);
-
-	for (int32 index = 0; index < itemCount; index++) {
-		BView* view = layout->ItemAt(index)->View();
-		if (view == NULL)
-			continue;
-
-		BString name(view->Name());
-		if (name == "uptimetext") {
-			fUptimeView = dynamic_cast<BTextView*>(view);
-			_UpdateText(fUptimeView);
-		} else if (name.IEndsWith("text")) {
-			_UpdateSubtext(dynamic_cast<BStringView*>(view));
-			if (name == "ostext")
-				fOSVersionView = dynamic_cast<BStringView*>(view);
-			else if (name == "cputext")
-				fCPUInfoView = dynamic_cast<BStringView*>(view);
-			else if (name == "frequencytext")
-				fCPUFreqView = dynamic_cast<BStringView*>(view);
-			else if (name == "ramsizetext")
-				fMemSizeView = dynamic_cast<BStringView*>(view);
-			else if (name == "ramusagetext")
-				fMemUsageView = dynamic_cast<BStringView*>(view);
-			else if (name == "kerneltext")
-				fKernelDateTimeView = dynamic_cast<BStringView*>(view);
-		} else if (name.IEndsWith("label")) {
-			_UpdateLabel(dynamic_cast<BStringView*>(view));
-			if (name == "cpulabel")
-				fCPULabelView = dynamic_cast<BStringView*>(view);
-		}
-	}
-
-	// These might have changed since the replicant instance was created;
-	fOSVersionView->SetText(_GetOSVersion());
-	fCPULabelView->SetText(_GetCPUCount(&sysInfo));
-	fCPUInfoView->SetText(_GetCPUInfo());
-	fCPUFreqView->SetText(_GetCPUFrequency());
-	fKernelDateTimeView->SetText(_GetKernelDateTime(&sysInfo));
-
-	fDragger = dynamic_cast<BDragger*>(ChildAt(0));
-}
-
-
 SysInfoView::~SysInfoView()
 {
 }
@@ -689,8 +668,8 @@ SysInfoView::~SysInfoView()
 status_t
 SysInfoView::Archive(BMessage* archive, bool deep) const
 {
-	// record inherited class members
-	status_t result = BView::Archive(archive, deep);
+	// DO NOT record inherited class members
+	status_t result = B_OK;
 
 	// record app signature for replicant add-on loading
 	if (result == B_OK)
@@ -710,7 +689,7 @@ SysInfoView::Instantiate(BMessage* archive)
 	if (!validate_instantiation(archive, "SysInfoView"))
 		return NULL;
 
-	return new SysInfoView(archive);
+	return new SysInfoView();
 }
 
 
@@ -721,6 +700,15 @@ SysInfoView::AttachedToWindow()
 
 	Window()->SetPulseRate(500000);
 	DoLayout();
+
+	if (_OnDesktop()) {
+		// if we are a replicant the parent view doesn't do this for us
+		CacheInitialSize();
+		// add extra height for dragger: fixed, and insets: font-dependent
+		float draggerHeight = fDragger->Bounds().Height() + kDraggerMargin * 2;
+		float insets = be_control_look->DefaultLabelSpacing() * 2;
+		ResizeTo(fCachedMinWidth, fCachedMinHeight + draggerHeight + insets);
+	}
 }
 
 
@@ -729,11 +717,8 @@ SysInfoView::AllAttached()
 {
 	BView::AllAttached();
 
-	if (fIsReplicant) {
-		CacheInitialSize();
-			// if replicant the parent view doesn't do this for us
+	if (_OnDesktop())
 		fDesktopTextColor = _DesktopTextColor();
-	}
 
 	// Update colors here to override system colors for replicant,
 	// this works when the view is in AboutView too.
@@ -745,8 +730,13 @@ void
 SysInfoView::CacheInitialSize()
 {
 	fCachedBaseWidth = _BaseWidth();
-	// memory size is too wide in Greek, account for this here
 	float insets = be_control_look->DefaultLabelSpacing() * 2;
+
+	// increase min width based on some potentially wide string views
+	fCachedMinWidth = ceilf(std::max(fCachedBaseWidth,
+		fVersionLabelView->StringWidth(fVersionLabelView->Text()) + insets));
+	fCachedMinWidth = ceilf(std::max(fCachedBaseWidth,
+		fCPUInfoView->StringWidth(fCPUInfoView->Text()) + insets));
 	fCachedMinWidth = ceilf(std::max(fCachedBaseWidth,
 		fMemSizeView->StringWidth(fMemSizeView->Text()) + insets));
 
@@ -759,11 +749,10 @@ SysInfoView::CacheInitialSize()
 	float uptimeHeight = fUptimeView->LineHeight(0) * lineCount;
 	fCachedMinHeight = fCachedBaseHeight + uptimeHeight;
 
-	// set view size
+	// set view limits
 	SetExplicitMinSize(BSize(fCachedMinWidth, B_SIZE_UNSET));
 	SetExplicitMaxSize(BSize(fCachedMinWidth, fCachedMinHeight));
-	fUptimeView->SetExplicitMaxSize(BSize(fCachedMinWidth - insets,
-		uptimeHeight));
+	fUptimeView->SetExplicitMaxSize(BSize(fCachedMinWidth - insets, uptimeHeight));
 }
 
 
@@ -772,11 +761,9 @@ SysInfoView::Draw(BRect updateRect)
 {
 	BView::Draw(updateRect);
 
-	if (_OnDesktop()) {
-		// stroke a line around the view
-		SetHighColor(fDesktopTextColor);
+	// stroke a line around the view
+	if (_OnDesktop() && fDragger != NULL && fDragger->AreDraggersDrawn())
 		StrokeRect(Bounds());
-	}
 }
 
 
@@ -848,17 +835,8 @@ SysInfoView::Pulse()
 	fUptimeView->SetText(_GetUptime());
 
 	float newHeight = fCachedBaseHeight + _UptimeHeight();
-	float difference = newHeight - fCachedMinHeight;
-	if (difference != 0) {
-		if (_OnDesktop()) {
-			// move view to keep the bottom in place
-			// so that the dragger is not pushed off screen
-			ResizeBy(0, difference);
-			MoveBy(0, -difference);
-			Invalidate();
-		}
-		fCachedMinHeight = newHeight;
-	}
+	_ResizeBy(0, newHeight - fCachedMinHeight);
+	fCachedMinHeight = newHeight;
 
 	SetExplicitMinSize(BSize(fCachedMinWidth, B_SIZE_UNSET));
 	SetExplicitMaxSize(BSize(fCachedMinWidth, fCachedMinHeight));
@@ -948,9 +926,7 @@ SysInfoView::_DesktopTextColor(int32 workspace) const
 		workspace = current_workspace();
 
 	rgb_color viewColor = screen.DesktopColor(workspace);
-	int viewBrightness = BPrivate::perceptual_brightness(viewColor);
-	textColor.blue = textColor.green = textColor.red = viewBrightness > 127
-		? 0 : 255;
+	textColor.blue = textColor.green = textColor.red = viewColor.IsLight() ? 0 : 255;
 	textColor.alpha = 255;
 
 	return textColor;
@@ -960,9 +936,27 @@ SysInfoView::_DesktopTextColor(int32 workspace) const
 bool
 SysInfoView::_OnDesktop() const
 {
-	return fIsReplicant && Window() != NULL
+	return Window() != NULL
 		&& Window()->Look() == kDesktopWindowLook
 		&& Window()->Feel() == kDesktopWindowFeel;
+}
+
+
+void
+SysInfoView::_ResizeBy(float widthChange, float heightChange)
+{
+	if (!_OnDesktop() || (widthChange == 0 && heightChange == 0))
+		return;
+
+	ResizeBy(widthChange, heightChange);
+	MoveBy(-widthChange, -heightChange);
+}
+
+
+void
+SysInfoView::_ResizeTo(float width, float height)
+{
+	_ResizeBy(width - Bounds().Width(), height - Bounds().Height());
 }
 
 
@@ -1023,8 +1017,7 @@ void
 SysInfoView::_CreateDragger()
 {
 	// create replicant dragger and add it as the new child 0
-	fDragger = new BDragger(BRect(0, 0, 7, 7), this,
-		B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
+	fDragger = new SysInfoDragger(this);
 	BPopUpMenu* popUp = new BPopUpMenu("Shelf", false, false, B_ITEMS_IN_COLUMN);
 	popUp->AddItem(new BMenuItem(B_TRANSLATE("Remove replicant"),
 		new BMessage(kDeleteReplicant)));
@@ -1051,7 +1044,7 @@ SysInfoView::_BaseHeight()
 	be_bold_font->GetHeight(&boldFH);
 
 	return ceilf(((boldFH.ascent + boldFH.descent) * kLabelCount
-		+ (plainFH.ascent + plainFH.descent) * (kSubtextCount + 1) // extra for fUptimeView
+		+ (plainFH.ascent + plainFH.descent) * kSubtextCount
 		+ be_control_look->DefaultLabelSpacing() * kLabelCount));
 }
 
@@ -1059,7 +1052,23 @@ SysInfoView::_BaseHeight()
 BString
 SysInfoView::_GetOSVersion()
 {
-	BString osVersion;
+	BString revision;
+	// add system revision to os version
+	const char* hrev = __get_haiku_revision();
+	if (hrev != NULL)
+		revision.SetToFormat(B_TRANSLATE_COMMENT("Version: %s",
+			"Version: R1 or hrev99999"), hrev);
+	else
+		revision = B_TRANSLATE("Version:");
+
+	return revision;
+}
+
+
+BString
+SysInfoView::_GetABIVersion()
+{
+	BString abiVersion;
 
 	// the version is stored in the BEOS:APP_VERSION attribute of libbe.so
 	BPath path;
@@ -1074,18 +1083,15 @@ SysInfoView::_GetOSVersion()
 			&& appFileInfo.GetVersionInfo(&versionInfo,
 				B_APP_VERSION_KIND) == B_OK
 			&& versionInfo.short_info[0] != '\0')
-			osVersion = versionInfo.short_info;
+			abiVersion = versionInfo.short_info;
 	}
 
-	if (osVersion.IsEmpty())
-		osVersion = B_TRANSLATE("Unknown");
+	if (abiVersion.IsEmpty())
+		abiVersion = B_TRANSLATE("Unknown");
 
-	// add system revision to os version
-	const char* hrev = __get_haiku_revision();
-	if (hrev != NULL)
-		osVersion << " (" << B_TRANSLATE("Revision") << " " << hrev << ")";
+	abiVersion << " (" << B_HAIKU_ABI_NAME << ")";
 
-	return osVersion;
+	return abiVersion;
 }
 
 
@@ -1140,7 +1146,8 @@ SysInfoView::_GetCPUInfo()
 
 	BString cpuType;
 	cpuType << get_cpu_vendor_string(cpuVendor) << " "
-		<< get_cpu_model_string(platform, cpuVendor, cpuModel);
+		<< get_cpu_model_string(platform, cpuVendor, cpuModel)
+		<< " @ " << _GetCPUFrequency();
 
 	return cpuType;
 }
@@ -1151,11 +1158,15 @@ SysInfoView::_GetCPUFrequency()
 {
 	BString clockSpeed;
 
-	int32 frequency = get_rounded_cpu_speed();
-	if (frequency < 1000)
-		clockSpeed.SetToFormat(B_TRANSLATE("%ld MHz"), frequency);
-	else
-		clockSpeed.SetToFormat(B_TRANSLATE("%.2f GHz"), frequency / 1000.0f);
+	long int frequency = get_rounded_cpu_speed();
+	if (frequency < 1000) {
+		clockSpeed.SetToFormat(B_TRANSLATE_COMMENT("%ld MHz",
+			"750 Mhz (CPU clock speed)"), frequency);
+	}
+	else {
+		clockSpeed.SetToFormat(B_TRANSLATE_COMMENT("%.2f GHz",
+			"3.49 Ghz (CPU clock speed)"), frequency / 1000.0f);
+	}
 
 	return clockSpeed;
 }
@@ -1165,19 +1176,8 @@ BString
 SysInfoView::_GetRamSize(system_info* sysInfo)
 {
 	BString ramSize;
-	int inaccessibleMemory = ignored_pages(sysInfo);
-
-	if (inaccessibleMemory <= 0)
-		ramSize.SetToFormat(B_TRANSLATE("%d MiB total"), max_pages(sysInfo));
-	else {
-		BString temp;
-		ramSize = B_TRANSLATE("%total MiB total, %inaccessible MiB inaccessible");
-		temp << max_and_ignored_pages(sysInfo);
-		ramSize.ReplaceFirst("%total", temp);
-		temp.SetTo("");
-		temp << inaccessibleMemory;
-		ramSize.ReplaceFirst("%inaccessible", temp);
-	}
+	ramSize.SetToFormat(B_TRANSLATE_COMMENT("%d MiB Memory:",
+		"2048 MiB Memory:"), max_and_ignored_pages(sysInfo));
 
 	return ramSize;
 }
@@ -1189,11 +1189,15 @@ SysInfoView::_GetRamUsage(system_info* sysInfo)
 	BString ramUsage;
 	BString data;
 	double usedMemoryPercent = double(sysInfo->used_pages) / sysInfo->max_pages;
+	status_t status = fNumberFormat.FormatPercent(data, usedMemoryPercent);
 
-	if (fNumberFormat.FormatPercent(data, usedMemoryPercent) != B_OK)
-		data.SetToFormat("%d%%", (int)(100 * usedMemoryPercent));
-
-	ramUsage.SetToFormat(B_TRANSLATE("%d MiB used (%s)"), used_pages(sysInfo), data.String());
+	if (status == B_OK) {
+		ramUsage.SetToFormat(B_TRANSLATE_COMMENT("%d MiB used (%s)",
+			"326 MiB used (16%)"), used_pages(sysInfo), data.String());
+	} else {
+		ramUsage.SetToFormat(B_TRANSLATE_COMMENT("%d MiB used (%d%%)",
+			"326 MiB used (16%)"), used_pages(sysInfo), (int)(100 * usedMemoryPercent));
+	}
 
 	return ramUsage;
 }
@@ -1600,8 +1604,11 @@ AboutView::_CreateCreditsView()
 		"\n\n"));
 
 	fCreditsView->SetFontAndColor(be_plain_font, B_FONT_ALL, &fLinkColor);
-	fCreditsView->InsertHyperText("https://www.haiku-os.org",
+	fCreditsView->InsertHyperText(B_TRANSLATE("Visit the Haiku website"),
 		new URLAction("https://www.haiku-os.org"));
+	fCreditsView->Insert("\n");
+	fCreditsView->InsertHyperText(B_TRANSLATE("Make a donation"),
+		new URLAction("https://www.haiku-inc.org/donate"));
 	fCreditsView->Insert("\n\n");
 
 	font.SetSize(be_bold_font->Size());
@@ -2263,8 +2270,7 @@ max_pages(system_info* sysInfo)
 static int
 max_and_ignored_pages(system_info* sysInfo)
 {
-	return (int)round((sysInfo->max_pages + sysInfo->ignored_pages)
-		* B_PAGE_SIZE / 1048576.0);
+	return max_pages(sysInfo) + ignored_pages(sysInfo);
 }
 
 

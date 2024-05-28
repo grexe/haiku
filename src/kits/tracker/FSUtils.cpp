@@ -517,7 +517,7 @@ FSGetPoseLocation(const BNode* node, BPoint* point)
 
 
 static void
-SetUpPoseLocation(ino_t sourceParentIno, ino_t destParentIno,
+SetupPoseLocation(ino_t sourceParentIno, ino_t destParentIno,
 	const BNode* sourceNode, BNode* destNode, BPoint* loc)
 {
 	BPoint point;
@@ -604,16 +604,6 @@ FSMoveToTrash(BObjectList<entry_ref>* srcList, BList* pointList, bool async)
 		MoveTask(srcList, 0, pointList, kMoveSelectionTo);
 }
 
-
-static bool
-IsDisksWindowIcon(BEntry* entry)
-{
-	BPath path;
-	if (entry->InitCheck() != B_OK || entry->GetPath(&path) != B_OK)
-		return false;
-
-	return strcmp(path.Path(), "/") == 0;
-}
 
 enum {
 	kNotConfirmed,
@@ -899,7 +889,7 @@ InitCopy(CopyLoopControl* loopControl, uint32 moveMode,
 		// we could check for this while iterating through items in each of
 		// the copy loops, except it takes forever to call CalcItemsAndSize
 		BEntry entry((entry_ref*)srcList->ItemAt(index));
-		if (IsDisksWindowIcon(&entry)) {
+		if (FSIsRootDir(&entry)) {
 			BString errorStr;
 			if (moveMode == kCreateLink) {
 				errorStr.SetTo(
@@ -1319,6 +1309,27 @@ CopyFile(BEntry* srcFile, StatStruct* srcStat, BDirectory* destDir,
 		if (err == kCopyCanceled)
 			throw (status_t)err;
 
+		if (err == B_FILE_EXISTS) {
+			// A file with the same name was created after BDirectory::FindEntry was called and
+			// before LowLevelCopy could finish.  In a move operation, if the standard file error
+			// alert were displayed and the user chose to continue, the file that we just failed
+			// to copy would be lost.  Don't offer the option to continue.
+			BString lowLevelExistsString(
+				B_TRANSLATE("Error copying file \"%name\":\n\t%error\n\n"));
+			// The error may have resulted from the user dragging a set of selected files to a
+			// case-insensitive volume, when 2 files in the set differ only in case.
+			node_ref destRef;
+			destDir->GetNodeRef(&destRef);
+			fs_info destInfo;
+			_kern_read_fs_info(destRef.device, &destInfo);
+			if (strcmp(destInfo.fsh_name, "fat") == 0) {
+				lowLevelExistsString += B_TRANSLATE("Note: file names in the destination file "
+					"system are not case-sensitive.\n");
+			}
+			loopControl->FileError(lowLevelExistsString.String(), destName, err, false);
+			throw (status_t)err;
+		}
+
 		if (err != B_OK) {
 			if (!loopControl->FileError(
 					B_TRANSLATE_NOCOLLECT(kFileErrorString), destName, err,
@@ -1394,7 +1405,7 @@ LowLevelCopy(BEntry* srcEntry, StatStruct* srcStat, BDirectory* destDir,
 		node_ref destNodeRef;
 		destDir->GetNodeRef(&destNodeRef);
 		// copy or write new pose location as a first thing
-		SetUpPoseLocation(ref.directory, destNodeRef.node, &srcLink,
+		SetupPoseLocation(ref.directory, destNodeRef.node, &srcLink,
 			&newLink, loc);
 
 		BNodeInfo nodeInfo(&newLink);
@@ -1449,7 +1460,7 @@ LowLevelCopy(BEntry* srcEntry, StatStruct* srcStat, BDirectory* destDir,
 	node_ref destNodeRef;
 	destDir->GetNodeRef(&destNodeRef);
 	// copy or write new pose location as a first thing
-	SetUpPoseLocation(ref.directory, destNodeRef.node, &srcFile,
+	SetupPoseLocation(ref.directory, destNodeRef.node, &srcFile,
 		&destFile, loc);
 
 	char* buffer = new char[bufsize];
@@ -1683,7 +1694,7 @@ CopyFolder(BEntry* srcEntry, BDirectory* destDir,
 	// copy or write new pose location
 	node_ref destNodeRef;
 	destDir->GetNodeRef(&destNodeRef);
-	SetUpPoseLocation(ref.directory, destNodeRef.node, &srcDir,
+	SetupPoseLocation(ref.directory, destNodeRef.node, &srcDir,
 		&newDir, loc);
 
 	while (srcDir.GetNextEntry(&entry) == B_OK) {
@@ -2838,8 +2849,11 @@ FSIsHomeDir(const BEntry* entry)
 bool
 FSIsRootDir(const BEntry* entry)
 {
-	BPath path(entry);
-	return path == "/";
+	BPath path;
+	if (entry->InitCheck() != B_OK || entry->GetPath(&path) != B_OK)
+		return false;
+
+	return strcmp(path.Path(), "/") == 0;
 }
 
 
@@ -3029,40 +3043,29 @@ status_t
 _DeleteTask(BObjectList<entry_ref>* list, bool confirm)
 {
 	if (confirm) {
-		bool dontMoveToTrash = TrackerSettings().DontMoveFilesToTrash();
+		BAlert* alert = new BAlert("",
+			B_TRANSLATE_NOCOLLECT(kDeleteConfirmationStr),
+			B_TRANSLATE("Cancel"), B_TRANSLATE("Move to Trash"),
+			B_TRANSLATE("Delete"),
+			B_WIDTH_AS_USUAL, B_OFFSET_SPACING, B_WARNING_ALERT);
 
-		if (!dontMoveToTrash) {
-			BAlert* alert = new BAlert("",
-				B_TRANSLATE_NOCOLLECT(kDeleteConfirmationStr),
-				B_TRANSLATE("Cancel"), B_TRANSLATE("Move to Trash"),
-				B_TRANSLATE("Delete"), B_WIDTH_AS_USUAL, B_OFFSET_SPACING,
-				B_WARNING_ALERT);
+		alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
+		alert->SetShortcut(0, B_ESCAPE);
+		alert->SetShortcut(1, 'm');
+		alert->SetShortcut(2, 'd');
 
-			alert->SetShortcut(0, B_ESCAPE);
-			alert->SetShortcut(1, 'm');
-			alert->SetShortcut(2, 'd');
-
-			switch (alert->Go()) {
-				case 0:
-					delete list;
-					return B_OK;
-				case 1:
-					FSMoveToTrash(list, NULL, false);
-					return B_OK;
-			}
-		} else {
-			BAlert* alert = new BAlert("",
-				B_TRANSLATE_NOCOLLECT(kDeleteConfirmationStr),
-				B_TRANSLATE("Cancel"), B_TRANSLATE("Delete"), NULL,
-				B_WIDTH_AS_USUAL, B_OFFSET_SPACING, B_WARNING_ALERT);
-
-			alert->SetShortcut(0, B_ESCAPE);
-			alert->SetShortcut(1, 'd');
-
-			if (!alert->Go()) {
+		switch (alert->Go()) {
+			case 0:
 				delete list;
+				return B_CANCELED;
+
+			case 1:
+			default:
+				FSMoveToTrash(list, NULL, false);
 				return B_OK;
-			}
+
+			case 2:
+				break;
 		}
 	}
 
@@ -3247,17 +3250,14 @@ FSCreateNewFolderIn(const node_ref* dirNode, entry_ref* newRef,
 		char name[B_FILE_NAME_LENGTH];
 		strlcpy(name, B_TRANSLATE("New folder"), sizeof(name));
 
-		int32 fnum = 1;
+		int fnum = 1;
 		while (dir.Contains(name)) {
 			// if base name already exists then add a number
 			// TODO: move this logic to FSMakeOriginalName
-			if (++fnum > 9) {
-				snprintf(name, sizeof(name), B_TRANSLATE("New folder%ld"),
-					fnum);
-			} else {
-				snprintf(name, sizeof(name), B_TRANSLATE("New folder %ld"),
-					fnum);
-			}
+			if (++fnum > 9)
+				snprintf(name, sizeof(name), B_TRANSLATE("New folder%d"), fnum);
+			else
+				snprintf(name, sizeof(name), B_TRANSLATE("New folder %d"), fnum);
 		}
 
 		BDirectory newDir;

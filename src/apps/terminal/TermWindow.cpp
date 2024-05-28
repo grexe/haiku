@@ -310,10 +310,10 @@ TermWindow::_InitWindow()
 		AddShortcut('1' + i, B_COMMAND_KEY, message);
 	}
 
-	AddShortcut(B_LEFT_ARROW, B_COMMAND_KEY | B_SHIFT_KEY,
-		new BMessage(MSG_MOVE_TAB_LEFT));
-	AddShortcut(B_RIGHT_ARROW, B_COMMAND_KEY | B_SHIFT_KEY,
-		new BMessage(MSG_MOVE_TAB_RIGHT));
+	AddShortcut(B_LEFT_ARROW, B_COMMAND_KEY, new BMessage(MSG_SWITCH_TAB_LEFT));
+	AddShortcut(B_RIGHT_ARROW, B_COMMAND_KEY, new BMessage(MSG_SWITCH_TAB_RIGHT));
+	AddShortcut(B_LEFT_ARROW, B_COMMAND_KEY | B_SHIFT_KEY, new BMessage(MSG_MOVE_TAB_LEFT));
+	AddShortcut(B_RIGHT_ARROW, B_COMMAND_KEY | B_SHIFT_KEY, new BMessage(MSG_MOVE_TAB_RIGHT));
 
 	BRect textFrame = Bounds();
 	textFrame.top = fMenuBar->Bounds().bottom + 1.0;
@@ -1041,6 +1041,12 @@ TermWindow::MessageReceived(BMessage *message)
 		case MSG_MOVE_TAB_RIGHT:
 			_NavigateTab(_IndexOfTermView(_ActiveTermView()),
 				message->what == MSG_MOVE_TAB_LEFT ? -1 : 1, true);
+			break;
+
+		case MSG_SWITCH_TAB_LEFT:
+		case MSG_SWITCH_TAB_RIGHT:
+			_NavigateTab(_IndexOfTermView(_ActiveTermView()),
+				message->what == MSG_SWITCH_TAB_LEFT ? -1 : 1, false);
 			break;
 
 		case kTabTitleChanged:
@@ -1787,8 +1793,7 @@ TermWindow::MakeWindowSizeMenu(BMenu* menu)
 		char label[32];
 		int32 columns = windowSizes[i][0];
 		int32 rows = windowSizes[i][1];
-		snprintf(label, sizeof(label), "%" B_PRId32 "x%" B_PRId32, columns,
-			rows);
+		snprintf(label, sizeof(label), "%" B_PRId32 " × %" B_PRId32, columns, rows);
 		BMessage* message = new BMessage(MSG_COLS_CHANGED);
 		message->AddInt32("columns", columns);
 		message->AddInt32("rows", rows);

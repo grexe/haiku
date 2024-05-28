@@ -47,6 +47,14 @@ struct PCIDev {
 
 
 struct domain_data {
+	~domain_data()
+	{
+#if !(defined(__i386__) || defined(__x86_64__))
+		if (io_port_area >= 0)
+			delete_area(io_port_area);
+#endif
+	}
+
 	// These two are set in PCI::AddController:
 	pci_controller_module_info *controller;
 	void *				controller_cookie;
@@ -55,11 +63,11 @@ struct domain_data {
 
 	// All the rest is set in PCI::InitDomainData
 	int					max_bus_devices;
-	pci_resource_range 	ranges[kPciRangeEnd];
+	Vector<pci_resource_range> ranges;
 
 #if !(defined(__i386__) || defined(__x86_64__))
-	area_id				io_port_area;
-	uint8 *				io_port_adr;
+	area_id				io_port_area = -1;
+	uint8 *				io_port_adr = NULL;
 #endif
 };
 
@@ -132,13 +140,13 @@ public:
 								uint8 device, uint8 function,
 								uint8 newInterruptLineValue);
 
-			uint8			GetMSICount(PCIDev *device);
-			status_t		ConfigureMSI(PCIDev *device, uint8 count, uint8 *startVector);
+			uint32			GetMSICount(PCIDev *device);
+			status_t		ConfigureMSI(PCIDev *device, uint32 count, uint32 *startVector);
 			status_t		UnconfigureMSI(PCIDev *device);
 			status_t		EnableMSI(PCIDev *device);
 			status_t		DisableMSI(PCIDev *device);
-			uint8			GetMSIXCount(PCIDev *device);
-			status_t		ConfigureMSIX(PCIDev *device, uint8 count, uint8 *startVector);
+			uint32			GetMSIXCount(PCIDev *device);
+			status_t		ConfigureMSIX(PCIDev *device, uint32 count, uint32 *startVector);
 			status_t		EnableMSIX(PCIDev *device);
 
 private:

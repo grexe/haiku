@@ -48,6 +48,12 @@ extern "C" {
 
 #define ERROR(a...) fprintf(stderr, a)
 
+// Compatibility with old ffmpeg 4.x, where the getters didn't exist yet
+#if LIBAVCODEC_VERSION_MAJOR < 60
+#define avformat_index_get_entry(stream, index) (&(stream)->index_entries[(index)])
+#define avformat_index_get_entries_count(stream) ((stream)->nb_index_entries)
+#endif
+
 
 static uint32
 avformat_to_beos_byte_order(AVSampleFormat format)
@@ -307,7 +313,7 @@ StreamBase::Init(int32 virtualIndex)
 {
 	BAutolock _(fStreamLock);
 
-	TRACE("StreamBase::Init(%ld)\n", virtualIndex);
+	TRACE("StreamBase::Init(%" B_PRId32 ")\n", virtualIndex);
 
 	if (fContext == NULL)
 		return B_NO_INIT;
@@ -318,7 +324,7 @@ StreamBase::Init(int32 virtualIndex)
 		return B_BAD_INDEX;
 	}
 
-	TRACE("  context stream index: %ld\n", streamIndex);
+	TRACE("  context stream index: %" B_PRId32 "\n", streamIndex);
 
 	// We need to remember the virtual index so that
 	// AVFormatReader::FreeCookie() can clear the correct stream entry.
@@ -435,9 +441,12 @@ StreamBase::Duration() const
 	if ((flags & B_MEDIA_MUTABLE_SIZE) != 0)
 		return 0;
 
-	if ((int64)fStream->duration != AV_NOPTS_VALUE)
-		return _ConvertFromStreamTimeBase(fStream->duration);
-	else if ((int64)fContext->duration != AV_NOPTS_VALUE)
+	if ((int64)fStream->duration != AV_NOPTS_VALUE) {
+		int64_t time = fStream->duration;
+		if (fStream->start_time != AV_NOPTS_VALUE)
+			time += fStream->start_time;
+		return _ConvertFromStreamTimeBase(time);
+	} else if ((int64)fContext->duration != AV_NOPTS_VALUE)
 		return (bigtime_t)fContext->duration;
 
 	return 0;
@@ -452,8 +461,8 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 	if (fContext == NULL || fStream == NULL)
 		return B_NO_INIT;
 
-	TRACE_SEEK("StreamBase::Seek(%ld,%s%s%s%s, %lld, "
-		"%lld)\n", VirtualIndex(),
+	TRACE_SEEK("StreamBase::Seek(%" B_PRId32 ",%s%s%s%s, %" B_PRId64 ", "
+		"%" B_PRId64 ")\n", VirtualIndex(),
 		(flags & B_MEDIA_SEEK_TO_FRAME) ? " B_MEDIA_SEEK_TO_FRAME" : "",
 		(flags & B_MEDIA_SEEK_TO_TIME) ? " B_MEDIA_SEEK_TO_TIME" : "",
 		(flags & B_MEDIA_SEEK_CLOSEST_BACKWARD)
@@ -534,7 +543,7 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 						if (diff < 8192)
 							break;
 						timeStamp -= diff;
-						TRACE_SEEK("  need to seek back (%lld) (time: %.2f "
+						TRACE_SEEK("  need to seek back (%" B_PRIdBIGTIME ") (time: %.2f "
 							"-> %.2f)\n", timeStamp, *time / 1000000.0,
 							foundTime / 1000000.0);
 						if (timeStamp < 0)
@@ -550,7 +559,7 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 						if (diff < 8192)
 							break;
 						timeStamp += diff;
-						TRACE_SEEK("  need to seek forward (%lld) (time: "
+						TRACE_SEEK("  need to seek forward (%" B_PRId64 ") (time: "
 							"%.2f -> %.2f)\n", timeStamp, *time / 1000000.0,
 							foundTime / 1000000.0);
 						if (timeStamp > duration)
@@ -561,11 +570,11 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 						}
 					}
 				}
-				TRACE_SEEK("  found time: %lld -> %lld (%.2f)\n", *time,
+				TRACE_SEEK("  found time: %" B_PRIdBIGTIME " -> %" B_PRIdBIGTIME " (%.2f)\n", *time,
 					foundTime, foundTime / 1000000.0);
 				*time = foundTime;
 				*frame = (uint64)(*time * frameRate / 1000000LL + 0.5);
-				TRACE_SEEK("  seeked frame: %lld\n", *frame);
+				TRACE_SEEK("  seeked frame: %" B_PRId64 "\n", *frame);
 			} else {
 				TRACE_SEEK("  _NextPacket() failed!\n");
 				return B_ERROR;
@@ -581,8 +590,8 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 			TRACE("  av_index_search_timestamp() failed\n");
 		} else {
 			if (index > 0) {
-				const AVIndexEntry& entry = fStream->index_entries[index];
-				streamTimeStamp = entry.timestamp;
+				const AVIndexEntry* entry = avformat_index_get_entry(fStream, index);
+				streamTimeStamp = entry->timestamp;
 			} else {
 				// Some demuxers use the first index entry to store some
 				// other information, like the total playing time for example.
@@ -596,7 +605,7 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 
 			if (timeDiff > 1000000
 				&& (fStreamBuildsIndexWhileReading
-					|| index == fStream->nb_index_entries - 1)) {
+					|| index == avformat_index_get_entries_count(fStream) - 1)) {
 				// If the stream is building the index on the fly while parsing
 				// it, we only have entries in the index for positions already
 				// decoded, i.e. we cannot seek into the future. In that case,
@@ -655,7 +664,7 @@ StreamBase::Seek(uint32 flags, int64* frame, bigtime_t* time)
 		*time = foundTime;
 		TRACE_SEEK("  sought time: %.2fs\n", *time / 1000000.0);
 		*frame = (uint64)(*time * frameRate / 1000000.0 + 0.5);
-		TRACE_SEEK("  sought frame: %lld\n", *frame);
+		TRACE_SEEK("  sought frame: %" B_PRId64 "\n", *frame);
 	}
 
 	return B_OK;
@@ -669,10 +678,6 @@ StreamBase::GetNextChunk(const void** chunkBuffer,
 	BAutolock _(fStreamLock);
 
 	TRACE_PACKET("StreamBase::GetNextChunk()\n");
-
-	// Get the last stream DTS before reading the next packet, since
-	// then it points to that one.
-	int64 lastStreamDTS = fStream->cur_dts;
 
 	status_t ret = _NextPacket(false);
 	if (ret != B_OK) {
@@ -688,25 +693,32 @@ StreamBase::GetNextChunk(const void** chunkBuffer,
 	*chunkSize = fPacket.size;
 
 	if (mediaHeader != NULL) {
+#if __GNUC__ != 2
+		static_assert(sizeof(avpacket_user_data) <= sizeof(mediaHeader->user_data),
+			"avpacket user data too large");
+#endif
+		mediaHeader->user_data_type = AVPACKET_USER_DATA_TYPE;
+		avpacket_user_data* data = (avpacket_user_data*)mediaHeader->user_data;
+		data->pts = fPacket.pts;
+		data->dts = fPacket.dts;
+		data->stream_index = fPacket.stream_index;
+		data->flags = fPacket.flags;
+		data->duration = fPacket.duration;
+		data->pos = fPacket.pos;
+
 		mediaHeader->type = fFormat.type;
 		mediaHeader->buffer = 0;
 		mediaHeader->destination = -1;
 		mediaHeader->time_source = -1;
 		mediaHeader->size_used = fPacket.size;
 
-		// FFmpeg recommends to use the decoding time stamps as primary source
-		// for presentation time stamps, especially for video formats that are
-		// using frame reordering. More over this way it is ensured that the
-		// returned start times are ordered in a monotonically increasing time
-		// series (even for videos that contain B-frames).
-		// \see http://git.videolan.org/?p=ffmpeg.git;a=blob;f=libavformat/avformat.h;h=1e8a6294890d580cd9ebc684eaf4ce57c8413bd8;hb=9153b33a742c4e2a85ff6230aea0e75f5a8b26c2#l1623
+		// Use the presentation timestamp if available (that is not always the case)
+		// Use the decoding timestamp as a fallback, that is guaranteed to be set by av_read_frame
 		bigtime_t presentationTimeStamp;
-		if (fPacket.dts != AV_NOPTS_VALUE)
-			presentationTimeStamp = fPacket.dts;
-		else if (fPacket.pts != AV_NOPTS_VALUE)
+		if (fPacket.pts != AV_NOPTS_VALUE)
 			presentationTimeStamp = fPacket.pts;
 		else
-			presentationTimeStamp = lastStreamDTS;
+			presentationTimeStamp = fPacket.dts;
 
 		mediaHeader->start_time	= _ConvertFromStreamTimeBase(presentationTimeStamp);
 		mediaHeader->file_pos = fPacket.pos;
@@ -782,6 +794,10 @@ StreamBase::_Read(void* cookie, uint8* buffer, int bufferSize)
 		stream->fPosition += read;
 
 	TRACE_IO("  read: %ld\n", read);
+
+	if (read == 0)
+		return AVERROR_EOF;
+
 	return (int)read;
 
 }
@@ -881,8 +897,8 @@ StreamBase::_ConvertFromStreamTimeBase(int64_t time) const
 	if (fStream->start_time != AV_NOPTS_VALUE)
 		time -= fStream->start_time;
 
-	return bigtime_t(1000000.0 * time * fStream->time_base.num
-		/ fStream->time_base.den + 0.5);
+	return bigtime_t(1000000LL * time
+		* fStream->time_base.num / fStream->time_base.den);
 }
 
 
@@ -947,10 +963,32 @@ AVFormatReader::Stream::~Stream()
 }
 
 
+static int
+get_channel_count(AVCodecParameters* context)
+{
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	return context->ch_layout.nb_channels;
+#else
+	return context->channels;
+#endif
+}
+
+
+static int
+get_channel_mask(AVCodecParameters* context)
+{
+#if LIBAVCODEC_VERSION_MAJOR >= 60
+	return context->ch_layout.u.mask;
+#else
+	return context->channel_layout;
+#endif
+}
+
+
 status_t
 AVFormatReader::Stream::Init(int32 virtualIndex)
 {
-	TRACE("AVFormatReader::Stream::Init(%ld)\n", virtualIndex);
+	TRACE("AVFormatReader::Stream::Init(%" B_PRId32 ")\n", virtualIndex);
 
 	status_t ret = StreamBase::Init(virtualIndex);
 	if (ret != B_OK)
@@ -1056,8 +1094,8 @@ AVFormatReader::Stream::Init(int32 virtualIndex)
 	switch (format->type) {
 		case B_MEDIA_RAW_AUDIO:
 			format->u.raw_audio.frame_rate = (float)codecParams->sample_rate;
-			format->u.raw_audio.channel_count = codecParams->channels;
-			format->u.raw_audio.channel_mask = codecParams->channel_layout;
+			format->u.raw_audio.channel_count = get_channel_count(codecParams);
+			format->u.raw_audio.channel_mask = get_channel_mask(codecParams);
 			ConvertAVSampleFormatToRawAudioFormat(
 				(AVSampleFormat)codecParams->format,
 				format->u.raw_audio.format);
@@ -1081,10 +1119,8 @@ AVFormatReader::Stream::Init(int32 virtualIndex)
 			format->u.encoded_audio.output.frame_rate
 				= (float)codecParams->sample_rate;
 			// Channel layout bits match in Be API and FFmpeg.
-			format->u.encoded_audio.output.channel_count
-				= codecParams->channels;
-			format->u.encoded_audio.multi_info.channel_mask
-				= codecParams->channel_layout;
+			format->u.encoded_audio.output.channel_count = get_channel_count(codecParams);
+			format->u.encoded_audio.multi_info.channel_mask = get_channel_mask(codecParams);
 			format->u.encoded_audio.output.byte_order
 				= avformat_to_beos_byte_order(
 					(AVSampleFormat)codecParams->format);
@@ -1098,7 +1134,7 @@ AVFormatReader::Stream::Init(int32 virtualIndex)
 					= codecParams->block_align;
 			} else {
 				format->u.encoded_audio.output.buffer_size
-					= codecParams->frame_size * codecParams->channels
+					= codecParams->frame_size * get_channel_count(codecParams)
 						* (format->u.encoded_audio.output.format
 							& media_raw_audio_format::B_AUDIO_SIZE_MASK);
 			}
@@ -1197,7 +1233,7 @@ AVFormatReader::Stream::GetStreamInfo(int64* frameCount,
 {
 	BAutolock _(&fLock);
 
-	TRACE("AVFormatReader::Stream::GetStreamInfo(%ld)\n",
+	TRACE("AVFormatReader::Stream::GetStreamInfo(%" B_PRId32 ")\n",
 		VirtualIndex());
 
 	double frameRate = FrameRate();
@@ -1206,7 +1242,7 @@ AVFormatReader::Stream::GetStreamInfo(int64* frameCount,
 	#ifdef TRACE_AVFORMAT_READER
 	if (fStream->start_time != AV_NOPTS_VALUE) {
 		bigtime_t startTime = _ConvertFromStreamTimeBase(fStream->start_time);
-		TRACE("  start_time: %lld or %.5fs\n", startTime,
+		TRACE("  start_time: %" B_PRIdBIGTIME " or %.5fs\n", startTime,
 			startTime / 1000000.0);
 		// TODO: Handle start time in FindKeyFrame() and Seek()?!
 	}
@@ -1214,7 +1250,7 @@ AVFormatReader::Stream::GetStreamInfo(int64* frameCount,
 
 	*duration = Duration();
 
-	TRACE("  duration: %lld or %.5fs\n", *duration, *duration / 1000000.0);
+	TRACE("  duration: %" B_PRIdBIGTIME " or %.5fs\n", *duration, *duration / 1000000.0);
 
 	#if 0
 	if (fStream->nb_index_entries > 0) {
@@ -1246,11 +1282,16 @@ AVFormatReader::Stream::GetStreamInfo(int64* frameCount,
 	*frameCount = fStream->nb_frames * fStream->codecpar->frame_size;
 	if (*frameCount == 0) {
 		// Calculate from duration and frame rate
-		*frameCount = (int64)(*duration * frameRate / 1000000LL);
-		TRACE("  frameCount calculated: %lld, from context: %lld\n",
+		if (fStream->duration != AV_NOPTS_VALUE) {
+			*frameCount = (int64)(fStream->duration * frameRate
+				* fStream->time_base.num / fStream->time_base.den);
+		} else if (fContext->duration != AV_NOPTS_VALUE) {
+			*frameCount = (int64)(fContext->duration * frameRate);
+		}
+		TRACE("  frameCount calculated: %" B_PRIu64 ", from context: %" B_PRIu64 "\n",
 			*frameCount, fStream->nb_frames);
 	} else
-		TRACE("  frameCount: %lld\n", *frameCount);
+		TRACE("  frameCount: %" B_PRId64 "\n", *frameCount);
 
 	*format = fFormat;
 
@@ -1615,7 +1656,7 @@ AVFormatReader::GetMetaData(BMessage* _data)
 status_t
 AVFormatReader::AllocateCookie(int32 streamIndex, void** _cookie)
 {
-	TRACE("AVFormatReader::AllocateCookie(%ld)\n", streamIndex);
+	TRACE("AVFormatReader::AllocateCookie(%" B_PRId32 ")\n", streamIndex);
 
 	BAutolock _(fSourceLock);
 
