@@ -66,28 +66,28 @@ bool
 OpenRelationsMenu::StartBuildingItemList()
 {
     fSenMessenger = BMessenger(SEN_SERVER_SIGNATURE);
-    
+
     if (fSenMessenger.IsValid()) {
         BMessage* message = new BMessage(fEntriesToOpen);
-        message->what = SEN_RELATIONS_GET;     // get all relations for refs received
-        
+        message->what = SEN_RELATIONS_GET_ALL;     // get all relations for refs received
+
         //TODO: support multi-selection - when SEN is adapted
         entry_ref ref;
         fEntriesToOpen.FindRef("refs", &ref);
         BEntry entry(&ref);
         BPath path;
         entry.GetPath(&path);
-        
+
         PRINT(("Tracker->SEN: getting relations for path %s", path.Path()));
         message->AddString(SEN_RELATION_SOURCE, path.Path());
-        
+
         fSenMessenger.SendMessage(message, &fRelationsReply);
-        
+
         PRINT(("SEN->Tracker: received reply: %c", fRelationsReply.what));
-        
+
         // also add source to reply for later use in building relation target menu
         fRelationsReply.AddString(SEN_RELATION_SOURCE, path.Path());
-        
+
         return true;
     } else {
         PRINT(("failed to reach SEN server, is it running?"));
@@ -101,7 +101,7 @@ bool OpenRelationsMenu::AddNextItem()
     return false;
 }
 
-void OpenRelationsMenu::ClearMenuBuildingState() 
+void OpenRelationsMenu::ClearMenuBuildingState()
 {
     //  empty;
     return;
@@ -115,10 +115,10 @@ OpenRelationsMenu::DoneBuildingItemList()
         BMenuItem* item = new BMenuItem("Cannot reach SEN server, please start SEN service.", 0);
 		item->SetEnabled(false);
 		AddItem(item);
-        
+
         return;
     }*/
-    
+
 	// target the menu
 	if (target != NULL)
 		SetTargetForItems(target);
@@ -128,21 +128,21 @@ OpenRelationsMenu::DoneBuildingItemList()
     BString relation, source;
     int index = 0;
     fRelationsReply.FindString(SEN_RELATION_SOURCE, &source);
-    
+
     while (fRelationsReply.FindString("relations", index, &relation) == B_OK) {
-        BMessage* message = new BMessage(SEN_RELATIONS_GET_TARGETS);
+        BMessage* message = new BMessage(SEN_RELATIONS_GET);
         message->AddString(SEN_RELATION_SOURCE, source.String());
         message->AddString(SEN_RELATION_NAME, relation.String());
-        
+
         BMenuItem* item = new BMenuItem(
             new OpenRelationTargetsMenu(relation.String(), message, fParentWindow, be_app_messenger),
             0
         );
 		AddItem(item);
-        
+
         index++;
     }
-    
+
 	if (index == 0) {
 		BMenuItem* item = new BMenuItem("no relations found.", 0);
 		item->SetEnabled(false);

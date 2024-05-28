@@ -255,6 +255,7 @@ protected:
 
 	virtual void SetupOpenWithMenu(BMenu*);
 	virtual void SetupOpenRelationsMenu(BMenu*);
+	virtual void SetupEditQueryItem(BMenu*);
 	virtual void SetupDiskMenu(BMenu*);
 
 	virtual void BuildAddOnsMenu(BMenu*);
