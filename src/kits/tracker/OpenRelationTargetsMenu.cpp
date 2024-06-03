@@ -64,12 +64,11 @@ OpenRelationTargetsMenu::OpenRelationTargetsMenu(const char* label, const BMessa
 bool
 OpenRelationTargetsMenu::StartBuildingItemList()
 {
-    fSenMessenger = BMessenger(SEN_SERVER_SIGNATURE);
-    
-    if (fSenMessenger.IsValid()) {
+    if (be_roster->IsRunning(SEN_SERVER_SIGNATURE)) {
+		fSenMessenger = BMessenger(SEN_SERVER_SIGNATURE);
         PRINT(("Tracker->SEN: getting relation targets" UTF8_ELLIPSIS, path.Path()));
         fSenMessenger.SendMessage(&fEntriesToOpen, &fRelationTargetsReply);
-        
+
         PRINT(("SEN->Tracker: received reply."));
         return true;
     } else {
@@ -84,7 +83,7 @@ bool OpenRelationTargetsMenu::AddNextItem()
     return false;
 }
 
-void OpenRelationTargetsMenu::ClearMenuBuildingState() 
+void OpenRelationTargetsMenu::ClearMenuBuildingState()
 {
     //  empty;
     return;
@@ -111,7 +110,7 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 		AddItem(item);
 		index++;
 	}
-    
+
 	if (index == 0) {
 		BMenuItem* item = new BMenuItem("no targets found.", 0);
 		item->SetEnabled(false);

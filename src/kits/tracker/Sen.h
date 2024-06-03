@@ -24,19 +24,29 @@
 // validate and repair config
 #define SEN_CORE_CHECK				'SCck'
 
+// Actions for communication with clients
+#define SEN_ACTION_CMD		"SEN:action"
+
 // relations
 #define SEN_RELATION_SOURCE "SEN:source"
 #define SEN_RELATION_NAME   "SEN:relation"
 #define SEN_RELATION_TARGET "SEN:target"
 
+// relation actions
 #define SEN_RELATIONS_GET           'SCrg'
 #define SEN_RELATIONS_GET_ALL       'SCrl'
 #define SEN_RELATION_ADD	        'SCra'
 #define SEN_RELATION_REMOVE	    	'SCrr'
 #define SEN_RELATIONS_REMOVE_ALL    'SCrd'
 
+// Tracker integration
+#define SEN_OPEN_RELATION_VIEW		    'STor'
+#define SEN_OPEN_RELATION_TARGET_VIEW	'STot'
+
 #define SEN_ATTRIBUTES_PREFIX		"SEN:"
 // used on any linked file
+// todo: set to 13 for TSID later
+#define SEN_ID_LEN					32
 #define SEN_ID_ATTR        			SEN_ATTRIBUTES_PREFIX "ID"
 #define SEN_META_ATTR               SEN_ATTRIBUTES_PREFIX "META"
 #define SEN_RELATION_ATTR_PREFIX    SEN_ATTRIBUTES_PREFIX "REL:"

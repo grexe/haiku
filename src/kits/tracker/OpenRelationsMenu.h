@@ -34,7 +34,7 @@ private:
 	BHandler* target;
 	BMessenger fMessenger;
 	BWindow* fParentWindow;
-    
+
     BMessenger  fSenMessenger;
     BMessage    fRelationsReply;
 
