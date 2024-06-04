@@ -480,6 +480,8 @@ TTracker::MessageReceived(BMessage* message)
 {
 	if (HandleScriptingMessage(message))
 		return;
+	if (HandleSenMessage(message))
+		return;
 
 	switch (message->what) {
 		case kGetInfo:

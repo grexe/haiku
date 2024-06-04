@@ -2394,13 +2394,6 @@ BPoseView::MessageReceived(BMessage* message)
 			OpenSelection();
 			break;
 
-		case SEN_OPEN_RELATIONS_VIEW:
-			PRINT(("got refs from SEN.\n"));
-			// forward as REFS message to Tracker app with relation refs to open a new window/view
-			message->what = B_REFS_RECEIVED;
-			be_app_messenger.SendMessage(message);
-			break;
-
 		case kOpenSelectionWith:
 			OpenSelectionUsing();
 			break;

@@ -28,8 +28,18 @@
 #define SEN_ACTION_CMD		"SEN:action"
 
 // relations
+// used in file types
+#define SEN_RELATION_SUPERTYPE "relation"
+// used for relations in messages
+#define SEN_RELATIONS "SEN:relations"
 #define SEN_RELATION_SOURCE "SEN:source"
-#define SEN_RELATION_NAME   "SEN:relation"
+// short name of the relation type
+#define SEN_RELATION_NAME   "SEN:relationName"
+// label used for a particular relation
+#define SEN_RELATION_LABEL  "SEN:relationLabel"
+// unique relation MIME type
+#define SEN_RELATION_TYPE   "SEN:relationType"
+#define SEN_RELATION_PROPERTIES "SEN:relationProps"
 #define SEN_RELATION_TARGET "SEN:target"
 
 // relation actions
@@ -48,11 +58,12 @@
 // todo: set to 13 for TSID later
 #define SEN_ID_LEN					32
 #define SEN_ID_ATTR        			SEN_ATTRIBUTES_PREFIX "ID"
+#define SEN_TO_ATTR        			SEN_ATTRIBUTES_PREFIX "TO"
 #define SEN_META_ATTR               SEN_ATTRIBUTES_PREFIX "META"
 #define SEN_RELATION_ATTR_PREFIX    SEN_ATTRIBUTES_PREFIX "REL:"
 // used only for ad-hoc created relation files pointing to the target
-#define SEN_RELATION_SRC_ATTR       SEN_RELATION_ATTR "ID"
-#define SEN_RELATION_TARGET_ATTR    SEN_RELATION_ATTR "TO"
+#define SEN_RELATION_SOURCE_ATTR    SEN_RELATION_ATTR_PREFIX "ID"
+#define SEN_RELATION_TARGET_ATTR    SEN_RELATION_ATTR_PREFIX "TO"
 
 // Message Replies
 #define SEN_RESULT_INFO				'SCri'

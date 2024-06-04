@@ -6,6 +6,7 @@
 #include "OpenRelationsMenu.h"
 #include "OpenRelationTargetsMenu.h"
 #include "MimeTypes.h"
+#include "Sen.h"
 #include "StopWatch.h"
 #include "Tracker.h"
 
@@ -129,48 +130,36 @@ OpenRelationsMenu::DoneBuildingItemList()
     int index = 0;
     fRelationsReply.FindString(SEN_RELATION_SOURCE, &source);
 
-    while (fRelationsReply.FindString("relations", index, &relation) == B_OK) {
+    while (fRelationsReply.FindString(SEN_RELATIONS, index, &relation) == B_OK) {
 		BString currentRelation(relation);
+		// message for relation menu items
         BMessage* message = new BMessage(SEN_RELATIONS_GET);
         message->AddString(SEN_RELATION_SOURCE, source.String());
-        message->AddString(SEN_RELATION_NAME, currentRelation.String());
+        message->AddString(SEN_RELATION_TYPE, currentRelation.String());
 
+		// message for the relation menu itself (to open targets in separate Tracker window)
+		BString srcId;
+		if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
+			srcId.SetTo("0815");
+		}
 		BMimeType mime(relation);
 		char *label = new char[relation.CountChars()];
 		if (mime.GetShortDescription(label) != B_OK) {
 			PRINT(("could not get MIME type for relation %s", relation.String()));
 			currentRelation.CopyInto(label, 0, relation.Length());
 		}
+		BMessage *openRelationTargetsMsg = new BMessage(SEN_OPEN_RELATION_TARGET_VIEW);
+        openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE, source.String());
+		openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE_ATTR, srcId.String());
+		openRelationTargetsMsg->AddString(SEN_RELATION_TYPE, relation.String());
+		openRelationTargetsMsg->AddString(SEN_RELATION_LABEL, label);
 
-		BMessage *openRelationViewMsg = new BMessage(B_REFS_RECEIVED);
-		BPath relationsDirPath;
-		if (find_directory(B_SYSTEM_TEMP_DIRECTORY, &relationsDirPath) != B_OK) {
-			ERROR("could not find temp directory!\n");
-		} else {
-			BString srcId;
-			if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
-				srcId.SetTo("0815");
-			}
-			BString relationsPathName("sen");
-			relationsDirPath.Append(relationsPathName << "/" << srcId << "/relations/" << relation);
-			BDirectory relationsDir(relationsDirPath.Path());
-			if (create_directory(relationsDirPath.Path(), B_READ_WRITE) == B_OK) {
-				BEntry entry;
-				entry_ref* ref = new entry_ref;
-				relationsDir.GetEntry(&entry);
-				entry.GetRef(ref);
-				openRelationViewMsg->AddRef("refs", ref);
-			}
-			openRelationViewMsg->AddUInt32(SEN_ACTION_CMD, SEN_OPEN_RELATION_TARGET_VIEW);
-			openRelationViewMsg->AddString(SEN_RELATION_NAME, relation.String());
-			openRelationViewMsg->PrintToStream();	//DEBUG
-		}
         BMenuItem* item = new IconMenuItem(
             new OpenRelationTargetsMenu(label, message, fParentWindow, be_app_messenger),
-            openRelationViewMsg,
+            openRelationTargetsMsg,
 			currentRelation.String()
         );
-		// redirect open relations message to Tracker app directly
+		// redirect open relation targets message to Tracker app directly
 		item->SetTarget(be_app_messenger);
 		AddItem(item);
         index++;

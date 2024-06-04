@@ -62,19 +62,23 @@ class HexScalarValueSetting;
 class TaskLoop;
 class TrackerSettingsWindow;
 
-
 typedef LockingList<BWindow> WindowList;
 	// this is because MW can't handle nested templates
-
 
 const uint32 kNextSpecifier = 'snxt';
 const uint32 kPreviousSpecifier = 'sprv';
 const uint32 B_ENTRY_SPECIFIER = 'sref';
 
-
 #define kPropertyEntry "Entry"
 #define kPropertySelection "Selection"
 
+// simple data exchange object needed for creating and populating the relation view directory
+struct RelationInfo{
+	entry_ref relationDirRef;
+	BString relationType;
+	BString source;
+	BString srcId;
+};
 
 class TTracker : public BApplication  {
 public:
@@ -164,6 +168,12 @@ protected:
 	bool CountProperty(BMessage*, int32, const char*, BMessage*);
 	bool GetProperty(BMessage*, int32, const char*, BMessage*);
 	bool SetProperty(BMessage*, BMessage*, int32, const char*, BMessage*);
+
+	// SEN integration
+	bool HandleSenMessage(BMessage* message);
+	status_t PrepareRelationWindow(BMessage *message, RelationInfo* relationInfo);
+	status_t PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationInfo);
+	status_t PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo);
 
 private:
 	class WatchingInterface;
