@@ -131,33 +131,37 @@ OpenRelationsMenu::DoneBuildingItemList()
     fRelationsReply.FindString(SEN_RELATION_SOURCE, &source);
 
     while (fRelationsReply.FindString(SEN_RELATIONS, index, &relation) == B_OK) {
-		BString currentRelation(relation);
 		// message for relation menu items
         BMessage* message = new BMessage(SEN_RELATIONS_GET);
         message->AddString(SEN_RELATION_SOURCE, source.String());
-        message->AddString(SEN_RELATION_TYPE, currentRelation.String());
+        message->AddString(SEN_RELATION_TYPE, (new BString(relation))->String());
 
 		// message for the relation menu itself (to open targets in separate Tracker window)
 		BString srcId;
 		if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
 			srcId.SetTo("0815");
 		}
-		BMimeType mime(relation);
-		char *label = new char[relation.CountChars()];
+		BMimeType mime(relation.String());
+		if (!mime.IsInstalled()) {
+			ERROR("skipping relation with unavailable MIME type %s...\n", relation.String());
+			index++;
+			continue;
+		}
+		char label[relation.CountChars()];
 		if (mime.GetShortDescription(label) != B_OK) {
 			PRINT(("could not get MIME type for relation %s", relation.String()));
-			currentRelation.CopyInto(label, 0, relation.Length());
+			relation.CopyInto(label, 0, relation.Length());
 		}
 		BMessage *openRelationTargetsMsg = new BMessage(SEN_OPEN_RELATION_TARGET_VIEW);
-        openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE, source.String());
-		openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE_ATTR, srcId.String());
-		openRelationTargetsMsg->AddString(SEN_RELATION_TYPE, relation.String());
+        openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE, (new BString(source))->String());
+		openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE_ATTR, (new BString(srcId))->String());
+		openRelationTargetsMsg->AddString(SEN_RELATION_TYPE, (new BString(relation))->String());
 		openRelationTargetsMsg->AddString(SEN_RELATION_LABEL, label);
 
         BMenuItem* item = new IconMenuItem(
             new OpenRelationTargetsMenu(label, message, fParentWindow, be_app_messenger),
             openRelationTargetsMsg,
-			currentRelation.String()
+			(new BString(relation))->String()
         );
 		// redirect open relation targets message to Tracker app directly
 		item->SetTarget(be_app_messenger);

@@ -110,12 +110,10 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 
 	BMessage relations;
 	if (reply.FindMessage(SEN_RELATIONS, &relations) != B_OK) {
-		ERROR("got no relations for type %s and source %s.\n",
+		DEBUG("no relations for type %s and source %s to show.\n",
 			relationInfo->relationType.String(), relationInfo->source.String());
-			return B_ERROR;
+			return B_OK;
 	}
-	BMimeType relationType(relationInfo->relationType);
-	entry_ref ref;
 
 	BStringList targetIds;
 	relations.FindStrings(SEN_TO_ATTR, &targetIds);
@@ -126,70 +124,120 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 		return B_ERROR;
 	}
 
+	// get MIME type for target relation
+	BMimeType relationType(relationInfo->relationType);
+	if (!relationType.IsValid()) {
+		ERROR("invalid MIME type for relation %s.\n", relationInfo->relationType.String());
+		return B_ERROR;
+	}
+	if (!relationType.IsInstalled()) {
+		ERROR("MIME type for relation %s not installed, check config.\n",
+			relationInfo->relationType.String());
+		return B_ERROR;
+	}
+
+	// get defined attributes for MIME type of relation, same for all targets of this relation
+	BMessage attrInfo;
+	result = relationType.GetAttrInfo(&attrInfo);
+	if (result != B_OK) {
+		ERROR("error reading attribute info for relation with type %s: %s",
+			relationType.Type(), strerror(result));
+		return result;
+	}
+	DEBUG("got attributeInfo for type %s:\n", relationType.Type());
+	attrInfo.PrintToStream();
+	// get additional attributes from relation supertype
+	BMimeType relationSuperType("relation");
+	if (!relationType.IsInstalled()) {
+		ERROR("MIME type for relation is not installed, check SEN installation!\n");
+		return B_ERROR;
+	}
+	BMessage attrInfoSuperType;
+	result = relationSuperType.GetAttrInfo(&attrInfoSuperType);
+	if (result != B_OK) {
+		ERROR("error reading attribute info for relation super type: %s", strerror(result));
+		return result;
+	}
+	// merge with attributes from supertype (relation)
+	result = attrInfo.Append(attrInfoSuperType);
+	if (result != B_OK) {
+		ERROR("failed to construct attribute info for relation type and supertype: %s", strerror(result));
+		return result;
+	}
+
 	// iterate through refs received and populate relation targets dir with relation targets
 	int32 index = 0;
+	entry_ref ref;
+
 	while (reply.FindRef("refs", index, &ref) == B_OK) {
-		DEBUG("creating relation file for type %s and ref %s for source with ID %s...\n",
-			relationInfo->relationType.String(), ref.name, relationInfo->srcId.String());
+		DEBUG("creating relation file for type %s and ref %s with %d property sets for source with ID %s...\n",
+			relationInfo->relationType.String(), ref.name, targetIds.CountStrings(), relationInfo->srcId.String());
 
-		// todo: handle multiple relations for the same target wrt naming file
-		BFile relationTarget(&relationDir, ref.name, B_READ_WRITE | B_CREATE_FILE);
-		BMessage attrInfo;
+		// write relation properties received from SEN for all relation properties of all targets
+		for (int32 targetIndex = 0; targetIndex < targetIds.CountStrings(); targetIndex++) {
+			DEBUG("handling properties for target %s...\n", targetIds.StringAt(targetIndex).String());
 
-		result = relationTarget.InitCheck();
-		if (result != B_OK) {
-			ERROR("error creating relation target %s: %s\n", ref.name, strerror(result));
-			return result;
-		}
+			BMessage properties;
+			int32 propertiesIndex = 0;
 
-		result = relationType.GetAttrInfo(&attrInfo);
-		if (result != B_OK) {
-			ERROR(("error reading attribute info for relation with type %s: %s"),
-				relationType.Type(), strerror(result));
-			return result;
-		}
+			while (relations.FindMessage(targetIds.StringAt(targetIndex), propertiesIndex, &properties) == B_OK) {
+				DEBUG("got properties msg at index %d:\n", propertiesIndex);
+				properties.PrintToStream();
 
-		BNode relationNode(relationTarget);
-		BNodeInfo relationNodeInfo(&relationNode);
-		if (result == B_OK) result = relationNodeInfo.InitCheck();
+				// create a file for each set of properties for all targets
+				BString fileName(ref.name);
+				fileName.Append(" #") << propertiesIndex + 1; // human readable 1-based index
 
-		if (result == B_OK) result = relationNodeInfo.SetType(relationInfo->relationType);
-		if (result == B_OK) result = relationNode.WriteAttrString
-										(SEN_RELATION_SOURCE_ATTR, &relationInfo->srcId);
-		if (result == B_OK) result = relationNode.WriteAttrString
-										(SEN_RELATION_TARGET_ATTR,
-										new BString(targetIds.StringAt(index)));
-		if (result != B_OK) {
-			ERROR(("error writing relation attributes: %s"), strerror(result));
-			return result;
-		}
-		// write relation properties received from SEN
-		BMessage properties;
-		if ((result = relations.FindMessage(SEN_RELATION_PROPERTIES, index, &properties) == B_OK)) {
-			// write out relation attributes according to MIME type and value from reply
-			BString attrName;
-			int32 attrType;
-			int32 attrIndex = 0;
-			while (attrInfo.FindString("attr:name", attrIndex, &attrName) == B_OK) {
-				result = attrInfo.FindInt32("attr:type", attrIndex, &attrType);
-				if (result == B_OK) {
-					// todo: handle types other than String
-					const char* value = properties.FindString(attrName, index);
-					if (value != NULL) {
-						DEBUG(("creating relation property attribute %s with value %s\n"),
-							attrName.String(), value);
-						result = relationNode.WriteAttrString(attrName, new BString(value));
-						if (result != B_OK) {
-							ERROR(("failed to write relation property attribute %s with value %s: %s\n"),
-							attrName.String(), value, strerror(result));
+				BFile relationTarget(&relationDir, fileName, B_READ_WRITE | B_CREATE_FILE | O_APPEND);
+				result = relationTarget.InitCheck();
+				if (result != B_OK) {
+					ERROR("error creating relation target %s: %s\n", ref.name, strerror(result));
+					return result;
+				}
+
+				BNode relationNode(relationTarget);
+				BNodeInfo relationNodeInfo(&relationNode);
+				if (result == B_OK) result = relationNodeInfo.InitCheck();
+				if (result == B_OK) result = relationNodeInfo.SetType(relationInfo->relationType);
+				if (result == B_OK) result = relationNode.WriteAttrString
+												(SEN_RELATION_SOURCE_ATTR, &relationInfo->srcId);
+				if (result == B_OK) result = relationNode.WriteAttrString
+												(SEN_RELATION_TARGET_ATTR,
+												new BString(targetIds.StringAt(index)));
+				if (result != B_OK) {
+					ERROR(("error writing relation attributes: %s"), strerror(result));
+					return result;
+				}
+
+				// write out relation attributes according to MIME type and value from reply
+				BString attrName;
+				int32 attrType;
+				int32 attrIndex = 0;
+
+				while (attrInfo.FindString("attr:name", attrIndex, &attrName) == B_OK) {
+					result = attrInfo.FindInt32("attr:type", attrIndex, &attrType);
+					if (result == B_OK) {
+						DEBUG("handling attribute %s of type %d...\n", attrName.String(), attrType);
+						// todo: handle types other than String
+						const char* value = properties.FindString(attrName.String());
+						if (value != NULL) {
+							DEBUG(("creating relation property attribute %s with value %s\n"),
+								attrName.String(), value);
+
+							result = relationNode.WriteAttrString(attrName.String(), new BString(value));
+							if (result != B_OK) {
+								ERROR(("failed to write relation property attribute %s with value %s: %s\n"), attrName.String(), value, strerror(result));
+							}
 						}
 					}
-				}
-				attrIndex++;
-			}
-		}
-		relationNode.Sync();
-		relationTarget.Unset();
+					attrIndex++;
+				} // attributes loop
+				relationNode.Sync();
+				relationTarget.Unset();
+
+				propertiesIndex++;
+			} // properties loop
+		}	// targetIds loop
 		index++;
 	}
 
