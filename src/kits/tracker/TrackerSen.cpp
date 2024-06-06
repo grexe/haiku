@@ -108,6 +108,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 	BMessage reply;
 	senMessenger.SendMessage(&relationTargetsMsg, &reply);
 
+    // check relations
 	BMessage relations;
 	if (reply.FindMessage(SEN_RELATIONS, &relations) != B_OK) {
 		DEBUG("no relations for type %s and source %s to show.\n",
@@ -115,6 +116,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 			return B_OK;
 	}
 
+    // check target ids
 	BStringList targetIds;
 	relations.FindStrings(SEN_TO_ATTR, &targetIds);
 	if (targetIds.IsEmpty()) {
@@ -165,80 +167,75 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 		return result;
 	}
 
-	// iterate through refs received and populate relation targets dir with relation targets
-	int32 index = 0;
-	entry_ref ref;
+	// iterate through targets with their properties and populate relation targets dir
+    // with target files and write relation properties in file attributes for usual visualisation.
+    for (int32 targetIndex = 0; targetIndex < targetIds.CountStrings(); targetIndex++) {
+        DEBUG("handling properties for target ID %s ...\n", targetIds.StringAt(targetIndex).String());
 
-	while (reply.FindRef("refs", index, &ref) == B_OK) {
-		DEBUG("creating relation file for type %s and ref %s with %d property sets for source with ID %s...\n",
-			relationInfo->relationType.String(), ref.name, targetIds.CountStrings(), relationInfo->srcId.String());
+        BMessage properties;
+        int32 propertiesIndex = 0;
 
-		// write relation properties received from SEN for all relation properties of all targets
-		for (int32 targetIndex = 0; targetIndex < targetIds.CountStrings(); targetIndex++) {
-			DEBUG("handling properties for target %s...\n", targetIds.StringAt(targetIndex).String());
+        while (relations.FindMessage(targetIds.StringAt(targetIndex), propertiesIndex, &properties) == B_OK) {
+            // create a file for each set of properties for all targets
+            entry_ref ref;
+            reply.FindRef("refs", targetIndex, &ref); // has been checked above already
 
-			BMessage properties;
-			int32 propertiesIndex = 0;
+            DEBUG("processing properties #%d for ref %s:\n", propertiesIndex, ref.name);
+            properties.PrintToStream();
 
-			while (relations.FindMessage(targetIds.StringAt(targetIndex), propertiesIndex, &properties) == B_OK) {
-				DEBUG("got properties msg at index %d:\n", propertiesIndex);
-				properties.PrintToStream();
+            BString fileName(ref.name);
+            fileName.Append(" #") << propertiesIndex + 1; // human readable 1-based index
 
-				// create a file for each set of properties for all targets
-				BString fileName(ref.name);
-				fileName.Append(" #") << propertiesIndex + 1; // human readable 1-based index
+            BFile relationTarget(&relationDir, fileName, B_READ_WRITE | B_CREATE_FILE/* | O_APPEND*/);
+            result = relationTarget.InitCheck();
+            if (result != B_OK) {
+                ERROR("error creating relation target %s: %s\n", ref.name, strerror(result));
+                return result;
+            }
 
-				BFile relationTarget(&relationDir, fileName, B_READ_WRITE | B_CREATE_FILE | O_APPEND);
-				result = relationTarget.InitCheck();
-				if (result != B_OK) {
-					ERROR("error creating relation target %s: %s\n", ref.name, strerror(result));
-					return result;
-				}
+            BNode relationNode(relationTarget);
+            BNodeInfo relationNodeInfo(&relationNode);
+            if (result == B_OK) result = relationNodeInfo.InitCheck();
+            if (result == B_OK) result = relationNodeInfo.SetType(relationInfo->relationType);
+            if (result == B_OK) result = relationNode.WriteAttrString
+                                            (SEN_RELATION_SOURCE_ATTR, &relationInfo->srcId);
+            if (result == B_OK) result = relationNode.WriteAttrString
+                                            (SEN_RELATION_TARGET_ATTR,
+                                            new BString(targetIds.StringAt(targetIndex)));
+            if (result != B_OK) {
+                ERROR(("error writing relation attributes: %s"), strerror(result));
+                return result;
+            }
 
-				BNode relationNode(relationTarget);
-				BNodeInfo relationNodeInfo(&relationNode);
-				if (result == B_OK) result = relationNodeInfo.InitCheck();
-				if (result == B_OK) result = relationNodeInfo.SetType(relationInfo->relationType);
-				if (result == B_OK) result = relationNode.WriteAttrString
-												(SEN_RELATION_SOURCE_ATTR, &relationInfo->srcId);
-				if (result == B_OK) result = relationNode.WriteAttrString
-												(SEN_RELATION_TARGET_ATTR,
-												new BString(targetIds.StringAt(index)));
-				if (result != B_OK) {
-					ERROR(("error writing relation attributes: %s"), strerror(result));
-					return result;
-				}
+            // write out relation attributes according to MIME type and value from reply
+            BString attrName;
+            int32 attrType;
+            int32 attrIndex = 0;
 
-				// write out relation attributes according to MIME type and value from reply
-				BString attrName;
-				int32 attrType;
-				int32 attrIndex = 0;
+            while (attrInfo.FindString("attr:name", attrIndex, &attrName) == B_OK) {
+                result = attrInfo.FindInt32("attr:type", attrIndex, &attrType);
+                if (result == B_OK) {
+                    DEBUG("handling attribute %s of type %d...\n", attrName.String(), attrType);
 
-				while (attrInfo.FindString("attr:name", attrIndex, &attrName) == B_OK) {
-					result = attrInfo.FindInt32("attr:type", attrIndex, &attrType);
-					if (result == B_OK) {
-						DEBUG("handling attribute %s of type %d...\n", attrName.String(), attrType);
-						// todo: handle types other than String
-						const char* value = properties.FindString(attrName.String());
-						if (value != NULL) {
-							DEBUG(("creating relation property attribute %s with value %s\n"),
-								attrName.String(), value);
+                    const void* data;
+                    ssize_t size;
+                    result = properties.FindData(attrName.String(), static_cast<type_code>(attrType), propertiesIndex, &data, &size);
+                    if (result == B_OK) {
+                        DEBUG("creating relation property attribute %s\n", attrName.String());
 
-							result = relationNode.WriteAttrString(attrName.String(), new BString(value));
-							if (result != B_OK) {
-								ERROR(("failed to write relation property attribute %s with value %s: %s\n"), attrName.String(), value, strerror(result));
-							}
-						}
-					}
-					attrIndex++;
-				} // attributes loop
-				relationNode.Sync();
-				relationTarget.Unset();
+                        result = relationNode.WriteAttr(attrName.String(), attrType, 0, data, size);
+                        if (result <= 0) {
+                            ERROR(("failed to write relation property attribute %s.\n"), attrName.String());
+                        }
+                    }
+                }
+                attrIndex++;
+            } // attributes loop
+            relationNode.Sync();
+            relationTarget.Unset();
 
-				propertiesIndex++;
-			} // properties loop
-		}	// targetIds loop
-		index++;
+            propertiesIndex++;
+        } // properties loop
 	}
 
 	return B_OK;

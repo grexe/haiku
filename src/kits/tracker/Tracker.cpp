@@ -879,6 +879,8 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 		return result;
 	}
 
+	PRINT(("OpenRef: %s", model->Name()));	//GREXTEST
+
 	bool openAsContainer = model->IsContainer();
 
 	if (openAsContainer && selector != kOpenWith) {
@@ -985,6 +987,8 @@ TTracker::RefsReceived(BMessage* message)
 		// double-clicked
 		case kOpen:
 		{
+			PRINT(("RefsReceived: Open file...\n"));	//GREXTEST
+
 			// copy over "Poses" messenger so that refs received
 			// recipients know where the open came from
 			BMessage* bundleThis = NULL;
