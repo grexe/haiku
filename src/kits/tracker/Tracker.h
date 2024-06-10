@@ -75,9 +75,11 @@ const uint32 B_ENTRY_SPECIFIER = 'sref';
 // simple data exchange object needed for creating and populating the relation view directory
 struct RelationInfo{
 	entry_ref relationDirRef;
+	entry_ref targetRef;
 	BString relationType;
 	BString source;
 	BString srcId;
+	BString targetId;
 };
 
 class TTracker : public BApplication  {
@@ -171,9 +173,14 @@ protected:
 
 	// SEN integration
 	bool HandleSenMessage(BMessage* message);
+	bool ResolveRelation(const entry_ref* ref, BString* srcId, BString* targetId);
+
+	status_t PrepareLaunchTarget(const char* targetId, entry_ref* targetRef, BMessage* params);
 	status_t PrepareRelationWindow(BMessage *message, RelationInfo* relationInfo);
 	status_t PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationInfo);
 	status_t PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo);
+	status_t ConvertAttributesToMessage(const entry_ref* ref, BMessage* params);
+	status_t GetRelationTypeAttributeInfo(const char* relationType, BMessage* attrInfo);
 
 private:
 	class WatchingInterface;

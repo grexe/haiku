@@ -35,7 +35,11 @@ All rights reserved.
 #include <FindDirectory.h>
 #include <Message.h>
 #include <NodeInfo.h>
+#include <Query.h>
 #include <StringList.h>
+#include <Volume.h>
+#include <VolumeRoster.h>
+#include <fs_attr.h>
 
 #include "Sen.h"
 #include "Tracker.h"
@@ -82,6 +86,50 @@ TTracker::HandleSenMessage(BMessage* message)
 	return true;
 }
 
+bool TTracker::ResolveRelation(const entry_ref* ref, BString* srcId, BString* targetId)
+{
+	BFile relationTarget(ref, B_READ_WRITE);
+	status_t result = relationTarget.InitCheck();
+	if (result != B_OK) {
+		ERROR("error reading relation target %s: %s\n", ref->name, strerror(result));
+		return result;
+	}
+
+	BNode relationNode(relationTarget);
+	BNodeInfo relationNodeInfo(&relationNode);
+	if (result == B_OK) result = relationNodeInfo.InitCheck();
+	if (result != B_OK) {
+		ERROR("error accessing relation target %s nodeInfo: %s\n", ref->name, strerror(result));
+		return result;
+	}
+	if (result == B_OK) result = relationNode.ReadAttrString(SEN_RELATION_SOURCE_ATTR, srcId);
+	if (result == B_NAME_NOT_FOUND) return false;
+	if (result == B_OK) result = relationNode.ReadAttrString(SEN_RELATION_TARGET_ATTR, targetId);
+	if (result == B_NAME_NOT_FOUND) return false;
+
+	return (result == B_OK);
+}
+
+status_t TTracker::PrepareLaunchTarget(const char* targetId, entry_ref* targetRef, BMessage* params)
+{
+	LOG("query for id %s\n", targetId);
+
+	// get relation target by ID from SEN server
+	BMessenger senMessenger(SEN_SERVER_SIGNATURE);
+	BMessage queryTargetIdMsg(SEN_QUERY_ID);
+	queryTargetIdMsg.AddString(SEN_ID_ATTR, targetId);
+
+	BMessage reply;
+	senMessenger.SendMessage(&queryTargetIdMsg, &reply);
+
+	status_t result;
+	if ((result = reply.FindRef("ref", targetRef)) == B_OK) {
+		DEBUG("got target ref %s\n", targetRef->name);
+		result = ConvertAttributesToMessage(targetRef, params);
+	}
+	return result;
+}
+
 status_t
 TTracker::PrepareRelationWindow(BMessage *message, RelationInfo* relationInfo)
 {
@@ -123,47 +171,12 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 		// should never happen
 		ERROR(("no target IDs found for relation %s and source %s!\n"),
 			relationInfo->relationType.String(), relationInfo->source.String());
-		return B_ERROR;
+		return B_ENTRY_NOT_FOUND;
 	}
 
 	// get MIME type for target relation
-	BMimeType relationType(relationInfo->relationType);
-	if (!relationType.IsValid()) {
-		ERROR("invalid MIME type for relation %s.\n", relationInfo->relationType.String());
-		return B_ERROR;
-	}
-	if (!relationType.IsInstalled()) {
-		ERROR("MIME type for relation %s not installed, check config.\n",
-			relationInfo->relationType.String());
-		return B_ERROR;
-	}
-
-	// get defined attributes for MIME type of relation, same for all targets of this relation
 	BMessage attrInfo;
-	result = relationType.GetAttrInfo(&attrInfo);
-	if (result != B_OK) {
-		ERROR("error reading attribute info for relation with type %s: %s",
-			relationType.Type(), strerror(result));
-		return result;
-	}
-	DEBUG("got attributeInfo for type %s:\n", relationType.Type());
-	attrInfo.PrintToStream();
-	// get additional attributes from relation supertype
-	BMimeType relationSuperType("relation");
-	if (!relationType.IsInstalled()) {
-		ERROR("MIME type for relation is not installed, check SEN installation!\n");
-		return B_ERROR;
-	}
-	BMessage attrInfoSuperType;
-	result = relationSuperType.GetAttrInfo(&attrInfoSuperType);
-	if (result != B_OK) {
-		ERROR("error reading attribute info for relation super type: %s", strerror(result));
-		return result;
-	}
-	// merge with attributes from supertype (relation)
-	result = attrInfo.Append(attrInfoSuperType);
-	if (result != B_OK) {
-		ERROR("failed to construct attribute info for relation type and supertype: %s", strerror(result));
+	if ((result = GetRelationTypeAttributeInfo(relationInfo->relationType, &attrInfo)) != B_OK) {
 		return result;
 	}
 
@@ -197,10 +210,9 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
             BNodeInfo relationNodeInfo(&relationNode);
             if (result == B_OK) result = relationNodeInfo.InitCheck();
             if (result == B_OK) result = relationNodeInfo.SetType(relationInfo->relationType);
-            if (result == B_OK) result = relationNode.WriteAttrString
-                                            (SEN_RELATION_SOURCE_ATTR, &relationInfo->srcId);
-            if (result == B_OK) result = relationNode.WriteAttrString
-                                            (SEN_RELATION_TARGET_ATTR,
+            if (result == B_OK) result = relationNode.WriteAttrString(SEN_RELATION_SOURCE_ATTR,
+											&relationInfo->srcId);
+            if (result == B_OK) result = relationNode.WriteAttrString(SEN_RELATION_TARGET_ATTR,
                                             new BString(targetIds.StringAt(targetIndex)));
             if (result != B_OK) {
                 ERROR(("error writing relation attributes: %s"), strerror(result));
@@ -222,7 +234,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
                     result = properties.FindData(attrName.String(), static_cast<type_code>(attrType), 0, &data, &size);
                     if (result == B_OK) {
 						BString value("value ");
-                        DEBUG("creating relation property attribute %s with value %s\n",
+                        DEBUG("creating relation property attribute %s with %s\n",
 							attrName.String(), (value << result).String());
 
                         result = relationNode.WriteAttr(attrName.String(), attrType, 0, data, size);
@@ -240,6 +252,50 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
         } // properties loop
 	}
 
+	return B_OK;
+}
+
+status_t
+TTracker::GetRelationTypeAttributeInfo(const char* relationType, BMessage* attrInfo) {
+	status_t result;
+	BMimeType relationMimeType(relationType);
+
+	if (!relationMimeType.IsValid()) {
+		ERROR("invalid MIME type for relation %s.\n", relationType);
+		return B_ERROR;
+	}
+	if (!relationMimeType.IsInstalled()) {
+		ERROR("MIME type for relation %s not installed, check config.\n", relationType);
+		return B_ERROR;
+	}
+
+	// get defined attributes for MIME type of relation, same for all targets of this relation
+	result = relationMimeType.GetAttrInfo(attrInfo);
+	if (result != B_OK) {
+		ERROR("error reading attribute info for relation with type %s: %s", relationType, strerror(result));
+		return result;
+	}
+	DEBUG("got attributeInfo for type %s:\n", relationType);
+	attrInfo->PrintToStream();
+
+	// get additional attributes from relation supertype
+	BMimeType relationSuperType(SEN_RELATION_SUPERTYPE);
+	if (!relationSuperType.IsInstalled()) {
+		ERROR("MIME supertype for relation %s is not installed, check SEN installation!\n", SEN_RELATION_SUPERTYPE);
+		return B_ERROR;
+	}
+	BMessage attrInfoSuperType;
+	result = relationSuperType.GetAttrInfo(&attrInfoSuperType);
+	if (result != B_OK) {
+		ERROR("error reading attribute info for relation super type: %s", strerror(result));
+		return result;
+	}
+	// merge with attributes from supertype (relation)
+	result = attrInfo->Append(attrInfoSuperType);
+	if (result != B_OK) {
+		ERROR("failed to construct attribute info for relation type and supertype: %s", strerror(result));
+		return result;
+	}
 	return B_OK;
 }
 
@@ -288,9 +344,61 @@ TTracker::PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo
 	BEntry entry;
 	relationsDir.GetEntry(&entry);
 	entry.GetRef(&relationInfo->relationDirRef);
+
 	relationInfo->relationType = relationType;
 	relationInfo->source = src;
 	relationInfo->srcId = srcId;
 
 	return result;
+}
+
+status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* params) {
+	status_t result;
+	BNode node(ref);
+
+	if ((result = node.InitCheck()) != B_OK) {
+		ERROR("failed to init node for ref %s: %s\n", ref->name, strerror(result));
+		return result;
+	}
+
+	attr_info attrInfo;
+	char attrName[B_ATTR_NAME_LENGTH];
+	int32 attrCount = 0;
+	BPath path(ref);
+
+	while ((result = node.GetNextAttrName(attrName)) == B_OK) {
+		BString attrNameStr(attrName);
+		if (   attrNameStr.StartsWith(SEN_ATTRIBUTES_PREFIX)
+			|| attrNameStr.StartsWith("BEOS:")
+			|| attrNameStr.StartsWith("be:")) {
+			DEBUG("skipping OS/SEN attribute %s of ref %s\n", attrName, path.Path());
+		} else {
+			if ((result = node.GetAttrInfo(attrName, &attrInfo)) != B_OK) {
+				ERROR("error reading attr_info of attribute %s of ref %s: %s\n",
+					attrName, path.Path(), strerror(result));
+				return result;
+			}
+
+			DEBUG("handling attribute %s of type %d...\n", attrName, attrInfo.type);
+			const void *data[attrInfo.size];
+			ssize_t bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
+
+			if (bytesRead <= 0) {
+				ERROR("failed to read attribute value of attribute %s and ref %s: %s",
+					attrName, path.Path(), strerror(result));
+				return result;
+			}
+			// now add to message as typed field
+			params->AddData(attrName, attrInfo.type, data, bytesRead);
+		}
+		attrCount++;
+	}
+	if (result != B_ENTRY_NOT_FOUND) {
+		ERROR("failed to read attributes of ref %s: %s\n", path.Path(), strerror(result));
+		return result;
+	}
+	DEBUG("converted %d attribute(s) for ref %s\n", attrCount, path.Path());
+	params->PrintToStream();
+
+	return B_OK;
 }

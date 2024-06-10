@@ -23,6 +23,8 @@
 #define SEN_CORE_INSTALL			'SCis'
 // validate and repair config
 #define SEN_CORE_CHECK				'SCck'
+// core functionality
+#define SEN_QUERY_ID 			    'SCqi'
 
 // Actions for communication with clients
 #define SEN_ACTION_CMD		"SEN:action"
@@ -30,33 +32,36 @@
 // relations
 // used in file types
 #define SEN_RELATION_SUPERTYPE "relation"
+#define SEN_RELATION_SOURCE    "SEN:source"
+#define SEN_RELATION_SOURCE_ID "SEN:sourceId"
+#define SEN_RELATION_TARGET_ID "SEN:targetId"
 // used for relations in messages
 #define SEN_RELATIONS "SEN:relations"
-#define SEN_RELATION_SOURCE "SEN:source"
 // short name of the relation type
 #define SEN_RELATION_NAME   "SEN:relationName"
 // label used for a particular relation
 #define SEN_RELATION_LABEL  "SEN:relationLabel"
 // unique relation MIME type
 #define SEN_RELATION_TYPE   "SEN:relationType"
-#define SEN_RELATION_PROPERTIES "SEN:relationProps"
 #define SEN_RELATION_TARGET "SEN:target"
+#define SEN_RELATION_PROPERTIES "SEN:relationProps"
 
-// relation actions
-#define SEN_RELATIONS_GET           'SCrg'
-#define SEN_RELATIONS_GET_ALL       'SCrl'
-#define SEN_RELATION_ADD	        'SCra'
-#define SEN_RELATION_REMOVE	    	'SCrr'
-#define SEN_RELATIONS_REMOVE_ALL    'SCrd'
+// messages
+#define SEN_RELATIONS_GET           'SRgo'
+#define SEN_RELATIONS_GET_ALL       'SRga'
+#define SEN_RELATION_ADD	        'SRad'
+#define SEN_RELATION_REMOVE	    	'SRrm'
+#define SEN_RELATIONS_REMOVE_ALL    'SRra'
 
 // Tracker integration
 #define SEN_OPEN_RELATION_VIEW		    'STor'
 #define SEN_OPEN_RELATION_TARGET_VIEW	'STot'
 
-#define SEN_ATTRIBUTES_PREFIX		"SEN:"
-// used on any linked file
 // todo: set to 13 for TSID later
 #define SEN_ID_LEN					32
+
+// used on any linked file
+#define SEN_ATTRIBUTES_PREFIX		"SEN:"
 #define SEN_ID_ATTR        			SEN_ATTRIBUTES_PREFIX "ID"
 #define SEN_TO_ATTR        			SEN_ATTRIBUTES_PREFIX "TO"
 #define SEN_META_ATTR               SEN_ATTRIBUTES_PREFIX "META"

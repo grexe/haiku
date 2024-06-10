@@ -926,8 +926,26 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 				refsReceived = *messageToBundle;
 				refsReceived.what = B_REFS_RECEIVED;
 			}
-			refsReceived.AddRef("refs", ref);
-			TrackerLaunch(&refsReceived, true);
+			// SEN integration / intercept to resolve actual target of relation
+			// and pass on parameters from attribute properties
+			BString srcId, targetId;
+			if (ResolveRelation(ref, &srcId, &targetId)) {
+				PRINT(("resolved SEN Relation target %s for ref %s\n", targetId.String(), ref->name));
+				entry_ref* targetRef = new entry_ref;
+				result = PrepareLaunchTarget(targetId, targetRef, &refsReceived);
+				if (result != B_OK) {
+					PRINT(("failed to resolve relation target for ref %s: %s\n", ref->name, strerror(result)));
+					return result;
+				}
+				PRINT(("opened relation target %s for ref %s\n", targetRef->name, ref->name));
+
+				refsReceived.AddRef("refs", targetRef);
+				TrackerLaunch(&refsReceived, true);
+			} else {
+				PRINT(("resolving normal target for ref %s\n", ref->name));
+				refsReceived.AddRef("refs", ref);
+				TrackerLaunch(&refsReceived, true);
+			}
 		}
 	}
 
