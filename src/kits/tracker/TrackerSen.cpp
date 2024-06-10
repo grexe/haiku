@@ -207,7 +207,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
                 return result;
             }
 
-            // write out relation attributes according to MIME type and value from reply
+            // write out relation properties as file attributes according to MIME type
             BString attrName;
             int32 attrType;
             int32 attrIndex = 0;
@@ -219,9 +219,11 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 
                     const void* data;
                     ssize_t size;
-                    result = properties.FindData(attrName.String(), static_cast<type_code>(attrType), propertiesIndex, &data, &size);
+                    result = properties.FindData(attrName.String(), static_cast<type_code>(attrType), 0, &data, &size);
                     if (result == B_OK) {
-                        DEBUG("creating relation property attribute %s\n", attrName.String());
+						BString value("value ");
+                        DEBUG("creating relation property attribute %s with value %s\n",
+							attrName.String(), (value << result).String());
 
                         result = relationNode.WriteAttr(attrName.String(), attrType, 0, data, size);
                         if (result <= 0) {
