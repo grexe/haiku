@@ -110,10 +110,9 @@ bool TTracker::ResolveRelation(const entry_ref* ref, BString* srcId, BString* ta
 	return (result == B_OK);
 }
 
-status_t TTracker::PrepareLaunchTarget(const char* targetId, entry_ref* targetRef, BMessage* params)
+status_t TTracker::PrepareLaunchTarget(
+	const entry_ref* srcRef, const char* targetId, entry_ref* targetRef, BMessage* params)
 {
-	LOG("query for id %s\n", targetId);
-
 	// get relation target by ID from SEN server
 	BMessenger senMessenger(SEN_SERVER_SIGNATURE);
 	BMessage queryTargetIdMsg(SEN_QUERY_ID);
@@ -125,7 +124,7 @@ status_t TTracker::PrepareLaunchTarget(const char* targetId, entry_ref* targetRe
 	status_t result;
 	if ((result = reply.FindRef("ref", targetRef)) == B_OK) {
 		DEBUG("got target ref %s\n", targetRef->name);
-		result = ConvertAttributesToMessage(targetRef, params);
+		result = ConvertAttributesToMessage(srcRef, params);
 	}
 	return result;
 }
@@ -275,8 +274,6 @@ TTracker::GetRelationTypeAttributeInfo(const char* relationType, BMessage* attrI
 		ERROR("error reading attribute info for relation with type %s: %s", relationType, strerror(result));
 		return result;
 	}
-	DEBUG("got attributeInfo for type %s:\n", relationType);
-	attrInfo->PrintToStream();
 
 	// get additional attributes from relation supertype
 	BMimeType relationSuperType(SEN_RELATION_SUPERTYPE);
@@ -296,6 +293,9 @@ TTracker::GetRelationTypeAttributeInfo(const char* relationType, BMessage* attrI
 		ERROR("failed to construct attribute info for relation type and supertype: %s", strerror(result));
 		return result;
 	}
+	DEBUG("got attributeInfo for type %s and supertype %s:\n", relationType, relationSuperType.Type());
+	attrInfo->PrintToStream();
+
 	return B_OK;
 }
 
@@ -355,42 +355,62 @@ TTracker::PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo
 status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* params) {
 	status_t result;
 	BNode node(ref);
+	BPath path(ref);
 
 	if ((result = node.InitCheck()) != B_OK) {
-		ERROR("failed to init node for ref %s: %s\n", ref->name, strerror(result));
+		ERROR("failed to init node for ref %s: %s\n", path.Path(), strerror(result));
 		return result;
 	}
 
-	attr_info attrInfo;
+	BNodeInfo nodeInfo(&node);
+	char relationType[B_MIME_TYPE_LENGTH];
+	if ((result = nodeInfo.GetType(relationType)) != B_OK) {
+		ERROR("couldn't get TYPE for ref %s: %s\n", path.Path(), strerror(result));
+		return result;
+	}
+	BMessage relationTypeAttrInfo;
+	if ((result = GetRelationTypeAttributeInfo(relationType, &relationTypeAttrInfo)) != B_OK) {
+		ERROR("couldn't get attribute_info for relation type %s: %s\n", relationType, strerror(result));
+		return result;
+	}
+	DEBUG("got attribute info for relation type %s:\n", relationType);
+	relationTypeAttrInfo.PrintToStream();
+
 	char attrName[B_ATTR_NAME_LENGTH];
 	int32 attrCount = 0;
-	BPath path(ref);
+	attr_info attrInfo;
 
+	// iterate through relation target attributes and check which ones to convert based on the relation type attrInfo
 	while ((result = node.GetNextAttrName(attrName)) == B_OK) {
-		BString attrNameStr(attrName);
-		if (   attrNameStr.StartsWith(SEN_ATTRIBUTES_PREFIX)
-			|| attrNameStr.StartsWith("BEOS:")
-			|| attrNameStr.StartsWith("be:")) {
-			DEBUG("skipping OS/SEN attribute %s of ref %s\n", attrName, path.Path());
-		} else {
-			if ((result = node.GetAttrInfo(attrName, &attrInfo)) != B_OK) {
-				ERROR("error reading attr_info of attribute %s of ref %s: %s\n",
-					attrName, path.Path(), strerror(result));
-				return result;
+		DEBUG("ConvertAttr2Msg: checking attribute %s...\n", attrName);
+	    if ((result = node.GetAttrInfo(attrName, &attrInfo)) != B_OK) {
+		    ERROR("error reading attr_info of attribute %s of ref %s: %s\n", attrName, path.Path(), strerror(result));
+		    return result;
+        }
+		const void *relationData[attrInfo.size];
+		ssize_t bytesRead;
+		if ((result = relationTypeAttrInfo.FindData(attrName, attrInfo.type, relationData, &bytesRead)) != B_OK) {
+			if (result == B_NAME_NOT_FOUND) {
+				DEBUG("warning: attribute %s was not found in filetype %s or type does not match.\n",
+					attrName, relationType);
+				// we can still continue
+			} else {	// it's a real error
+				ERROR("failed to get attribute info for attribute %s from relation type %s: %s\n",
+					attrName, relationType, strerror(result));
+				continue;
 			}
-
-			DEBUG("handling attribute %s of type %d...\n", attrName, attrInfo.type);
-			const void *data[attrInfo.size];
-			ssize_t bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
-
-			if (bytesRead <= 0) {
-				ERROR("failed to read attribute value of attribute %s and ref %s: %s",
-					attrName, path.Path(), strerror(result));
-				return result;
-			}
-			// now add to message as typed field
-			params->AddData(attrName, attrInfo.type, data, bytesRead);
 		}
+		DEBUG("adding attribute %s of relation %s for file %s...\n", attrName, relationType, path.Leaf());
+		const void *data[attrInfo.size];
+		bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
+
+		if (bytesRead <= 0) {
+			ERROR("failed to read attribute value of attribute %s and ref %s: %s",
+				attrName, path.Path(), strerror(result));
+			return result;
+		}
+		// now add to message as typed field
+		params->AddData(attrName, attrInfo.type, data, bytesRead);
 		attrCount++;
 	}
 	if (result != B_ENTRY_NOT_FOUND) {

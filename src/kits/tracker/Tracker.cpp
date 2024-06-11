@@ -932,14 +932,19 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 			if (ResolveRelation(ref, &srcId, &targetId)) {
 				PRINT(("resolved SEN Relation target %s for ref %s\n", targetId.String(), ref->name));
 				entry_ref* targetRef = new entry_ref;
-				result = PrepareLaunchTarget(targetId, targetRef, &refsReceived);
+				BMessage* argsMsg = new BMessage(B_ARGV_RECEIVED);
+
+				result = PrepareLaunchTarget(ref, targetId, targetRef, argsMsg);
 				if (result != B_OK) {
 					PRINT(("failed to resolve relation target for ref %s: %s\n", ref->name, strerror(result)));
 					return result;
 				}
 				PRINT(("opened relation target %s for ref %s\n", targetRef->name, ref->name));
-
+				// open with relation handler but pass in ref of target
+				// together with relation properties from relation target file attributes
 				refsReceived.AddRef("refs", targetRef);
+				refsReceived.AddMessage("args", argsMsg);
+
 				TrackerLaunch(&refsReceived, true);
 			} else {
 				PRINT(("resolving normal target for ref %s\n", ref->name));

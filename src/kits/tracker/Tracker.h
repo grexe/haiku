@@ -175,7 +175,7 @@ protected:
 	bool HandleSenMessage(BMessage* message);
 	bool ResolveRelation(const entry_ref* ref, BString* srcId, BString* targetId);
 
-	status_t PrepareLaunchTarget(const char* targetId, entry_ref* targetRef, BMessage* params);
+	status_t PrepareLaunchTarget(const entry_ref* srcRef, const char* targetId, entry_ref* targetRef, BMessage* params);
 	status_t PrepareRelationWindow(BMessage *message, RelationInfo* relationInfo);
 	status_t PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationInfo);
 	status_t PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo);
