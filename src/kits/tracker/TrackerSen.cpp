@@ -354,6 +354,9 @@ TTracker::PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo
 
 status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* params) {
 	status_t result;
+
+	DEBUG("ConvertAttr2Msg: converting attributes of file %s...\n", ref->name);
+
 	BNode node(ref);
 	BPath path(ref);
 
@@ -362,50 +365,26 @@ status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* pa
 		return result;
 	}
 
-	BNodeInfo nodeInfo(&node);
-	char relationType[B_MIME_TYPE_LENGTH];
-	if ((result = nodeInfo.GetType(relationType)) != B_OK) {
-		ERROR("couldn't get TYPE for ref %s: %s\n", path.Path(), strerror(result));
-		return result;
-	}
-	BMessage relationTypeAttrInfo;
-	if ((result = GetRelationTypeAttributeInfo(relationType, &relationTypeAttrInfo)) != B_OK) {
-		ERROR("couldn't get attribute_info for relation type %s: %s\n", relationType, strerror(result));
-		return result;
-	}
-	DEBUG("got attribute info for relation type %s:\n", relationType);
-	relationTypeAttrInfo.PrintToStream();
-
 	char attrName[B_ATTR_NAME_LENGTH];
 	int32 attrCount = 0;
 	attr_info attrInfo;
 
-	// iterate through relation target attributes and check which ones to convert based on the relation type attrInfo
+	// iterate through relation target attributes and convert based on the attrInfo
 	while ((result = node.GetNextAttrName(attrName)) == B_OK) {
-		DEBUG("ConvertAttr2Msg: checking attribute %s...\n", attrName);
 	    if ((result = node.GetAttrInfo(attrName, &attrInfo)) != B_OK) {
 		    ERROR("error reading attr_info of attribute %s of ref %s: %s\n", attrName, path.Path(), strerror(result));
 		    return result;
         }
-		const void *relationData[attrInfo.size];
-		ssize_t bytesRead;
-		if ((result = relationTypeAttrInfo.FindData(attrName, attrInfo.type, relationData, &bytesRead)) != B_OK) {
-			if (result == B_NAME_NOT_FOUND) {
-				DEBUG("warning: attribute %s was not found in filetype %s or type does not match.\n",
-					attrName, relationType);
-				// we can still continue
-			} else {	// it's a real error
-				ERROR("failed to get attribute info for attribute %s from relation type %s: %s\n",
-					attrName, relationType, strerror(result));
-				continue;
-			}
+		if (! BString(attrName).StartsWith(SEN_ATTR_PREFIX)) {
+			DEBUG("skipping non-managed attribute %s of file %s...\n", attrName, path.Leaf());
+			continue;
 		}
-		DEBUG("adding attribute %s of relation %s for file %s...\n", attrName, relationType, path.Leaf());
+		DEBUG("adding attribute %s of file %s...\n", attrName, path.Leaf());
 		const void *data[attrInfo.size];
-		bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
+		ssize_t bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
 
 		if (bytesRead <= 0) {
-			ERROR("failed to read attribute value of attribute %s and ref %s: %s",
+			ERROR("failed to read attribute value of attribute %s from file %s: %s\n",
 				attrName, path.Path(), strerror(result));
 			return result;
 		}
@@ -417,7 +396,7 @@ status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* pa
 		ERROR("failed to read attributes of ref %s: %s\n", path.Path(), strerror(result));
 		return result;
 	}
-	DEBUG("converted %d attribute(s) for ref %s\n", attrCount, path.Path());
+	DEBUG("converted %d attribute(s) for file %s\n", attrCount, path.Leaf());
 	params->PrintToStream();
 
 	return B_OK;
