@@ -879,8 +879,6 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 		return result;
 	}
 
-	PRINT(("OpenRef: %s", model->Name()));	//GREXTEST
-
 	bool openAsContainer = model->IsContainer();
 
 	if (openAsContainer && selector != kOpenWith) {
@@ -939,13 +937,32 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 					PRINT(("failed to resolve relation target for ref %s: %s\n", ref->name, strerror(result)));
 					return result;
 				}
-				PRINT(("opened relation target %s for ref %s\n", targetRef->name, ref->name));
-				// open with relation handler but pass in ref of target
-				// together with relation properties from relation target file attributes
+
+				// get default app which should be a SEN relation navigator
+				entry_ref* defaultAppRef = new entry_ref;
+				entry_ref* srcRef = new entry_ref(ref->device, ref->directory, ref->name);
+
+				result = be_roster->FindApp(srcRef, defaultAppRef);
+				if (result != B_OK) {
+					PRINT(("failed to find default app for ref %s: %s\n", ref->name, strerror(result)));
+					return result;
+				}
+				PRINT(("opening relation target %s for srcRef %s with SEN navigator %s\n",
+					targetRef->name, ref->name, defaultAppRef->name));
+
+				// open with default app which should be the relation handler and pass in targetRef as argument
 				refsReceived.AddRef("refs", targetRef);
 				refsReceived.Append(argsMsg);
 
-				TrackerLaunch(&refsReceived, true);
+				refsReceived.PrintToStream();	// DEBUG
+
+				const entry_ref* launchRef = new entry_ref(
+					defaultAppRef->device, defaultAppRef->directory, defaultAppRef->name);
+
+				delete defaultAppRef;
+				delete srcRef;
+
+				TrackerLaunch(launchRef, &refsReceived, true);
 			} else {
 				PRINT(("resolving normal target for ref %s\n", ref->name));
 				refsReceived.AddRef("refs", ref);

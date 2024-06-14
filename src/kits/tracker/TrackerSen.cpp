@@ -179,6 +179,9 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 		return result;
 	}
 
+	DEBUG("got relations for type %s for source %s:\n", relationInfo->relationType.String(), relationInfo->source.String());
+	relations.PrintToStream();
+
 	// iterate through targets with their properties and populate relation targets dir
     // with target files and write relation properties in file attributes for usual visualisation.
     for (int32 targetIndex = 0; targetIndex < targetIds.CountStrings(); targetIndex++) {
