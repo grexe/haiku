@@ -30,6 +30,9 @@ private:
 	virtual void DoneBuildingItemList();
 	virtual void ClearMenuBuildingState();
 
+	uint32 AddRelationItems(const BString* source);
+	uint32 AddSelfRelationItems(const BString* source);
+
 	BMessage fEntriesToOpen;
 	BHandler* target;
 	BMessenger fMessenger;

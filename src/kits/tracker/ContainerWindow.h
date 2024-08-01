@@ -303,6 +303,7 @@ protected:
 	BMenuItem* fCreateLinkItem;
 	BMenuItem* fOpenWithItem;
 	BMenuItem* fOpenRelationsItem;
+	BMenuItem* fOpenSelfRelationsItem;
 	ModelMenuItem* fNavigationItem;
 	BMenuBar* fMenuBar;
 	DraggableContainerIcon* fDraggableIcon;

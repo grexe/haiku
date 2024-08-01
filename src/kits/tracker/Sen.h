@@ -12,7 +12,7 @@
 #define SEN_SERVER_SIGNATURE "application/x-vnd.sen-labs.sen-server"
 
 // simple logging, todo: integrate simple but more standard logging
-#define DEBUG(x...)		printf(x);
+//#define DEBUG(x...)		printf(x);
 #define LOG(x...)		printf(x);
 #define ERROR(x...)		fprintf(stderr, x);
 
@@ -49,6 +49,9 @@
 // messages
 #define SEN_RELATIONS_GET           'SRgo'
 #define SEN_RELATIONS_GET_ALL       'SRga'
+#define SEN_RELATIONS_GET_SELF      'SRsg'
+#define SEN_RELATIONS_GET_ALL_SELF  'SRsa'
+
 #define SEN_RELATION_ADD	        'SRad'
 #define SEN_RELATION_REMOVE	    	'SRrm'
 #define SEN_RELATIONS_REMOVE_ALL    'SRra'
@@ -56,12 +59,13 @@
 // Tracker integration
 #define SEN_OPEN_RELATION_VIEW		    'STor'
 #define SEN_OPEN_RELATION_TARGET_VIEW	'STot'
+#define SEN_OPEN_SELF_RELATION          'STos'
 
 // todo: set to 13 for TSID later
 #define SEN_ID_LEN					32
 
 // used on any linked file
-#define SEN_ATTR_PREFIX				"SEN:"
+#define SEN_ATTR_PREFIX     		"SEN:"
 #define SEN_ID_ATTR        			SEN_ATTR_PREFIX "ID"
 #define SEN_TO_ATTR        			SEN_ATTR_PREFIX "TO"
 #define SEN_META_ATTR               SEN_ATTR_PREFIX "META"

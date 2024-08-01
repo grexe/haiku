@@ -25,11 +25,15 @@ private:
 	virtual void DoneBuildingItemList();
 	virtual void ClearMenuBuildingState();
 
+	status_t	 AddRelationTargetItems(uint32* targetCount);
+	status_t	 AddSelfRelationTargetItems(uint32* targetCount);
+	status_t	 GetItemMessageInfo(BMessage* itemMsg, BMessage* childMsg, BString* label, BString* type, int32 index = 0);
+
 	BMessage fEntriesToOpen;
 	BHandler* target;
 	BMessenger fMessenger;
 	BWindow* fParentWindow;
-    
+
 	BMessenger  fSenMessenger;
 	BMessage    fRelationTargetsReply;
 

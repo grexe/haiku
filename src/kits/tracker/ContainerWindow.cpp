@@ -31,7 +31,7 @@ of Be Incorporated in the United States and other countries. Other brand product
 names are registered trademarks or trademarks of their respective holders.
 All rights reserved.
 */
-
+#define DEBUG 1
 
 #include "ContainerWindow.h"
 #include "OpenRelationsMenu.h"
@@ -90,6 +90,7 @@ All rights reserved.
 #include "PoseView.h"
 #include "QueryContainerWindow.h"
 #include "SelectionWindow.h"
+#include "Sen.h"
 #include "TitleView.h"
 #include "Tracker.h"
 #include "TrackerSettings.h"
@@ -353,7 +354,7 @@ AddMimeTypeString(BStringList& list, Model* model)
 }
 
 
-	
+
 	// set the level of transparency by value
 //	#pragma mark - BContainerWindow
 
@@ -384,6 +385,7 @@ BContainerWindow::BContainerWindow(LockingList<BWindow>* list,
 	fCreateLinkItem(NULL),
 	fOpenWithItem(NULL),
 	fOpenRelationsItem(NULL),
+	fOpenSelfRelationsItem(NULL),
 	fNavigationItem(NULL),
 	fMenuBar(NULL),
 	fDraggableIcon(NULL),
@@ -551,6 +553,11 @@ BContainerWindow::Quit()
 		fOpenRelationsItem = NULL;
 	}
 
+	if (fOpenSelfRelationsItem != NULL && fOpenSelfRelationsItem->Menu() == NULL) {
+		delete fOpenSelfRelationsItem;
+		fOpenSelfRelationsItem = NULL;
+	}
+
 	if (fMoveToItem != NULL && fMoveToItem->Menu() == NULL) {
 		delete fMoveToItem;
 		fMoveToItem = NULL;
@@ -704,6 +711,12 @@ BContainerWindow::RepopulateMenus()
 		fOpenRelationsItem = NULL;
 	}
 
+	if (fOpenSelfRelationsItem != NULL && fOpenSelfRelationsItem->Menu() != NULL) {
+		fOpenSelfRelationsItem->Menu()->RemoveItem(fOpenSelfRelationsItem);
+		delete fOpenSelfRelationsItem;
+		fOpenSelfRelationsItem = NULL;
+	}
+
 	if (fNavigationItem != NULL) {
 		BMenu* menu = fNavigationItem->Menu();
 		if (menu != NULL) {
@@ -750,8 +763,11 @@ BContainerWindow::RepopulateMenus()
 		int32 selectCount = PoseView()->CountSelected();
 
 		SetupOpenWithMenu(fFileMenu);
+		fFileMenu->AddSeparatorItem();
+
 		SetupOpenRelationsMenu(fFileMenu);
-		
+		fFileMenu->AddSeparatorItem();
+
 		SetupMoveCopyMenus(selectCount ? PoseView()->SelectionList()
 				->FirstItem()->TargetModel()->EntryRef() : NULL,
 			fFileMenu);
@@ -2091,8 +2107,11 @@ BContainerWindow::MenusBeginning()
 	int32 selectCount = PoseView()->SelectionList()->CountItems();
 
 	SetupOpenWithMenu(fFileMenu);
+	fFileMenu->AddSeparatorItem();
+
 	SetupOpenRelationsMenu(fFileMenu);
-	
+	fFileMenu->AddSeparatorItem();
+
 	SetupMoveCopyMenus(selectCount
 		? PoseView()->SelectionList()->FirstItem()->TargetModel()->EntryRef()
 		: NULL, fFileMenu);
@@ -2137,7 +2156,7 @@ BContainerWindow::MenusEnded()
 	DeleteSubmenu(fCopyToItem);
 	DeleteSubmenu(fCreateLinkItem);
 	DeleteSubmenu(fOpenWithItem);
-	DeleteSubmenu(fOpenRelationsItem);	
+	DeleteSubmenu(fOpenRelationsItem);
 }
 
 
@@ -2309,7 +2328,7 @@ BContainerWindow::SetupOpenWithMenu(BMenu* parent)
 void
 BContainerWindow::SetupOpenRelationsMenu(BMenu* parent)
 {
-	// remove existing item from old menu
+	// remove existing relation items from old menu
 	if (fOpenRelationsItem) {
 		BMenu* menu = fOpenRelationsItem->Menu();
 		if (menu != NULL)
@@ -2318,7 +2337,16 @@ BContainerWindow::SetupOpenRelationsMenu(BMenu* parent)
 		delete fOpenRelationsItem;
 		fOpenRelationsItem = 0;
 	}
-	
+
+	if (fOpenSelfRelationsItem) {
+		BMenu* menu = fOpenSelfRelationsItem->Menu();
+		if (menu != NULL)
+			menu->RemoveItem(fOpenSelfRelationsItem);
+
+		delete fOpenSelfRelationsItem;
+		fOpenSelfRelationsItem = 0;
+	}
+
 	int32 count = PoseView()->CountSelected();
 	if (count == 0) {
 		// no selection, nothing to open
@@ -2329,12 +2357,9 @@ BContainerWindow::SetupOpenRelationsMenu(BMenu* parent)
 		// don't add ourselves if we are root
 		return;
 	}
-	
-	// add after "Open With"
-	BMenuItem* item = parent->FindItem(kOpenSelectionWith);
-	ASSERT(item != NULL);
-	
-	// build a list of all selected files to show relations for (intersection of supported sources and types)
+
+	// build a list of all selected files to show relations for
+	// todo: support intersection of supported sources and types
 	BMessage message(B_REFS_RECEIVED);
 	for (int32 index = 0; index < count; index++) {
 		BPose* pose = PoseView()->SelectionList()->ItemAt(index);
@@ -2344,14 +2369,29 @@ BContainerWindow::SetupOpenRelationsMenu(BMenu* parent)
 	// add Tracker token so that refs received recipients can script us
 	message.AddMessenger("TrackerViewToken", BMessenger(PoseView()));
 
-	int32 index = item->Menu()->IndexOf(item);
+	// add desired SEN relations command for outgoing or self referencing relations
+	// first: outgoing relations
+	message.AddUInt32(SEN_ACTION_CMD, SEN_RELATIONS_GET_ALL);
+
+	int32 index = fOpenWithItem->Menu()->IndexOf(fOpenWithItem) + 1;	// add separator to calculation
 	fOpenRelationsItem = new BMenuItem(
 		new OpenRelationsMenu(B_TRANSLATE("Open related" B_UTF8_ELLIPSIS), &message, this, be_app),
         new BMessage(kOpenRelations));
 	fOpenRelationsItem->SetTarget(PoseView());
 	fOpenRelationsItem->SetShortcut('R', B_COMMAND_KEY | B_CONTROL_KEY);
 
-	item->Menu()->AddItem(fOpenRelationsItem, index + 1);
+	fOpenWithItem->Menu()->AddItem(fOpenRelationsItem, index + 1);
+
+	// self relations, take over from above but needs to be separate msg
+	BMessage messageSelf(message);
+	messageSelf.ReplaceUInt32(SEN_ACTION_CMD, SEN_RELATIONS_GET_ALL_SELF);
+
+	fOpenSelfRelationsItem = new BMenuItem(
+		new OpenRelationsMenu(B_TRANSLATE("Open contained" B_UTF8_ELLIPSIS), &messageSelf, this, be_app),
+        new BMessage(kOpenRelations));
+	fOpenSelfRelationsItem->SetTarget(PoseView());
+
+	fOpenWithItem->Menu()->AddItem(fOpenSelfRelationsItem, index + 2);
 }
 
 
@@ -2762,9 +2802,9 @@ BContainerWindow::AddFileContextMenus(BMenu* menu)
 		new BMessage(kOpenSelection), 'O'));
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Get info"),
 		new BMessage(kGetInfo), 'I'));
-	
+
 	menu->AddSeparatorItem();
-	
+
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit name"),
 		new BMessage(kEditItem), 'E'));
 	menu->AddItem(new BMenuItem(B_TRANSLATE("Edit relations"),

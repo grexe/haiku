@@ -31,7 +31,9 @@ of Be Incorporated in the United States and other countries. Other brand product
 names are registered trademarks or trademarks of their respective holders.
 All rights reserved.
 */
+#define DEBUG 1
 
+#include <Debug.h>
 #include <FindDirectory.h>
 #include <Message.h>
 #include <NodeInfo.h>
@@ -123,7 +125,7 @@ status_t TTracker::PrepareLaunchTarget(
 
 	status_t result;
 	if ((result = reply.FindRef("ref", targetRef)) == B_OK) {
-		DEBUG("got target ref %s\n", targetRef->name);
+		PRINT(("got target ref %s\n", targetRef->name));
 		result = ConvertAttributesToMessage(srcRef, params);
 	}
 	return result;
@@ -158,8 +160,8 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
     // check relations
 	BMessage relations;
 	if (reply.FindMessage(SEN_RELATIONS, &relations) != B_OK) {
-		DEBUG("no relations for type %s and source %s to show.\n",
-			relationInfo->relationType.String(), relationInfo->source.String());
+		PRINT(("no relations for type %s and source %s to show.\n",
+			relationInfo->relationType.String(), relationInfo->source.String()) );
 			return B_OK;
 	}
 
@@ -179,13 +181,13 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 		return result;
 	}
 
-	DEBUG("got relations for type %s for source %s:\n", relationInfo->relationType.String(), relationInfo->source.String());
+	PRINT(("got relations for type %s for source %s:\n", relationInfo->relationType.String(), relationInfo->source.String()) );
 	relations.PrintToStream();
 
 	// iterate through targets with their properties and populate relation targets dir
     // with target files and write relation properties in file attributes for usual visualisation.
     for (int32 targetIndex = 0; targetIndex < targetIds.CountStrings(); targetIndex++) {
-        DEBUG("handling properties for target ID %s ...\n", targetIds.StringAt(targetIndex).String());
+        PRINT(("handling properties for target ID %s ...\n", targetIds.StringAt(targetIndex).String()) );
 
         BMessage properties;
         int32 propertiesIndex = 0;
@@ -195,7 +197,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
             entry_ref ref;
             reply.FindRef("refs", targetIndex, &ref); // has been checked above already
 
-            DEBUG("processing properties #%d for ref %s:\n", propertiesIndex, ref.name);
+            PRINT(("processing properties #%d for ref %s:\n", propertiesIndex, ref.name));
             properties.PrintToStream();
 
             BString fileName(ref.name);
@@ -229,15 +231,15 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
             while (attrInfo.FindString("attr:name", attrIndex, &attrName) == B_OK) {
                 result = attrInfo.FindInt32("attr:type", attrIndex, &attrType);
                 if (result == B_OK) {
-                    DEBUG("handling attribute %s of type %d...\n", attrName.String(), attrType);
+                    PRINT(("handling attribute %s of type %d...\n", attrName.String(), attrType));
 
                     const void* data;
                     ssize_t size;
                     result = properties.FindData(attrName.String(), static_cast<type_code>(attrType), 0, &data, &size);
                     if (result == B_OK) {
 						BString value("value ");
-                        DEBUG("creating relation property attribute %s with %s\n",
-							attrName.String(), (value << result).String());
+                        PRINT(("creating relation property attribute %s with %s\n",
+							attrName.String(), (value << result).String()) );
 
                         result = relationNode.WriteAttr(attrName.String(), attrType, 0, data, size);
                         if (result <= 0) {
@@ -296,7 +298,7 @@ TTracker::GetRelationTypeAttributeInfo(const char* relationType, BMessage* attrI
 		ERROR("failed to construct attribute info for relation type and supertype: %s", strerror(result));
 		return result;
 	}
-	DEBUG("got attributeInfo for type %s and supertype %s:\n", relationType, relationSuperType.Type());
+	PRINT(("got attributeInfo for type %s and supertype %s:\n", relationType, relationSuperType.Type()) );
 	attrInfo->PrintToStream();
 
 	return B_OK;
@@ -358,7 +360,7 @@ TTracker::PrepareRelationDirectory(BMessage *message, RelationInfo* relationInfo
 status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* params) {
 	status_t result;
 
-	DEBUG("ConvertAttr2Msg: converting attributes of file %s...\n", ref->name);
+	PRINT(("ConvertAttr2Msg: converting attributes of file %s...\n", ref->name));
 
 	BNode node(ref);
 	BPath path(ref);
@@ -379,10 +381,10 @@ status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* pa
 		    return result;
         }
 		if (! BString(attrName).StartsWith(SEN_ATTR_PREFIX)) {
-			DEBUG("skipping non-managed attribute %s of file %s...\n", attrName, path.Leaf());
+			PRINT(("skipping non-managed attribute %s of file %s...\n", attrName, path.Leaf()) );
 			continue;
 		}
-		DEBUG("adding attribute %s of file %s...\n", attrName, path.Leaf());
+		PRINT(("adding attribute %s of file %s...\n", attrName, path.Leaf()) );
 		const void *data[attrInfo.size];
 		ssize_t bytesRead = node.ReadAttr(attrName, attrInfo.type, 0, data, attrInfo.size);
 
@@ -399,7 +401,7 @@ status_t TTracker::ConvertAttributesToMessage(const entry_ref* ref, BMessage* pa
 		ERROR("failed to read attributes of ref %s: %s\n", path.Path(), strerror(result));
 		return result;
 	}
-	DEBUG("converted %d attribute(s) for file %s\n", attrCount, path.Leaf());
+	PRINT(("converted %d attribute(s) for file %s\n", attrCount, path.Leaf()) );
 	params->PrintToStream();
 
 	return B_OK;
