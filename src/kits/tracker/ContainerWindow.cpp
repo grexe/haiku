@@ -2388,7 +2388,7 @@ BContainerWindow::SetupOpenRelationsMenu(BMenu* parent)
 
 	fOpenSelfRelationsItem = new BMenuItem(
 		new OpenRelationsMenu(B_TRANSLATE("Open contained" B_UTF8_ELLIPSIS), &messageSelf, this, be_app),
-        new BMessage(kOpenRelations));
+        new BMessage(kOpenSelfRelations));
 	fOpenSelfRelationsItem->SetTarget(PoseView());
 
 	fOpenWithItem->Menu()->AddItem(fOpenSelfRelationsItem, index + 2);

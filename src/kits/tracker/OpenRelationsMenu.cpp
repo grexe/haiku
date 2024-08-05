@@ -76,10 +76,18 @@ OpenRelationsMenu::StartBuildingItemList()
         BMessage* message = new BMessage(fEntriesToOpen);
 
 		// use SEN action as new message type for passing on to SEN
-		uint32 senCmd;
+		uint32 senCmd = 0;
 		message->FindUInt32(SEN_ACTION_CMD, &senCmd);
+		if (senCmd == SEN_RELATIONS_GET_ALL) {
+			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetAllRelations\n"));
+		} else if (senCmd == SEN_RELATIONS_GET_ALL_SELF) {
+			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetAllSelfRelations\n"));
+		} else if (senCmd == SEN_RELATIONS_GET_SELF) {
+			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetSelfRelations\n"));
+		}
 		if (senCmd == 0) {
 			senCmd = SEN_RELATIONS_GET_ALL;
+			PRINT(("OpenRelationsMenu::StartBuildingItemList got NO SEN ActionCmd, fall back to GetAllRelations\n"));
 		}
 		message->what = senCmd;
 
@@ -92,14 +100,17 @@ OpenRelationsMenu::StartBuildingItemList()
 
         PRINT(("Tracker->SEN: getting relations for path %s\n", path.Path()));
         message->AddString(SEN_RELATION_SOURCE, path.Path());
+		message->PrintToStream();
 
-        fSenMessenger.SendMessage(message, &fRelationsReply);
+        fSenMessenger.SendMessage(new BMessage(*message), &fRelationsReply);
 
         PRINT(("SEN->Tracker: received reply:\n"));
 
+		fRelationsReply.AddRef("refs", new entry_ref(ref));
         // also add source to reply for later use in building relation target menu
 		// todo: migrate to native refs internally and use source path only for external scripting!
         fRelationsReply.AddString(SEN_RELATION_SOURCE, path.Path());
+		fRelationsReply.PrintToStream();
 
         return true;
     } else {
@@ -155,6 +166,8 @@ OpenRelationsMenu::DoneBuildingItemList()
 		BMenuItem* item = new BMenuItem("no relations found.", 0);
 		item->SetEnabled(false);
 		AddItem(item);
+	} else {
+		PRINT(("%u relation(s) added.\n", relationCount));
 	}
 }
 
@@ -171,7 +184,7 @@ uint32 OpenRelationsMenu::AddRelationItems(const BString* source) {
 		// message for the relation menu itself (to open targets in separate Tracker window)
 		BString srcId;
 		if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
-			srcId.SetTo("0815");
+			srcId.SetTo("");
 		}
 		BMimeType mime(relation.String());
 		if (!mime.IsInstalled()) {
@@ -261,24 +274,24 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 		}
 		PRINT(("got plugin %s to resolve relation %s\n", pluginName.String(), *relationType));
 
-		// message for relation menu items
-        BMessage* message = new BMessage(SEN_RELATIONS_GET_SELF);
-		message->AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
-        message->AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
+		// message for relation menu items, sent to SEN server for resolving
+        BMessage message(SEN_RELATIONS_GET_SELF);
+		message.AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
+        message.AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
 		// add plugin needed to resolve this self relation
-		message->AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
+		message.AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
 		// add default type if any
 		if (! defaultType.IsEmpty()) {
-			message->AddString(SENSEI_SELF_DEFAULT_TYPE_KEY, defaultType);
+			message.AddString(SENSEI_SELF_DEFAULT_TYPE_KEY, defaultType);
 		}
 
-		PRINT(("message for open targets:\n"));
-		message->PrintToStream();
+		PRINT(("message for get self relation targets:\n"));
+		message.PrintToStream();
 
 		// message for the relation menu itself (to open targets in separate Tracker window)
 		BString srcId;
 		if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
-			srcId.SetTo("0815");
+			srcId.SetTo("_self");
 		}
 		BMimeType mime(*relationType);
 		if (!mime.IsInstalled()) {
@@ -292,16 +305,16 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 			strcpy(label, *relationType);
 		}
 
-		BMessage *openRelationTargetsMsg = new BMessage(SEN_OPEN_RELATION_TARGET_VIEW);
-        openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
-		openRelationTargetsMsg->AddString(SEN_RELATION_SOURCE_ATTR, (new BString(srcId))->String());
-		openRelationTargetsMsg->AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
-		openRelationTargetsMsg->AddString(SEN_RELATION_LABEL, label);
-		openRelationTargetsMsg->AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
+		BMessage openRelationTargetsMsg(SEN_OPEN_SELF_RELATION);
+        openRelationTargetsMsg.AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
+		openRelationTargetsMsg.AddString(SEN_RELATION_SOURCE_ATTR, (new BString(srcId))->String());
+		openRelationTargetsMsg.AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
+		openRelationTargetsMsg.AddString(SEN_RELATION_LABEL, label);
+		openRelationTargetsMsg.AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
 
         BMenuItem* item = new IconMenuItem(
-            new OpenRelationTargetsMenu(label, message, fParentWindow, be_app_messenger),
-            openRelationTargetsMsg,
+            new OpenRelationTargetsMenu(label, new BMessage(message), fParentWindow, be_app_messenger),
+            new BMessage(openRelationTargetsMsg),
 			(new BString(*relationType))->String()
         );
 		// redirect open relation targets message to Tracker app directly

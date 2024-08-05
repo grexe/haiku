@@ -43,6 +43,7 @@ All rights reserved.
 #include <VolumeRoster.h>
 #include <fs_attr.h>
 
+#include "Commands.h"
 #include "Sen.h"
 #include "Tracker.h"
 
@@ -50,7 +51,9 @@ bool
 TTracker::HandleSenMessage(BMessage* message)
 {
 	if (message->what != SEN_OPEN_RELATION_VIEW
-		&& message->what != SEN_OPEN_RELATION_TARGET_VIEW) {
+		&& message->what != SEN_OPEN_RELATION_TARGET_VIEW
+		&& message->what != kOpenRelations
+		&& message->what != kOpenSelfRelations) {
 		// not a SEN command message, handle as normal
 		return false;
 	}
@@ -70,9 +73,15 @@ TTracker::HandleSenMessage(BMessage* message)
 			result = PrepareRelationTargetWindow(message, &relationInfo);
 			break;
 		}
+		case kOpenRelations:
+		case kOpenSelfRelations:	//fallthrough
+		{
+			PRINT(("open (self) relations view not yet implemented. Please check back later.\n"));
+			break;
+		}
 		default:
 		{
-			ERROR("unknown SEN message %u, ignoring.\n", message->what);
+			PRINT(("unknown SEN message %u, ignoring.\n", message->what));
 			break;
 		}
 	}
@@ -105,7 +114,10 @@ bool TTracker::ResolveRelation(const entry_ref* ref, BString* srcId, BString* ta
 		return result;
 	}
 	if (result == B_OK) result = relationNode.ReadAttrString(SEN_RELATION_SOURCE_ATTR, srcId);
-	if (result == B_NAME_NOT_FOUND) return false;
+	if (result == B_NAME_NOT_FOUND) {
+		// todo: check for self relation
+		return false;
+	}
 	if (result == B_OK) result = relationNode.ReadAttrString(SEN_RELATION_TARGET_ATTR, targetId);
 	if (result == B_NAME_NOT_FOUND) return false;
 
@@ -166,6 +178,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
 	}
 
     // check target ids
+	// todo: handle self relations
 	BStringList targetIds;
 	relations.FindStrings(SEN_TO_ATTR, &targetIds);
 	if (targetIds.IsEmpty()) {
