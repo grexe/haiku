@@ -32,6 +32,8 @@ names are registered trademarks or trademarks of their respective holders.
 All rights reserved.
 */
 
+#define DEBUG 1
+
 #include "Tracker.h"
 
 #include <errno.h>
@@ -79,6 +81,8 @@ All rights reserved.
 #include "OpenWithWindow.h"
 #include "PoseView.h"
 #include "QueryContainerWindow.h"
+#include "Sen.h"
+#include "Sensei.h"
 #include "StatusWindow.h"
 #include "TaskLoop.h"
 #include "Thread.h"
@@ -924,46 +928,125 @@ TTracker::OpenRef(const entry_ref* ref, const node_ref* nodeToClose,
 				refsReceived = *messageToBundle;
 				refsReceived.what = B_REFS_RECEIVED;
 			}
+			if (DEBUG) {
+				PRINT(("refsReceived is:\n"));
+				refsReceived.PrintToStream();
+			}
+
 			// SEN integration / intercept to resolve actual target of relation
-			// and pass on parameters from attribute properties
-			BString srcId, targetId;
-			if (ResolveRelation(ref, &srcId, &targetId)) {
-				PRINT(("resolved SEN Relation target %s for ref %s\n", targetId.String(), ref->name));
-				entry_ref* targetRef = new entry_ref;
-				BMessage argsMsg;
+			entry_ref* srcRef = new entry_ref(ref->device, ref->directory, ref->name);
+			entry_ref* targetRef;
+			entry_ref* senHandlerRef = new entry_ref;
+			BMessage argsMsg;
+			bool senRelation = false;
+			bool selfRelation;
 
-				result = PrepareLaunchTarget(ref, targetId, targetRef, &argsMsg);
+			if ((result = refsReceived.FindBool(SEN_RELATION_IS_SELF, &selfRelation)) != B_OK) {
+				if (result != B_NAME_NOT_FOUND) {
+					PRINT(("failed to retrieve relation type for self relation: %s\n", strerror(result)));
+				}
+				selfRelation = false;
+			}
+
+			if (selfRelation) {
+				PRINT(("OpenRef: resolving self relation...\n"));
+				// we cannot take the default relation handler since our source is the target file itself
+				// so we need to fetch the plugin ref from the relation message bundled here
+				BString relationType;
+				result = refsReceived.FindString(SEN_RELATION_TYPE, &relationType);
+				if (result != B_OK) result = refsReceived.FindString(SENSEI_DEFAULT_TYPE_KEY, &relationType);
 				if (result != B_OK) {
-					PRINT(("failed to resolve relation target for ref %s: %s\n", ref->name, strerror(result)));
-					return result;
+					if (result == B_NAME_NOT_FOUND) {
+						PRINT(("could not find self relation (default) type in refs msg, falling back to normal launch.\n"));
+						goto normal_launch_ref;
+					} else {
+						PRINT(("failed to retrieve relation type from refs msg: %s\n", strerror(result)));
+						return result;
+					}
+				}
+				PRINT(("got self relation with type %s.\n", relationType.String()));
+
+				// get SEN relation handler for navigation from relation type's default app
+				BMimeType senHandlerMime(relationType);
+				if (! senHandlerMime.IsValid()) {
+					PRINT(("error accessing MIME type for relation %s, opening as normal ref.\n", relationType.String()));
+					goto normal_launch_ref;
+				}
+				char prefAppSig[B_MIME_TYPE_LENGTH];
+				result = senHandlerMime.GetPreferredApp(prefAppSig);
+				if (result != B_OK) {
+					//todo: have SEN search for supporting plugins and let user choose, then set as preferred app
+					//      like OpenWith behavior.
+					PRINT(("could not find preferred app for handling relation %s: %s\n",
+							relationType.String(), strerror(result)));
+					goto normal_launch_ref;
 				}
 
-				// get default app which should be a SEN relation navigator
-				entry_ref* defaultAppRef = new entry_ref;
-				entry_ref* srcRef = new entry_ref(ref->device, ref->directory, ref->name);
-
-				result = be_roster->FindApp(srcRef, defaultAppRef);
+				result = be_roster->FindApp(prefAppSig, senHandlerRef);
 				if (result != B_OK) {
-					PRINT(("failed to find default app for ref %s: %s\n", ref->name, strerror(result)));
-					return result;
+					PRINT(("could not resolve relation handler with signature %s, falling back to normal launch.\n", relationType.String()));
+					goto normal_launch_ref;
 				}
+
+				// pass on attributes from self relation properties
+				result = refsReceived.FindMessage(SEN_OPEN_RELATION_ARGS_KEY, &argsMsg);
+				if (result != B_OK) {
+					if (result != B_NAME_NOT_FOUND) {
+						PRINT(("error getting relf relation arguments from refs msg: %s\n", strerror(result)));
+						return result;
+					}
+				} else {
+					if (DEBUG) {
+						PRINT(("received args for self relation:\n"));
+						argsMsg.PrintToStream();
+					}
+				}
+
+				// self relation has target == source ref
+				targetRef = srcRef;
+				senRelation = true;
+			} else {
+				// and pass on parameters from attribute properties
+				BString srcId, targetId;
+				if (ResolveRelation(ref, &srcId, &targetId)) {
+					PRINT(("resolved SEN Relation target %s for ref %s\n", targetId.String(), ref->name));
+					targetRef = new entry_ref;
+
+					result = PrepareLaunchTarget(ref, targetId.String(), targetRef, &argsMsg);
+					if (result != B_OK) {
+						PRINT(("failed to resolve relation target for ref %s: %s\n", ref->name, strerror(result)));
+						return result;
+					}
+					// get default app which should be a SEN relation navigator
+					result = be_roster->FindApp(srcRef, senHandlerRef);
+					if (result != B_OK) {
+						PRINT(("failed to find default app for ref %s: %s\n", ref->name, strerror(result)));
+						return result;
+					}
+					senRelation = true;
+				}
+			}
+			if (senRelation) {
 				PRINT(("opening relation target %s for srcRef %s with SEN navigator %s\n",
-					targetRef->name, ref->name, defaultAppRef->name));
+					targetRef->name, ref->name, senHandlerRef->name));
 
 				// open with default app which should be the relation handler and pass in targetRef as argument
 				refsReceived.AddRef("refs", targetRef);
-				refsReceived.Append(argsMsg);
 
-				refsReceived.PrintToStream();	// DEBUG
+				if (DEBUG) {
+					PRINT(("SEN relation: launch with final refs msg:\n"));
+					refsReceived.PrintToStream();
+				}
 
 				const entry_ref* launchRef = new entry_ref(
-					defaultAppRef->device, defaultAppRef->directory, defaultAppRef->name);
+					senHandlerRef->device, senHandlerRef->directory, senHandlerRef->name);
 
-				delete defaultAppRef;
+				delete senHandlerRef;
 				delete srcRef;
 
 				TrackerLaunch(launchRef, &refsReceived, true);
 			} else {
+normal_launch_ref:
 				PRINT(("resolving normal target for ref %s\n", ref->name));
 				refsReceived.AddRef("refs", ref);
 				TrackerLaunch(&refsReceived, true);
@@ -1027,8 +1110,6 @@ TTracker::RefsReceived(BMessage* message)
 		// double-clicked
 		case kOpen:
 		{
-			PRINT(("RefsReceived: Open file...\n"));	//GREXTEST
-
 			// copy over "Poses" messenger so that refs received
 			// recipients know where the open came from
 			BMessage* bundleThis = NULL;
@@ -1041,6 +1122,7 @@ TTracker::RefsReceived(BMessage* message)
 			} else {
 				// copy over any "be:*" fields -- e.g. /bin/open may include
 				// "be:line" and "be:column"
+				// same for "sen:" fields as they contain SEN relation type and properties
 				for (int32 i = 0;; i++) {
 					char* name;
 					type_code type;
@@ -1050,7 +1132,7 @@ TTracker::RefsReceived(BMessage* message)
 					if (error != B_OK)
 						break;
 
-					if (strncmp(name, "be:", 3) != 0)
+					if (strncmp(name, "be:", 3) != 0 && strncmp(name, "sen:", 4) != 0)
 						continue;
 
 					for (int32 k = 0; k < count; k++) {

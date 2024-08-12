@@ -27,7 +27,7 @@ private:
 
 	status_t	 AddRelationTargetItems(uint32* targetCount);
 	status_t	 AddSelfRelationTargetItems(uint32* targetCount);
-	status_t	 GetItemMessageInfo(BMessage* itemMsg, BMessage* childMsg, BString* label, BString* type, int32 index = 0);
+	status_t	 GetItemMessageInfo(const BMessage* itemMsg, BMessage* childMsg, BMessage* properties, int32 index = 0);
 
 	BMessage	fEntriesToOpen;
 	BHandler*	target;
@@ -35,6 +35,7 @@ private:
 	BWindow*	fParentWindow;
 
 	BMessage*	fRelationTargetsReply;
+	BString 	fDefaultType;
 
 	typedef BSlowMenu _inherited;
 };

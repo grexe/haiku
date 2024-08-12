@@ -78,13 +78,7 @@ OpenRelationsMenu::StartBuildingItemList()
 		// use SEN action as new message type for passing on to SEN
 		uint32 senCmd = 0;
 		message->FindUInt32(SEN_ACTION_CMD, &senCmd);
-		if (senCmd == SEN_RELATIONS_GET_ALL) {
-			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetAllRelations\n"));
-		} else if (senCmd == SEN_RELATIONS_GET_ALL_SELF) {
-			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetAllSelfRelations\n"));
-		} else if (senCmd == SEN_RELATIONS_GET_SELF) {
-			PRINT(("OpenRelationsMenu::StartBuildingItemList got SEN ActionCmd: GetSelfRelations\n"));
-		}
+
 		if (senCmd == 0) {
 			senCmd = SEN_RELATIONS_GET_ALL;
 			PRINT(("OpenRelationsMenu::StartBuildingItemList got NO SEN ActionCmd, fall back to GetAllRelations\n"));
@@ -221,7 +215,7 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 	int relationsAdded = 0;
     status_t result;
 
-	result = fRelationsReply.FindMessage(SENSEI_SELF_PLUGIN_CONFIG_KEY, &pluginConfig);
+	result = fRelationsReply.FindMessage(SENSEI_PLUGIN_CONFIG_KEY, &pluginConfig);
 	if (result != B_OK) {
 		PRINT(("no plugin config found / unexpected reply.\n"));
 		return 0;
@@ -229,7 +223,7 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 
 	// store default type for use in self relation targets menu later
 	BString defaultType;
-	result = pluginConfig.FindString(SENSEI_SELF_DEFAULT_TYPE_KEY, &defaultType);
+	result = pluginConfig.FindString(SENSEI_DEFAULT_TYPE_KEY, &defaultType);
 	if (result != B_OK) {
 		if (result != B_NAME_NOT_FOUND) { // this is valid, but else it's an error
 			PRINT(("failed to look up default type in plugin config: %s\n", strerror(result)));
@@ -238,9 +232,9 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 	}
 
 	BMessage typesPlugins;
-	result = pluginConfig.FindMessage(SENSEI_SELF_TYPES_PLUGINS_KEY, &typesPlugins);
+	result = pluginConfig.FindMessage(SENSEI_TYPES_PLUGINS_KEY, &typesPlugins);
 	if (result != B_OK) {
-		PRINT(("no type->plugin mapping found in config received!.\n"));
+		PRINT(("could not get type->plugin mapping in config received: %s\n", strerror(result)));
 		return 0;
 	}
 
@@ -279,10 +273,10 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 		message.AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
         message.AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
 		// add plugin needed to resolve this self relation
-		message.AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
+		message.AddString(SENSEI_PLUGIN_KEY, pluginName);
 		// add default type if any
 		if (! defaultType.IsEmpty()) {
-			message.AddString(SENSEI_SELF_DEFAULT_TYPE_KEY, defaultType);
+			message.AddString(SENSEI_DEFAULT_TYPE_KEY, defaultType);
 		}
 
 		PRINT(("message for get self relation targets:\n"));
@@ -291,13 +285,25 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 		// message for the relation menu itself (to open targets in separate Tracker window)
 		BString srcId;
 		if (fRelationsReply.FindString(SEN_ID_ATTR, &srcId) != B_OK) {
-			srcId.SetTo("_self");
+			srcId.SetTo(SEN_RELATION_IS_SELF);	// todo: align with SEN core
 		}
 		BMimeType mime(*relationType);
 		if (!mime.IsInstalled()) {
-			ERROR("skipping relation with unavailable MIME type %s...\n", *relationType);
+			PRINT(("skipping relation with unavailable MIME type %s...\n", *relationType));
 			index++;
 			continue;
+		} else {
+			BMessage attrInfoMsg;
+			mime.GetAttrInfo(&attrInfoMsg);
+			bool isDynamic;
+			bool isSelf;
+			attrInfoMsg.FindBool(SEN_RELATION_IS_DYNAMIC, &isDynamic);
+			attrInfoMsg.FindBool(SEN_RELATION_IS_SELF, &isSelf);
+
+			PRINT(("got MIME type %s, relation is %s and %s:\n",
+				*relationType,
+				isDynamic ? "dynamic" : "static",
+				isSelf ? "self-referencing" : "outward"));
 		}
 		char label[B_ATTR_NAME_LENGTH];
 		if (mime.GetShortDescription(label) != B_OK) {
@@ -305,12 +311,12 @@ uint32 OpenRelationsMenu::AddSelfRelationItems(const BString* source) {
 			strcpy(label, *relationType);
 		}
 
-		BMessage openRelationTargetsMsg(SEN_OPEN_SELF_RELATION);
+		BMessage openRelationTargetsMsg(SEN_OPEN_RELATION_TARGET_VIEW);
         openRelationTargetsMsg.AddString(SEN_RELATION_SOURCE, (new BString(*source))->String());
 		openRelationTargetsMsg.AddString(SEN_RELATION_SOURCE_ATTR, (new BString(srcId))->String());
 		openRelationTargetsMsg.AddString(SEN_RELATION_TYPE, (new BString(*relationType))->String());
 		openRelationTargetsMsg.AddString(SEN_RELATION_LABEL, label);
-		openRelationTargetsMsg.AddString(SENSEI_SELF_PLUGIN_KEY, pluginName);
+		openRelationTargetsMsg.AddString(SENSEI_PLUGIN_KEY, pluginName);
 
         BMenuItem* item = new IconMenuItem(
             new OpenRelationTargetsMenu(label, new BMessage(message), fParentWindow, be_app_messenger),

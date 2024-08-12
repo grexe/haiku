@@ -52,10 +52,20 @@ TTracker::HandleSenMessage(BMessage* message)
 {
 	if (message->what != SEN_OPEN_RELATION_VIEW
 		&& message->what != SEN_OPEN_RELATION_TARGET_VIEW
-		&& message->what != kOpenRelations
+		&& message->what != kOpenRelations	// top level relation view invoked by selecting "Open related"
 		&& message->what != kOpenSelfRelations) {
 		// not a SEN command message, handle as normal
 		return false;
+	}
+
+	// handle modifier for differentiating between open relation view and invoke target (dynamic/self relations)
+	if ((modifiers() & B_SHIFT_KEY) != 0) {
+		PRINT(("modifier SHIFT detected while selecting relation item.\n"));
+		if (message->what == SEN_OPEN_RELATION_TARGET_VIEW) {
+			PRINT(("switching from open target view to open ref.\n"));
+			message->what = B_REFS_RECEIVED;
+			return false;	// handle as normal refs received message
+		}
 	}
 
 	// handle SEN command messages
@@ -76,7 +86,7 @@ TTracker::HandleSenMessage(BMessage* message)
 		case kOpenRelations:
 		case kOpenSelfRelations:	//fallthrough
 		{
-			PRINT(("open (self) relations view not yet implemented. Please check back later.\n"));
+			PRINT(("open (self) relations top level view not yet implemented. Please check back later.\n"));
 			break;
 		}
 		default:

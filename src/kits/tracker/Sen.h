@@ -31,20 +31,23 @@
 
 // relations
 // used in file types
-#define SEN_RELATION_SUPERTYPE "relation"
-#define SEN_RELATION_SOURCE    "SEN:source"
-#define SEN_RELATION_SOURCE_ID "SEN:sourceId"
-#define SEN_RELATION_TARGET_ID "SEN:targetId"
+#define SEN_RELATION_SUPERTYPE	"relation"
+#define SEN_RELATION_SOURCE   	"SEN:source"
+#define SEN_RELATION_SOURCE_ID	"SEN:sourceId"
+#define SEN_RELATION_TARGET_ID	"SEN:targetId"
 // used for relations in messages
-#define SEN_RELATIONS "SEN:relations"
+#define SEN_RELATIONS 			"SEN:relations"
 // short name of the relation type
-#define SEN_RELATION_NAME   "SEN:relationName"
+#define SEN_RELATION_NAME   	"SEN:relationName"
 // label used for a particular relation
-#define SEN_RELATION_LABEL  "SEN:relationLabel"
+#define SEN_RELATION_LABEL  	"SEN:relationLabel"
 // unique relation MIME type
-#define SEN_RELATION_TYPE   "SEN:relationType"
-#define SEN_RELATION_TARGET "SEN:target"
+#define SEN_RELATION_TYPE   	"SEN:relationType"
+#define SEN_RELATION_TARGET 	"SEN:target"
 #define SEN_RELATION_PROPERTIES "SEN:relationProps"
+// relation flavor
+#define SEN_RELATION_IS_DYNAMIC "sen:dynamic"
+#define SEN_RELATION_IS_SELF 	"sen:self"
 
 // messages
 #define SEN_RELATIONS_GET           'SRgo'
@@ -59,7 +62,8 @@
 // Tracker integration
 #define SEN_OPEN_RELATION_VIEW		    'STor'
 #define SEN_OPEN_RELATION_TARGET_VIEW	'STot'
-#define SEN_OPEN_SELF_RELATION          'STos'
+// sent when a relation is invoked to include arguments for handling plugin
+#define SEN_OPEN_RELATION_ARGS_KEY	"sen:args"
 
 // todo: set to 13 for TSID later
 #define SEN_ID_LEN					32

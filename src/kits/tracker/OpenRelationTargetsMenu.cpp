@@ -68,11 +68,6 @@ bool
 OpenRelationTargetsMenu::StartBuildingItemList()
 {
 	switch(fEntriesToOpen.what) {
-		case SENSEI_MESSAGE_TYPE:
-		{
-			PRINT(("self relations submenu: got SENSEI msg SENSEI_MESSAGE_TYPE, nothing to do.\n"));
-			break;
-		}
 		case SENSEI_MESSAGE_RESULT:	// we are a sub menu of self relations
 		{
 			PRINT(("self relations submenu: got SENSEI_MESSAGE_RESULT: bailing out and building items from existing sub item msg...\n"));
@@ -97,15 +92,11 @@ OpenRelationTargetsMenu::StartBuildingItemList()
 			return false;
 		}
 
-		PRINT(("Tracker::OpenRelationTargets->SEN: getting relation targets..."));
         status_t result = fSenMessenger.SendMessage(new BMessage(fEntriesToOpen), fRelationTargetsReply);
 		if (result != B_OK) {
 			PRINT(("failed to communicate with SEN server: %s\n", strerror(result)));
 			return false;
 		}
-		PRINT(("SEN->Tracker::OpenRelationTargets: received reply:\n"));
-		if (DEBUG) fRelationTargetsReply->PrintToStream();
-
 		return true;
     } else {
         PRINT(("failed to reach SEN server, is it running?\n"));
@@ -137,28 +128,15 @@ OpenRelationTargetsMenu::DoneBuildingItemList()
 	uint32 targets = 0;
 	status_t result;
 
-	if (DEBUG) {
-		PRINT(("fRelationTargetsReply is now:\n"));
-		fRelationTargetsReply->PrintToStream();
-	}
 	switch(fRelationTargetsReply->what) {
-		case SEN_RELATIONS_GET_SELF:
+		case SENSEI_MESSAGE_RESULT:
 		{
-			PRINT(("SEN_RELATIONS_GET_SELF: adding self relation targets...\n"));
-			// resolve self relations via plugin and cascade targets menu
-			result = AddSelfRelationTargetItems(&targets);
-			break;
-		}
-		case SENSEI_MESSAGE_RESULT:		// handle sub node of self reresult
-		{
-			PRINT(("SEN_RELATIONS_MESSAGE_RESULT: adding self relation sub targets...\n"));
-			// resolve self relations via plugin and cascade targets menu
+			// resolve self relations from SENSEI reply
 			result = AddSelfRelationTargetItems(&targets);
 			break;
 		}
 		case SEN_RESULT_RELATIONS:
 		{
-			PRINT(("relation RESULT: adding relation targets...\n"));
 			result = AddRelationTargetItems(&targets);
 			break;
 		}
@@ -199,6 +177,9 @@ OpenRelationTargetsMenu::AddRelationTargetItems(uint32* targetCount)
 		entry.SetTo(&ref);
 		entry.GetPath(&path);
 
+		// this will create a menu item similar to folder items and launch with the preferred app,
+		// which in this case is the associated relation handler.
+		// todo: add message with arguments from relation properties!
 		ModelMenuItem* item = new ModelMenuItem(new Model(&ref, true, true), path.Leaf(), NULL);
 		AddItem(item);
 
@@ -216,12 +197,21 @@ OpenRelationTargetsMenu::AddRelationTargetItems(uint32* targetCount)
 status_t
 OpenRelationTargetsMenu::AddSelfRelationTargetItems(uint32* targetCount)
 {
-	int32 index = 0;
 	status_t result;
 	BMessage itemMsg, childMsg;
-	BString label, type;
+	BString defaultType;
 
-	PRINT(("adding self relation menu target items...\n"));
+	// get default item type from original msg received from parent menu
+	result = fEntriesToOpen.FindString(SENSEI_DEFAULT_TYPE_KEY, &defaultType);
+	if (result != B_OK) {
+		if (result != B_NAME_NOT_FOUND) {
+			PRINT(("error reading message from OpenRelationsMenu: %s\n", strerror(result)));
+			return result;
+		}	// still continue and hope we get the type from items
+	} else {
+		PRINT(("adding self relation menu target items with default type %s...\n", defaultType.String()));
+		fDefaultType = defaultType;
+	}
 
 	// get root node
 	result = fRelationTargetsReply->FindMessage("item", &itemMsg);
@@ -240,36 +230,64 @@ OpenRelationTargetsMenu::AddSelfRelationTargetItems(uint32* targetCount)
 	}
 
 	PRINT(("iterating through self relation target message...\n"));
+	int32 index = 0;
+	BMessage propertiesMsg;
+	BString label, type;
 
-	// first add any sub menus, 1st level only as we build slow menus that expand further on demand
-	while ((result = GetItemMessageInfo(&itemMsg, &childMsg, &label, &type, index)) == B_OK) {
-		if (result != B_OK) {
-			PRINT(("failed to build self relations menu, aborting.\n"));
-			return result;
-		}
+	while ((result = GetItemMessageInfo(&itemMsg, &childMsg, &propertiesMsg, index) == B_OK)) {
 		IconMenuItem* item;
+
+		propertiesMsg.FindString("label", &label);
+		propertiesMsg.FindString("type", &type);
+		PRINT(("got properties for item %s [%d]:\n", label.String(), index));
+		#ifdef DEBUG
+			propertiesMsg.PrintToStream();
+		#endif
+
 		// add as menu if there is a child node, else add as a plain menu item
 		if (childMsg.IsEmpty()) {
-			// create new self relation item with self ref msg
-			// todo: copy all properties of this item
-			BMessage openSelfMsg(SEN_OPEN_SELF_RELATION);
-			openSelfMsg.AddString("label", label.String());
-			openSelfMsg.AddString("type", type.String());
-
 			PRINT(("adding self relation item [%d] '%s' of type '%s'.\n", index, label.String(), type.String() ));
-			item = new IconMenuItem(label.String(), new BMessage(openSelfMsg), type.String());
+
+			// create new self relation item with self ref msg
+			BMessage openRelationTargetItemMsg(B_REFS_RECEIVED);
+			openRelationTargetItemMsg.AddRef("refs", new entry_ref(ref));
+			openRelationTargetItemMsg.AddBool(SEN_RELATION_IS_SELF, true);
+			openRelationTargetItemMsg.AddBool(SEN_RELATION_IS_DYNAMIC, true);
+			openRelationTargetItemMsg.AddString(SENSEI_DEFAULT_TYPE_KEY, (new BString(defaultType))->String());
+			openRelationTargetItemMsg.AddString(SEN_RELATION_LABEL, (new BString(label))->String());
+			openRelationTargetItemMsg.AddString(SEN_RELATION_TYPE, (new BString(type))->String());
+
+			// add all properties from this item (e.g. page, position,...)
+			openRelationTargetItemMsg.AddMessage(SEN_OPEN_RELATION_ARGS_KEY, new BMessage(propertiesMsg));
+
+			#ifdef DEBUG
+				PRINT(("openRelationTargetItemMsg is:\n"));
+				openRelationTargetItemMsg.PrintToStream();
+			#endif
+			item = new IconMenuItem(label.String(), new BMessage(openRelationTargetItemMsg), type.String());
 		} else {
 			PRINT(("adding self relation menu [%d] '%s' of type '%s'.\n", index, label.String(), type.String() ));
+
+			BMessage openRelationTargetsMsg(SEN_OPEN_RELATION_TARGET_VIEW);
+			openRelationTargetsMsg.AddBool(SEN_RELATION_IS_SELF, true);
+			openRelationTargetsMsg.AddBool(SEN_RELATION_IS_DYNAMIC, true);
+			openRelationTargetsMsg.AddString(SENSEI_DEFAULT_TYPE_KEY, (new BString(defaultType))->String());
+			openRelationTargetsMsg.AddString(SEN_RELATION_LABEL, (new BString(label))->String());
+			openRelationTargetsMsg.AddString(SEN_RELATION_TYPE, (new BString(type))->String());
+			// add all properties of this item as arguments
+			openRelationTargetsMsg.AddMessage(SEN_OPEN_RELATION_ARGS_KEY, new BMessage(propertiesMsg));
+
 			// transparently handle just like a normal message result above, but for the subtree
 			childMsg.what = SENSEI_MESSAGE_RESULT;
 			childMsg.AddRef("refs", new entry_ref(ref));
-			childMsg.PrintToStream();
+			childMsg.AddString(SENSEI_DEFAULT_TYPE_KEY, (new BString(defaultType))->String());
 
-			BMessage openRelationTargetsMsg(SEN_OPEN_RELATION_TARGET_VIEW);
-			openRelationTargetsMsg.AddString(SEN_RELATION_LABEL, label);
-			openRelationTargetsMsg.AddString(SEN_RELATION_TYPE, type.String());
-			// add all properties from this item (e.g. page, position,...)
-			openRelationTargetsMsg.Append(childMsg);
+			#ifdef DEBUG
+				PRINT(("openRelationTargetsMsg is:\n"));
+				openRelationTargetsMsg.PrintToStream();
+				PRINT(("childMsg is:\n"));
+				childMsg.PrintToStream();
+			#endif
 
 			item = new IconMenuItem(
 				new OpenRelationTargetsMenu(label.String(), new BMessage(childMsg), fParentWindow, be_app_messenger),
@@ -279,46 +297,52 @@ OpenRelationTargetsMenu::AddSelfRelationTargetItems(uint32* targetCount)
 
 			childMsg.MakeEmpty();
 		}
-		//item->SetTarget(be_app_messenger);
+		item->SetTarget(be_app_messenger);
 		AddItem(item);
 
+		propertiesMsg.MakeEmpty();
 		index++;
 		(*targetCount)++;
 	}
 	return B_OK;
 }
 
-status_t OpenRelationTargetsMenu::GetItemMessageInfo(BMessage* itemMsg, BMessage* childMsg, BString* label, BString* type, int32 index) {
+status_t OpenRelationTargetsMenu::GetItemMessageInfo(const BMessage* itemMsg, BMessage* childMsg, BMessage* properties, int32 index)
+{
+	// get required properties
 	// get label
-	status_t result = itemMsg->FindString("label", index, label);
+	BString label;
+	status_t result = itemMsg->FindString("label", index, &label);
 	if (result != B_OK) {
+		if (result == B_BAD_INDEX && index > 0) {
+			return result;	// this will abort without error in calling loop
+		}
 		PRINT(("failed to get item label [%d]: %s\n", index, strerror(result) ));
-		// still allow to continue and fall back to default label - more for debugging
-		label->SetTo("item #");
-		*label << index;
+		return result;
 	}
+	// add to result
+	properties->AddString("label", (new BString(label))->String());
+
 	// get type
-	result = itemMsg->FindString("type", index, type);
+	BString type;
+	result = itemMsg->FindString("type", index, &type);
 	if (result != B_OK) {
 		if (result == B_NAME_NOT_FOUND) {
-			// this is valid if there is a default type
-			BString defaultType;
-			result = fRelationTargetsReply->FindString(SENSEI_SELF_DEFAULT_TYPE_KEY, &defaultType);
-			if (result == B_OK) {
-				type->SetTo(defaultType.String());
+			// this is only allowed if there is a default type
+			if (! fDefaultType.IsEmpty()) {
+				type = fDefaultType;
 			} else {
-				if (result != B_NAME_NOT_FOUND) {
-					PRINT(("internal error, default type lookup failed: %s\n", strerror(result) ));
-				} else {
-					PRINT(("no type specified and no defaultType provided, falling back to generic self reference.\n"));
-					type->SetTo("relation/x-vnd.sen-labs.relation.reference");
-					result = B_OK;
-				}
+				PRINT(("no type specified and no defaultType provided, aborting.\n"));
+				return B_BAD_VALUE;
 			}
 		} else {
-			PRINT(("failed to get item info: %s\n", strerror(result) ));
+			PRINT(("failed to get item type: %s\n", strerror(result) ));
+			return B_ERROR;
 		}
 	}
+	// add to result
+	properties->AddString("type", (new BString(type))->String());
+
 	// get optional child node message (empty or another node)
 	BMessage subItemMsg;
 	result = itemMsg->FindMessage("item", index, &subItemMsg);
@@ -331,5 +355,44 @@ status_t OpenRelationTargetsMenu::GetItemMessageInfo(BMessage* itemMsg, BMessage
 			childMsg->AddMessage("item", new BMessage(subItemMsg));
 		}
 	}
-	return result;
+
+	// add all properties from this item at this index (e.g. page, position,...)
+	char* name;
+	int32 count;
+	int32 itemIndex = 0;
+	type_code typeCode;
+
+	while (result == B_OK) {
+		result = itemMsg->GetInfo(B_ANY_TYPE, itemIndex, &name,	&typeCode, &count);
+		if (result != B_OK) {
+			if (result == B_BAD_INDEX) {
+				break;
+			}
+			PRINT(("failed to get message info for item %s[%d]: %s\n", label.String(), itemIndex, strerror(result)));
+			return result;
+		}
+		// omit already parsed or non-property fields including item child nodes
+		if (strncmp(name, "label", 5) != 0 && strncmp(name, "type", 4) != 0 && strncmp(name, "item", 4) != 0) {
+			PRINT(("properties at index %d with name %s and count %d:\n", index, name, count));
+			if (index > count-1) {
+				PRINT(("got only %d '%s' items but need #%d\n", count, name, index));
+				break;
+			}
+			// omit already parsed or non-property fields
+			const void* data;
+			ssize_t size;
+
+			if ((result = itemMsg->FindData(name, typeCode, index, &data, &size))!= B_OK) {
+				PRINT(("failed to get message data '%s' for item %s[%d]: %s\n", name, label.String(), index, strerror(result)));
+				return result;
+			}
+			if ((result = properties->AddData(name, typeCode, data, size)) != B_OK) {
+				PRINT(("failed to add message data '%s' for item %s[%d]: %s\n", name, label.String(), index, strerror(result)));
+				return result;
+			}
+		}
+		itemIndex++;
+	}
+
+	return B_OK;
 }
