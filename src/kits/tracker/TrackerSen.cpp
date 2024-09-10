@@ -262,7 +262,7 @@ TTracker::PrepareRelationTargetWindow(BMessage *message, RelationInfo* relationI
                     if (result == B_OK) {
 						BString value("value ");
                         PRINT(("creating relation property attribute %s with %s\n",
-							attrName.String(), (value << result).String()) );
+							attrName.String(), (value << data).String()) );	// todo: check - was result
 
                         result = relationNode.WriteAttr(attrName.String(), attrType, 0, data, size);
                         if (result <= 0) {

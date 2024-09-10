@@ -6,17 +6,19 @@
 
 #pragma once
 
-#define SENSEI_TYPE             "SENSEI:TYPE"
-#define SENSEI_INPUT_TYPES      "SENSEI:INPUT_TYPES"
-#define SENSEI_OUTPUT_MAPPING   "SENSEI:OUTPUT_MAPPING"
+// attributes, also used as message keys
+#define SENSEI_TYPE                "SEN:SEI:type"
+#define SENSEI_INPUT_TYPES         "SEN:SEI:input_types"
+#define SENSEI_TYPE_MAPPING        "SEN:SEI:type_mapping"
+#define SENSEI_ATTR_MAPPING        "SEN:SEI:attr_mapping"
 
-#define SENSEI_MESSAGE_TYPE             'SEni'
-#define SENSEI_MESSAGE_RESULT		    'SErs'
+// message codes
+#define SENSEI_MESSAGE_TYPE        'SEni'
+#define SENSEI_MESSAGE_RESULT	   'SErs'
 
-// self relations
-#define SENSEI_PLUGIN_CONFIG_KEY	"sen:sei:config"
-#define SENSEI_PLUGIN_KEY			"sen:sei:plugin"
-#define SENSEI_TYPES_PLUGINS_KEY  	"sen:sei:types_plugins"
-#define SENSEI_TYPE_MAPPINGS_KEY	"sen:sei:type_mappings"
-#define SENSEI_DEFAULT_TYPE_KEY 	"sen:sei:default_type"
-#define SENSEI_DEFAULT_TYPE    		"sen:sei:default"
+// dynamic relations
+#define SENSEI_PLUGIN_CONFIG_KEY	"SEN:SEI:plugin_config"
+#define SENSEI_PLUGIN_KEY			"SEN:SEI:plugin"
+#define SENSEI_TYPES_PLUGINS_KEY  	"SEN:SEI:types_plugins"
+#define SENSEI_DEFAULT_TYPE_KEY 	"SEN:SEI:default_type"
+#define SENSEI_DEFAULT_TYPE     	"SEN:SEI:default"
