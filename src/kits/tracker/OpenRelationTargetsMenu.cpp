@@ -307,7 +307,11 @@ OpenRelationTargetsMenu::AddSelfRelationTargetItems(uint32* targetCount)
 	return B_OK;
 }
 
-status_t OpenRelationTargetsMenu::GetItemMessageInfo(const BMessage* itemMsg, BMessage* childMsg, BMessage* properties, int32 index)
+status_t OpenRelationTargetsMenu::GetItemMessageInfo(
+	const BMessage* itemMsg,
+	BMessage* childMsg,
+	BMessage* properties,
+	int32 index)
 {
 	// get required properties
 	// get label
@@ -378,7 +382,7 @@ status_t OpenRelationTargetsMenu::GetItemMessageInfo(const BMessage* itemMsg, BM
 				PRINT(("got only %d '%s' items but need #%d\n", count, name, index));
 				break;
 			}
-			// omit already parsed or non-property fields
+			// add remaining property fields
 			const void* data;
 			ssize_t size;
 

@@ -148,8 +148,9 @@ OpenRelationsMenu::DoneBuildingItemList()
 	fRelationsReply.FindString(SEN_RELATION_SOURCE, &source);
 
 	// check for self relations and handle them separately
+	// todo: use relation flags for better classification!
 	if (fRelationsReply.what == SENSEI_MESSAGE_RESULT) {
-		PRINT(("building self relations menu.\n"));
+		PRINT(("building dynamic/self relations menu.\n"));
 		relationCount = AddSelfRelationItems(&source);
 	} else {
 		PRINT(("building relations menu.\n"));
