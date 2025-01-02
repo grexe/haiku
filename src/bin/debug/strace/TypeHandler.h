@@ -35,7 +35,7 @@ public:
 	virtual string GetReturnValue(Context &, uint64 value) = 0;
 };
 
-class EnumTypeHandler : public TypeHandler {
+class EnumTypeHandler : virtual public TypeHandler {
 public:
 	typedef std::map<int, const char *> EnumMap;
 
@@ -44,13 +44,13 @@ public:
 	string GetParameterValue(Context &c, Parameter *, const void *);
 	string GetReturnValue(Context &, uint64 value);
 
-private:
-	string RenderValue(Context &, unsigned int value) const;
+	virtual string RenderValue(Context &, unsigned int value) const;
 
+protected:
 	const EnumMap &fMap;
 };
 
-class FlagsTypeHandler : public TypeHandler {
+class FlagsTypeHandler : virtual public TypeHandler {
 public:
 	struct FlagInfo {
 		unsigned int value;
@@ -63,11 +63,20 @@ public:
 	string GetParameterValue(Context &c, Parameter *, const void *);
 	string GetReturnValue(Context &, uint64 value);
 
-protected:
-	string RenderValue(Context &, unsigned int value) const;
+	virtual string RenderValue(Context &, unsigned int value) const;
 
 private:
 	const FlagsList &fList;
+};
+
+class EnumFlagsTypeHandler : public EnumTypeHandler {
+public:
+	EnumFlagsTypeHandler(const EnumMap &, const FlagsTypeHandler::FlagsList &);
+
+	string RenderValue(Context &, unsigned int value) const;
+
+private:
+	const FlagsTypeHandler::FlagsList &fList;
 };
 
 // currently limited to select ints
@@ -119,32 +128,46 @@ struct TypeHandlerFactory<const char*> {
 		} \
 	} \
 
-struct fd_set;
+#define DEFINE_TYPE(name, type) \
+	TypeHandler *create_##name##_type_handler() \
+	{ \
+		return new TypeHandlerImpl<type>(); \
+	}
+
 struct flock;
 struct ifconf;
 struct ifreq;
+struct iovec;
 struct msghdr;
 struct message_args;
-struct pollfd;
 struct sockaddr;
 struct sockaddr_args;
 struct socket_args;
 struct sockopt_args;
 
-DEFINE_FACTORY(fdset_ptr, fd_set *);
+struct fd_set;
+struct pollfd;
+struct object_wait_info;
+struct event_wait_info;
+
 DEFINE_FACTORY(flock_ptr, flock *);
 DEFINE_FACTORY(ifconf_ptr, ifconf *);
 DEFINE_FACTORY(ifreq_ptr, ifreq *);
+DEFINE_FACTORY(iovec_ptr, const iovec *);
 DEFINE_FACTORY(msghdr_ptr, msghdr *);
 DEFINE_FACTORY(msghdr_ptr, const msghdr *);
 DEFINE_FACTORY(message_args_ptr, message_args *);
-DEFINE_FACTORY(pollfd_ptr, pollfd *);
 DEFINE_FACTORY(siginfo_t_ptr, siginfo_t *);
 DEFINE_FACTORY(sockaddr_ptr, sockaddr *);
 DEFINE_FACTORY(sockaddr_ptr, const sockaddr *);
 DEFINE_FACTORY(sockaddr_args_ptr, sockaddr_args *);
 DEFINE_FACTORY(socket_args_ptr, socket_args *);
 DEFINE_FACTORY(sockopt_args_ptr, sockopt_args *);
+
+DEFINE_FACTORY(fdset_ptr, fd_set *);
+DEFINE_FACTORY(pollfd_ptr, pollfd *);
+DEFINE_FACTORY(object_wait_infos_ptr, object_wait_info *);
+DEFINE_FACTORY(event_wait_infos_ptr, event_wait_info *);
 
 DEFINE_FACTORY(int_ptr, int *);
 DEFINE_FACTORY(long_ptr, long *);

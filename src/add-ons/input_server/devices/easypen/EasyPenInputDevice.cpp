@@ -58,6 +58,7 @@ FILE *EasyPenInputDevice::sLogFile = NULL;
 #define CALLED() LOG("%s\n", __PRETTY_FUNCTION__)
 
 const static uint32 kTabletThreadPriority = B_FIRST_REAL_TIME_PRIORITY + 4;
+const static char* kDeviceName = "Genius EasyPen";
 
 struct tablet_device {
 	tablet_device(BSerialPort *port);
@@ -152,7 +153,7 @@ EasyPenInputDevice::InitCheck()
 
 	LOG("Found %ld devices\n", fDevices.CountItems());
 
-	get_click_speed(&fClickSpeed);
+	get_click_speed(kDeviceName, &fClickSpeed);
 
 	return fDevices.CountItems() > 0 ? B_OK : B_ERROR;
 }
@@ -206,7 +207,7 @@ EasyPenInputDevice::Control(const char *name, void *cookie,
 	LOG("%s(%s, code: %lu)\n", __PRETTY_FUNCTION__, name, command);
 
 	if (command == B_CLICK_SPEED_CHANGED)
-		get_click_speed(&fClickSpeed);
+		get_click_speed(kDeviceName, &fClickSpeed);
 
 	return B_OK;
 }
@@ -276,6 +277,7 @@ EasyPenInputDevice::DeviceWatcher(void *arg)
 			}
 
 			message->AddInt64("when", movements.timestamp);
+			message->AddInt32("be:device_subtype", B_TABLET_POINTING_DEVICE);
 			message->AddInt32("buttons", movements.buttons);
 			message->AddFloat("x", movements.xpos);
 			message->AddFloat("y", movements.ypos);
@@ -286,13 +288,14 @@ EasyPenInputDevice::DeviceWatcher(void *arg)
 			message = new BMessage(B_MOUSE_MOVED);
 			if (message) {
 				message->AddInt64("when", movements.timestamp);
+				message->AddInt32("be:device_subtype", B_TABLET_POINTING_DEVICE);
 				message->AddInt32("buttons", movements.buttons);
 				message->AddFloat("x", movements.xpos);
 				message->AddFloat("y", movements.ypos);
 				message->AddFloat("be:tablet_x", movements.xpos);
 				message->AddFloat("be:tablet_y", movements.ypos);
 				message->AddFloat("be:tablet_pressure", movements.pressure);
-				message->AddInt32("be:tablet_eraser", movements.eraser);
+				message->AddInt32("be:tablet_eraser", (movements.switches & B_ERASER) != 0);
 				if (movements.tilt_x != 0.0 || movements.tilt_y != 0.0) {
 					message->AddFloat("be:tablet_tilt_x", movements.tilt_x);
 					message->AddFloat("be:tablet_tilt_y", movements.tilt_y);
@@ -306,6 +309,7 @@ EasyPenInputDevice::DeviceWatcher(void *arg)
 			message = new BMessage(B_MOUSE_WHEEL_CHANGED);
 			if (message) {
 				message->AddInt64("when", movements.timestamp);
+				message->AddInt32("be:device_subtype", B_TABLET_POINTING_DEVICE);
 				message->AddFloat("be:wheel_delta_x", movements.wheel_xdelta);
 				message->AddFloat("be:wheel_delta_y", movements.wheel_ydelta);
 
@@ -327,7 +331,7 @@ tablet_device::tablet_device(BSerialPort *port)
 	serial = port;
 	device_watcher = -1;
 	active = false;
-	device_ref.name = strdup("Genius EasyPen");
+	device_ref.name = strdup(kDeviceName);
 	device_ref.type = B_POINTING_DEVICE;
 	device_ref.cookie = this;
 };

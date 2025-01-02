@@ -152,11 +152,11 @@ submit_autosense(scsi_ccb *request)
 
 	// no DMA buffer (we made sure that the data buffer fulfills all
 	// limitations)
-	request->buffered = false;
+	device->auto_sense_request->buffered = false;
 	// don't let any request bypass us
-	request->ordered = true;
-	// initial SIM state for this request
-	request->sim_state = 0;
+	device->auto_sense_request->ordered = true;
+	// request is not emulated
+	device->auto_sense_request->emulated = false;
 
 	device->auto_sense_originator = request;
 
@@ -194,7 +194,7 @@ finish_autosense(scsi_device_info *device)
 	}
 
 	// inform peripheral driver
-	release_sem_etc(orig_request->completion_sem, 1, 0/*B_DO_NOT_RESCHEDULE*/);
+	orig_request->completion_cond.NotifyAll();
 }
 
 
@@ -325,7 +325,7 @@ scsi_request_finished(scsi_ccb *request, uint num_requests)
 	else {
 		// tell peripheral driver about completion
 		if (!do_autosense)
-			release_sem_etc(request->completion_sem, 1, 0/*B_DO_NOT_RESCHEDULE*/);
+			request->completion_cond.NotifyAll();
 	}
 }
 
@@ -469,9 +469,6 @@ scsi_async_io(scsi_ccb *request)
 
 	SHOW_FLOW(3, "ordered=%d", request->ordered);
 
-	// give SIM a well-defined first state
-	request->sim_state = 0;
-
 	// make sure device/bus is not blocked
 	if (!scsi_check_enqueue_request(request))
 		return;
@@ -486,7 +483,7 @@ err2:
 	if (request->buffered)
 		scsi_release_dma_buffer(request);
 err:
-	release_sem(request->completion_sem);
+	request->completion_cond.NotifyAll(B_ERROR);
 	return;
 }
 
@@ -511,11 +508,15 @@ scsi_sync_io(scsi_ccb *request)
 		}
 	}
 
+	ConditionVariableEntry entry;
+	request->completion_cond.Add(&entry);
+
 	scsi_async_io(request);
-	acquire_sem(request->completion_sem);
+
+	entry.Wait();
 
 	if (tmp_sg)
-		cleanup_tmp_sg(request);
+		cleanup_temp_sg(request);
 }
 
 
@@ -570,7 +571,7 @@ scsi_abort(scsi_ccb *req_to_abort)
 				scsi_release_dma_buffer(req_to_abort);
 
 			// tell peripheral driver about
-			release_sem_etc(req_to_abort->completion_sem, 1, 0/*B_DO_NOT_RESCHEDULE*/);
+			req_to_abort->completion_cond.NotifyAll(B_CANCELED);
 
 			if (start_retry)
 				release_sem(bus->start_service);

@@ -338,6 +338,8 @@ destroy_tmap(vm_translation_map *map)
 	restore_interrupts(state);
 
 	if (map->arch_data->rtdir_virt != NULL) {
+		vm_page_reservation reservation = {};
+
 		// cycle through and free all of the user space pgtables
 		// since the size of tables don't match B_PAGE_SIZE,
 		// we alloc several at once, based on modulos,
@@ -377,14 +379,15 @@ destroy_tmap(vm_translation_map *map)
 					return;
 				}
 				DEBUG_PAGE_ACCESS_START(page);
-				vm_page_set_state(page, PAGE_STATE_FREE);
+				vm_page_free_etc(NULL, page, &reservation);
 			}
 			if (((i + 1) % NUM_DIRTBL_PER_PAGE) == 0) {
 				DEBUG_PAGE_ACCESS_END(dirpage);
-				vm_page_set_state(dirpage, PAGE_STATE_FREE);
+				vm_page_free_etc(NULL, dirpage, &reservation);
 			}
 		}
 		free(map->arch_data->rtdir_virt);
+		vm_page_unreserve_pages(&reservation);
 	}
 
 	free(map->arch_data);
@@ -1443,7 +1446,7 @@ m68k_vm_translation_map_init_post_area(kernel_args *args)
 
 static status_t
 m68k_vm_translation_map_early_map(kernel_args *args, addr_t va, addr_t pa,
-	uint8 attributes, addr_t (*get_free_page)(kernel_args *))
+	uint8 attributes)
 {
 	page_root_entry *pr = (page_root_entry *)sKernelPhysicalPageRoot;
 	page_directory_entry *pd;
@@ -1460,7 +1463,7 @@ m68k_vm_translation_map_early_map(kernel_args *args, addr_t va, addr_t pa,
 	if (pr[index].type != DT_ROOT) {
 		unsigned aindex = index & ~(NUM_DIRTBL_PER_PAGE-1); /* aligned */
 		TRACE(("missing page root entry %d ai %d\n", index, aindex));
-		tbl = get_free_page(args) * B_PAGE_SIZE;
+		tbl = vm_allocate_early_physical_page(args) * B_PAGE_SIZE;
 		if (!tbl)
 			return ENOMEM;
 		TRACE(("early_map: asked for free page for pgdir. 0x%lx\n", tbl));
@@ -1484,7 +1487,7 @@ m68k_vm_translation_map_early_map(kernel_args *args, addr_t va, addr_t pa,
 	if (pd[index].type != DT_DIR) {
 		unsigned aindex = index & ~(NUM_PAGETBL_PER_PAGE-1); /* aligned */
 		TRACE(("missing page dir entry %d ai %d\n", index, aindex));
-		tbl = get_free_page(args) * B_PAGE_SIZE;
+		tbl = vm_allocate_early_physical_page(args) * B_PAGE_SIZE;
 		if (!tbl)
 			return ENOMEM;
 		TRACE(("early_map: asked for free page for pgtable. 0x%lx\n", tbl));

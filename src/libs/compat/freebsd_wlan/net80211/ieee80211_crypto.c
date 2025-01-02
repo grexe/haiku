@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
@@ -27,8 +27,6 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_crypto.c 326272 2017-11-27 15:23:17Z pfg $");
-
 /*
  * IEEE 802.11 generic crypto support.
  */
@@ -37,7 +35,7 @@ __FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_crypto.c 326272 2017-11-2
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/malloc.h>
-#include <sys/mbuf.h>
+#include <sys/mbuf.h>   
 
 #include <sys/socket.h>
 
@@ -64,8 +62,8 @@ static int
 null_key_alloc(struct ieee80211vap *vap, struct ieee80211_key *k,
 	ieee80211_keyix *keyix, ieee80211_keyix *rxkeyix)
 {
-	if (!(&vap->iv_nw_keys[0] <= k &&
-	     k < &vap->iv_nw_keys[IEEE80211_WEP_NKID])) {
+
+	if (!ieee80211_is_key_global(vap, k)) {
 		/*
 		 * Not in the global key table, the driver should handle this
 		 * by allocating a slot in the h/w key table/cache.  In
@@ -112,7 +110,7 @@ cipher_attach(struct ieee80211vap *vap, struct ieee80211_key *key)
 	return key->wk_cipher->ic_attach(vap, key);
 }
 
-/*
+/* 
  * Wrappers for driver key management methods.
  */
 static __inline int
@@ -144,6 +142,37 @@ ieee80211_crypto_attach(struct ieee80211com *ic)
 {
 	/* NB: we assume everything is pre-zero'd */
 	ciphers[IEEE80211_CIPHER_NONE] = &ieee80211_cipher_none;
+
+	/*
+	 * Default set of net80211 supported ciphers.
+	 *
+	 * These are the default set that all drivers are expected to
+	 * support, either/or in hardware and software.
+	 *
+	 * Drivers can add their own support to this and the
+	 * hardware cipher list (ic_cryptocaps.)
+	 */
+	ic->ic_sw_cryptocaps = IEEE80211_CRYPTO_WEP |
+	    IEEE80211_CRYPTO_TKIP | IEEE80211_CRYPTO_AES_CCM;
+
+	/*
+	 * Default set of key management types supported by net80211.
+	 *
+	 * These are supported by software net80211 and announced/
+	 * driven by hostapd + wpa_supplicant.
+	 *
+	 * Drivers doing full supplicant offload must not set
+	 * anything here.
+	 *
+	 * Note that IEEE80211_C_WPA1 and IEEE80211_C_WPA2 are the
+	 * "old" style way of drivers announcing key management
+	 * capabilities.  There are many, many more key management
+	 * suites in 802.11-2016 (see 9.4.2.25.3 - AKM suites.)
+	 * For now they still need to be set - these flags are checked
+	 * when assembling a beacon to reserve space for the WPA
+	 * vendor IE (WPA 1) and RSN IE (WPA 2).
+	 */
+	ic->ic_sw_keymgmtcaps = 0;
 }
 
 /*
@@ -152,6 +181,43 @@ ieee80211_crypto_attach(struct ieee80211com *ic)
 void
 ieee80211_crypto_detach(struct ieee80211com *ic)
 {
+}
+
+/*
+ * Set the supported ciphers for software encryption.
+ */
+void
+ieee80211_crypto_set_supported_software_ciphers(struct ieee80211com *ic,
+    uint32_t cipher_set)
+{
+	ic->ic_sw_cryptocaps = cipher_set;
+}
+
+/*
+ * Set the supported ciphers for hardware encryption.
+ */
+void
+ieee80211_crypto_set_supported_hardware_ciphers(struct ieee80211com *ic,
+    uint32_t cipher_set)
+{
+	ic->ic_cryptocaps = cipher_set;
+}
+
+/*
+ * Set the supported software key management by the driver.
+ *
+ * These are the key management suites that are supported via
+ * the driver via hostapd/wpa_supplicant.
+ *
+ * Key management which is completely offloaded (ie, the supplicant
+ * runs in hardware/firmware) must not be set here.
+ */
+void
+ieee80211_crypto_set_supported_driver_keymgmt(struct ieee80211com *ic,
+    uint32_t keymgmt_set)
+{
+
+	ic->ic_sw_keymgmtcaps = keymgmt_set;
 }
 
 /*
@@ -243,6 +309,13 @@ static const char *cipher_modnames[IEEE80211_CIPHER_MAX] = {
 	[IEEE80211_CIPHER_TKIPMIC] = "#4",	/* NB: reserved */
 	[IEEE80211_CIPHER_CKIP]	   = "wlan_ckip",
 	[IEEE80211_CIPHER_NONE]	   = "wlan_none",
+	[IEEE80211_CIPHER_AES_CCM_256] = "wlan_ccmp",
+	[IEEE80211_CIPHER_BIP_CMAC_128] = "wlan_bip_cmac",
+	[IEEE80211_CIPHER_BIP_CMAC_256] = "wlan_bip_cmac",
+	[IEEE80211_CIPHER_BIP_GMAC_128] = "wlan_bip_gmac",
+	[IEEE80211_CIPHER_BIP_GMAC_256] = "wlan_bip_gmac",
+	[IEEE80211_CIPHER_AES_GCM_128]  = "wlan_gcmp",
+	[IEEE80211_CIPHER_AES_GCM_256]  = "wlan_gcmp",
 };
 
 /* NB: there must be no overlap between user-supplied and device-owned flags */
@@ -533,9 +606,9 @@ ieee80211_crypto_get_key_wepidx(const struct ieee80211vap *vap,
     const struct ieee80211_key *k)
 {
 
-	if (k >= &vap->iv_nw_keys[0] &&
-	    k <  &vap->iv_nw_keys[IEEE80211_WEP_NKID])
+	if (ieee80211_is_key_global(vap, k)) {
 		return (k - vap->iv_nw_keys);
+	}
 	return (-1);
 }
 
@@ -545,11 +618,11 @@ ieee80211_crypto_get_key_wepidx(const struct ieee80211vap *vap,
 uint8_t
 ieee80211_crypto_get_keyid(struct ieee80211vap *vap, struct ieee80211_key *k)
 {
-	if (k >= &vap->iv_nw_keys[0] &&
-	    k <  &vap->iv_nw_keys[IEEE80211_WEP_NKID])
+	if (ieee80211_is_key_global(vap, k)) {
 		return (k - vap->iv_nw_keys);
-	else
-		return (0);
+	}
+
+	return (0);
 }
 
 struct ieee80211_key *
@@ -560,13 +633,17 @@ ieee80211_crypto_get_txkey(struct ieee80211_node *ni, struct mbuf *m)
 
 	/*
 	 * Multicast traffic always uses the multicast key.
-	 * Otherwise if a unicast key is set we use that and
-	 * it is always key index 0.  When no unicast key is
-	 * set we fall back to the default transmit key.
+	 *
+	 * Historically we would fall back to the default
+	 * transmit key if there was no unicast key.  This
+	 * behaviour was documented up to IEEE Std 802.11-2016,
+	 * 12.9.2.2 Per-MSDU/Per-A-MSDU Tx pseudocode, in the
+	 * 'else' case but is no longer in later versions of
+	 * the standard.  Additionally falling back to the
+	 * group key for unicast was a security risk.
 	 */
 	wh = mtod(m, struct ieee80211_frame *);
-	if (IEEE80211_IS_MULTICAST(wh->i_addr1) ||
-	    IEEE80211_KEY_UNDEFINED(&ni->ni_ucastkey)) {
+	if (IEEE80211_IS_MULTICAST(wh->i_addr1)) {
 		if (vap->iv_def_txkey == IEEE80211_KEYIX_NONE) {
 			IEEE80211_NOTE_MAC(vap, IEEE80211_MSG_CRYPTO,
 			    wh->i_addr1,
@@ -578,6 +655,8 @@ ieee80211_crypto_get_txkey(struct ieee80211_node *ni, struct mbuf *m)
 		return &vap->iv_nw_keys[vap->iv_def_txkey];
 	}
 
+	if (IEEE80211_KEY_UNDEFINED(&ni->ni_ucastkey))
+		return NULL;
 	return &ni->ni_ucastkey;
 }
 

@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2010 Rui Paulo <rpaulo@FreeBSD.org>
  * All rights reserved.
@@ -24,9 +24,6 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_ratectl.c 326272 2017-11-27 15:23:17Z pfg $");
 
 #include <sys/param.h>
 #include <sys/kernel.h>

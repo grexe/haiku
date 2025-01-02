@@ -14,7 +14,6 @@
 #include <boot/heap.h>
 #include <boot/PathBlocklist.h>
 #include <boot/stdio.h>
-#include <boot/net/NetStack.h>
 #include <system_revision.h>
 
 #include "file_systems/packagefs/packagefs.h"
@@ -162,13 +161,13 @@ main(stage2_args *args)
 			gKernelArgs.boot_volume_size = gBootVolume.ContentSize();
 
 			platform_cleanup_devices();
-			// TODO: cleanup, heap_release() etc.
-			heap_print_statistics();
+				// Further cleanup (e.g. heap_release) is the platform's responsibility.
+
 			platform_start_kernel();
 		}
 	}
 
 out:
-	heap_release(args);
+	heap_release();
 	return 0;
 }

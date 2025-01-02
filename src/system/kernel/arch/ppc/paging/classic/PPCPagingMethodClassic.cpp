@@ -236,8 +236,7 @@ PPCPagingMethodClassic::CreateTranslationMap(bool kernel, VMTranslationMap** _ma
 
 status_t
 PPCPagingMethodClassic::MapEarly(kernel_args* args, addr_t virtualAddress,
-	phys_addr_t physicalAddress, uint8 attributes,
-	page_num_t (*get_free_page)(kernel_args*))
+	phys_addr_t physicalAddress, uint8 attributes)
 {
 	uint32 virtualSegmentID = get_sr((void *)virtualAddress) & 0xffffff;
 
@@ -308,8 +307,8 @@ PPCPagingMethodClassic::FillPageTableEntry(page_table_entry *entry,
 	entry->_reserved0 = 0;
 	entry->referenced = false;
 	entry->changed = false;
-	entry->write_through = (memoryType == B_MTR_UC) || (memoryType == B_MTR_WT);
-	entry->caching_inhibited = (memoryType == B_MTR_UC);
+	entry->write_through = (memoryType == B_UNCACHED_MEMORY) || (memoryType == B_WRITE_THROUGH_MEMORY);
+	entry->caching_inhibited = (memoryType == B_UNCACHED_MEMORY);
 	entry->memory_coherent = false;
 	entry->guarded = false;
 	entry->_reserved1 = 0;

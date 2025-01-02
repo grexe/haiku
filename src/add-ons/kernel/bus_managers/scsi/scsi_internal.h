@@ -11,7 +11,6 @@
 
 #include <bus/SCSI.h>
 #include <scsi_cmds.h>
-#include <locked_pool.h>
 #include <device_manager.h>
 #include <lock.h>
 
@@ -79,6 +78,7 @@ typedef struct dma_params {
 	uint32 dma_boundary;
 	uint32 max_sg_block_size;
 	uint32 max_sg_blocks;
+	uint64 high_address;
 } dma_params;
 
 
@@ -108,8 +108,6 @@ typedef struct scsi_bus_info {
 	scsi_dpc_info *dpc_list;	// list of dpcs to execute
 
 	struct scsi_device_info *waiting_devices;	// devices ready to receive requests
-
-	locked_pool_cookie ccb_pool;	// ccb pool (one per bus)
 
 	device_node *node;		// pnp node of bus
 
@@ -209,7 +207,7 @@ enum {
 
 // state of ccb
 enum {
-	SCSI_STATE_FREE = 0,
+	SCSI_STATE_INVALID = 0,
 	SCSI_STATE_INWORK = 1,
 	SCSI_STATE_QUEUED = 2,
 	SCSI_STATE_SENT = 3,
@@ -217,7 +215,6 @@ enum {
 };
 
 
-extern locked_pool_interface *locked_pool;
 extern device_manager_info *pnp;
 
 extern scsi_for_sim_interface scsi_for_sim_module;
@@ -237,8 +234,8 @@ uchar scsi_inquiry_path(scsi_bus bus, scsi_path_inquiry *inquiry_data);
 scsi_ccb *scsi_alloc_ccb(scsi_device_info *device);
 void scsi_free_ccb(scsi_ccb *ccb);
 
-status_t scsi_init_ccb_alloc(scsi_bus_info *bus);
-void scsi_uninit_ccb_alloc(scsi_bus_info *bus);
+status_t init_ccb_alloc();
+void uninit_ccb_alloc();
 
 
 // devices.c
@@ -278,9 +275,9 @@ void scsi_resubmit_request(scsi_ccb *request);
 void scsi_request_finished(scsi_ccb *request, uint num_requests);
 
 
-// scatter_gather.c
+// scatter_gather
 bool create_temp_sg(scsi_ccb *ccb);
-void cleanup_tmp_sg(scsi_ccb *ccb);
+void cleanup_temp_sg(scsi_ccb *ccb);
 
 int init_temp_sg(void);
 void uninit_temp_sg(void);

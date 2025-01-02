@@ -113,12 +113,7 @@ CachedDataReader::Init(BAbstractBufferedDataReader* reader, off_t size)
 	if (error != B_OK)
 		RETURN_ERROR(error);
 
-	AutoLocker<VMCache> locker(fCache);
-
-	error = fCache->Resize(size, VM_PRIORITY_SYSTEM);
-	if (error != B_OK)
-		RETURN_ERROR(error);
-
+	fCache->virtual_end = size;
 	return B_OK;
 }
 
@@ -223,7 +218,7 @@ CachedDataReader::_ReadCacheLine(off_t lineOffset, size_t lineSize,
 		// reserve
 		vm_page_reservation reservation;
 		if (!vm_page_try_reserve_pages(&reservation, missingPages,
-				VM_PRIORITY_SYSTEM)) {
+				VM_PRIORITY_USER)) {
 			_DiscardPages(pages, firstMissing - firstPageOffset, missingPages);
 
 			// fall back to uncached transfer
@@ -441,7 +436,7 @@ CachedDataReader::_UnlockCacheLine(CacheLineLocker* lineLocker)
 	fCacheLineLockers.Remove(lineLocker);
 
 	if (CacheLineLocker* nextLineLocker = lineLocker->Queue().RemoveHead()) {
-		nextLineLocker->Queue().MoveFrom(&lineLocker->Queue());
+		nextLineLocker->Queue().TakeFrom(&lineLocker->Queue());
 		fCacheLineLockers.Insert(nextLineLocker);
 		nextLineLocker->WakeUp();
 	}

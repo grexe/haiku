@@ -31,8 +31,7 @@ public:
 	virtual	status_t			MapEarly(kernel_args* args,
 									addr_t virtualAddress,
 									phys_addr_t physicalAddress,
-									uint8 attributes,
-									page_num_t (*get_free_page)(kernel_args*));
+									uint8 attributes);
 
 	virtual	bool				IsKernelPageAccessible(addr_t virtualAddress,
 									uint32 protection);
@@ -185,19 +184,19 @@ PPCPagingMethodClassic::MemoryTypeToPageTableEntryFlags(uint32 memoryType)
 	// actually *have* to do with the MTRRs to setting the remaining types
 	// (usually only write-combining for the frame buffer).
 	switch (memoryType) {
-		case B_MTR_UC:
+		case B_UNCACHED_MEMORY:
 			return PPC_PTE_CACHING_DISABLED | PPC_PTE_WRITE_THROUGH;
 
-		case B_MTR_WC:
+		case B_WRITE_COMBINING_MEMORY:
 			// PPC_PTE_WRITE_THROUGH would be closer, but the combination with
 			// MTRR WC is "implementation defined" for Pentium Pro/II.
 			return 0;
 
-		case B_MTR_WT:
+		case B_WRITE_THROUGH_MEMORY:
 			return PPC_PTE_WRITE_THROUGH;
 
-		case B_MTR_WP:
-		case B_MTR_WB:
+		case B_WRITE_PROTECTED_MEMORY:
+		case B_WRITE_BACK_MEMORY:
 		default:
 			return 0;
 	}

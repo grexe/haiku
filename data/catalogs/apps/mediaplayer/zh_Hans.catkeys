@@ -1,4 +1,4 @@
-1	english	x-vnd.Haiku-MediaPlayer	716811487
+1	english	x-vnd.Haiku-MediaPlayer	390961765
 Remove Entry into Trash	MediaPlayer-RemovePLItemsCmd		移除条目到垃圾桶
 Close	MediaPlayer-PlaylistWindow		关闭
 Volume of background clips	MediaPlayer-SettingsWindow		背景剪辑音量
@@ -16,7 +16,6 @@ DrawBitmap	MediaPlayer-InfoWin		DrawBitmap
 File info	MediaPlayer-InfoWin		文件信息
 raw audio	MediaPlayer-InfoWin		原始音频
 Select all	MediaPlayer-PlaylistWindow		全选
-New player…	MediaPlayer-Main		新建播放器...
 Move Entries	MediaPlayer-MovePLItemsCmd		移动条目
 OK	MediaPlayer-Main		确定
 Remove	MediaPlayer-PlaylistWindow		移除
@@ -30,12 +29,12 @@ Open file…	MediaPlayer-Main		打开文件…
 Scale controls in full screen mode	MediaPlayer-SettingsWindow		全屏模式拉伸控件
 View options	MediaPlayer-SettingsWindow		视图选项
 %d kHz	MediaPlayer-InfoWin		%d kHz
-Eject Device	MediaPlayer-Main		弹出设备
 Full volume	MediaPlayer-SettingsWindow		最大音量
 <untitled>	PlaylistItem-title		<未命名>
 Start media server	MediaPlayer-Main		启动媒体服务器
 It appears the media server is not running.\nWould you like to start it ?	MediaPlayer-Main		媒体服务器未运行.\n是否启动媒体服务器?
 Location	MediaPlayer-InfoWin		位置
+%lu × %lu	MediaPlayer-InfoWin	The '×' is the Unicode multiplication sign U+00D7	%lu × %lu
 Opening '%s'.	MediaPlayer-Main		正在打开 '%s'。
 Medium	MediaPlayer-SettingsWindow		中号
 Play mode	MediaPlayer-SettingsWindow		播放模式
@@ -50,6 +49,7 @@ MediaPlayer settings	MediaPlayer-SettingsWindow		媒体播放器设置
 Copyright	MediaPlayer-InfoWin		版权
 Invalid URL inserted!	MediaPlayer-NetworkStream		无效的 URL 地址！
 Aspect ratio	MediaPlayer-Main		长宽比
+Eject device	MediaPlayer-Main		弹出设备
 Saving the playlist failed.\n\nError: 	MediaPlayer-PlaylistWindow		保存播放列表失败。\n\n错误: 
 <no media>	MediaPlayer-InfoWin		<没有媒体>
 Hide interface	MediaPlayer-Main		隐藏界面
@@ -67,13 +67,14 @@ never	MediaPlayer-SettingsWindow		从不
 Loop audio	MediaPlayer-SettingsWindow		循环播放音频
 Internal error (malformed message). Saving the playlist failed.	MediaPlayer-PlaylistWindow		内部错误（异常消息）。保存播放列表失败。
 Open…	MediaPlayer-PlaylistWindow		打开…
-Revert	MediaPlayer-SettingsWindow		还原
+Revert	MediaPlayer-SettingsWindow		恢复
 Low volume	MediaPlayer-SettingsWindow		低音量
 Audio	MediaPlayer-Main		音频
 {0, plural, =1{Mono} =2{Stereo} other{# Channels}}	MediaPlayer-InfoWin		{0, plural, =1{Mono} =2{Stereo} other{# Channels}}
 Quit	MediaPlayer-Main		退出
 Redo	MediaPlayer-PlaylistWindow		重做
 Move Entry	MediaPlayer-MovePLItemsCmd		移动项目
+Reset rating	MediaPlayer-Main		重置评级
 <unknown>	PlaylistItem-author		<未知>
 Cancel	MediaPlayer-SettingsWindow		取消
 Large	MediaPlayer-SettingsWindow		大
@@ -125,6 +126,7 @@ Full screen	MediaPlayer-Main		全屏
 OK	MediaPlayer-NetworkStream		确定
 Internal error (locking failed). Saving the playlist failed.	MediaPlayer-PlaylistWindow		内部错误（加锁失败）。保存播放列表失败。
 100% scale	MediaPlayer-Main		100% 缩放
+New player	MediaPlayer-Main		新播放器
 <nothing to redo>	MediaPlayer-PlaylistWindow		<无需重做>
 Bad URL	MediaPlayer-NetworkStream		URL 错误
 Save	MediaPlayer-Main		保存

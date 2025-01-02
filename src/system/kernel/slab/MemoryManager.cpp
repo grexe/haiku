@@ -445,6 +445,16 @@ MemoryManager::Init(kernel_args* args)
 	sFreeAreas = NULL;
 	sFreeAreaCount = 0;
 	sMaintenanceNeeded = false;
+
+#if USE_DEBUG_HEAP_FOR_MALLOC || USE_GUARDED_HEAP_FOR_MALLOC
+	// Allocate one area immediately. Otherwise, we might try to allocate before
+	// post-area initialization but after page initialization, during which time
+	// we can't actually reserve pages.
+	MutexLocker locker(sLock);
+	Area* area = NULL;
+	_AllocateArea(0, area);
+	_AddArea(area);
+#endif
 }
 
 
@@ -1495,7 +1505,6 @@ MemoryManager::_MapChunk(VMArea* vmArea, addr_t address, size_t size,
 	cache->ReleaseRefAndUnlock();
 
 	vm_page_unreserve_pages(&reservation);
-
 	return B_OK;
 }
 
@@ -1523,6 +1532,7 @@ MemoryManager::_UnmapChunk(VMArea* vmArea, addr_t address, size_t size,
 	translationMap->Unlock();
 
 	// free the pages
+	vm_page_reservation reservation = {};
 	addr_t areaPageOffset = (address - vmArea->Base()) / B_PAGE_SIZE;
 	addr_t areaPageEndOffset = areaPageOffset + size / B_PAGE_SIZE;
 	VMCachePagesTree::Iterator it = cache->pages.GetIterator(
@@ -1537,13 +1547,13 @@ MemoryManager::_UnmapChunk(VMArea* vmArea, addr_t address, size_t size,
 
 		cache->RemovePage(page);
 			// the iterator is remove-safe
-		vm_page_free(cache, page);
+		vm_page_free_etc(cache, page, &reservation);
 	}
 
 	cache->ReleaseRefAndUnlock();
 
+	vm_page_unreserve_pages(&reservation);
 	vm_unreserve_memory(size);
-
 	return B_OK;
 }
 

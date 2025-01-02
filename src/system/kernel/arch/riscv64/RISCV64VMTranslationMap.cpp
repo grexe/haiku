@@ -35,83 +35,7 @@ extern uint32 gPlatform;
 
 
 static void
-WriteVmPage(vm_page* page)
-{
-	dprintf("0x%08" B_PRIxADDR " ",
-		(addr_t)(page->physical_page_number * B_PAGE_SIZE));
-	switch (page->State()) {
-		case PAGE_STATE_ACTIVE:
-			dprintf("A");
-			break;
-		case PAGE_STATE_INACTIVE:
-			dprintf("I");
-			break;
-		case PAGE_STATE_MODIFIED:
-			dprintf("M");
-			break;
-		case PAGE_STATE_CACHED:
-			dprintf("C");
-			break;
-		case PAGE_STATE_FREE:
-			dprintf("F");
-			break;
-		case PAGE_STATE_CLEAR:
-			dprintf("L");
-			break;
-		case PAGE_STATE_WIRED:
-			dprintf("W");
-			break;
-		case PAGE_STATE_UNUSED:
-			dprintf("-");
-			break;
-	}
-	dprintf(" ");
-	if (page->busy)
-		dprintf("B");
-	else
-		dprintf("-");
-
-	if (page->busy_writing)
-		dprintf("W");
-	else
-		dprintf("-");
-
-	if (page->accessed)
-		dprintf("A");
-	else
-		dprintf("-");
-
-	if (page->modified)
-		dprintf("M");
-	else
-		dprintf("-");
-
-	if (page->unused)
-		dprintf("U");
-	else
-		dprintf("-");
-
-	dprintf(" usage:%3u", page->usage_count);
-	dprintf(" wired:%5u", page->WiredCount());
-
-	bool first = true;
-	vm_page_mappings::Iterator iterator = page->mappings.GetIterator();
-	vm_page_mapping* mapping;
-	while ((mapping = iterator.Next()) != NULL) {
-		if (first) {
-			dprintf(": ");
-			first = false;
-		} else
-			dprintf(", ");
-
-		dprintf("%" B_PRId32 " (%s)", mapping->area->id, mapping->area->name);
-		mapping = mapping->page_link.next;
-	}
-}
-
-
-static void
-FreePageTable(page_num_t ppn, bool isKernel, uint32 level = 2)
+FreePageTable(vm_page_reservation* reservation, page_num_t ppn, bool isKernel, uint32 level = 2)
 {
 	if (level > 0) {
 		Pte* pte = (Pte*)VirtFromPhys(ppn * B_PAGE_SIZE);
@@ -123,12 +47,13 @@ FreePageTable(page_num_t ppn, bool isKernel, uint32 level = 2)
 		}
 		for (uint64 i = beg; i <= end; i++) {
 			if (pte[i].isValid)
-				FreePageTable(pte[i].ppn, isKernel, level - 1);
+				FreePageTable(reservation, pte[i].ppn, isKernel, level - 1);
 		}
 	}
+
 	vm_page* page = vm_lookup_page(ppn);
 	DEBUG_PAGE_ACCESS_START(page);
-	vm_page_set_state(page, PAGE_STATE_FREE);
+	vm_page_free_etc(NULL, page, reservation);
 }
 
 
@@ -256,7 +181,9 @@ RISCV64VMTranslationMap::~RISCV64VMTranslationMap()
 	// Can't delete currently used page table
 	ASSERT_ALWAYS(::Satp() != Satp());
 
-	FreePageTable(fPageTable / B_PAGE_SIZE, fIsKernel);
+	vm_page_reservation reservation = {};
+	FreePageTable(&reservation, fPageTable / B_PAGE_SIZE, fIsKernel);
+	vm_page_unreserve_pages(&reservation);
 }
 
 
@@ -393,23 +320,13 @@ RISCV64VMTranslationMap::DebugMarkRangePresent(addr_t start, addr_t end,
 }
 
 
-/*
-Things need to be done when unmapping VMArea pages
-	update vm_page::accessed, modified
-	MMIO pages:
-		just unmap
-	wired pages:
-		decrement wired count
-	non-wired pages:
-		remove from VMArea and vm_page `mappings` list
-	wired and non-wird pages
-		vm_page_set_state
-*/
-
 status_t
 RISCV64VMTranslationMap::UnmapPage(VMArea* area, addr_t address,
-	bool updatePageQueue)
+	bool updatePageQueue, bool deletingAddressSpace, uint32* _flags)
 {
+	ASSERT(address % B_PAGE_SIZE == 0);
+	ASSERT(_flags == NULL || !updatePageQueue);
+
 	TRACE("RISCV64VMTranslationMap::UnmapPage(0x%" B_PRIxADDR "(%s), 0x%"
 		B_PRIxADDR ", %d)\n", (addr_t)area, area->name, address,
 		updatePageQueue);
@@ -426,20 +343,35 @@ RISCV64VMTranslationMap::UnmapPage(VMArea* area, addr_t address,
 	fMapCount--;
 	pinner.Unlock();
 
-	if (oldPte.isAccessed)
-		InvalidatePage(address);
+	if (oldPte.isAccessed) {
+		if (!deletingAddressSpace)
+			InvalidatePage(address);
 
-	Flush();
+		if (_flags == NULL)
+			Flush();
+	}
 
-	locker.Detach(); // PageUnmapped takes ownership
-	PageUnmapped(area, oldPte.ppn, oldPte.isAccessed, oldPte.isDirty, updatePageQueue);
+	if (_flags == NULL) {
+		locker.Detach();
+			// PageUnmapped() will unlock for us
+
+		PageUnmapped(area, oldPte.ppn, oldPte.isAccessed, oldPte.isDirty, updatePageQueue);
+	} else {
+		uint32 flags = PAGE_PRESENT;
+		if (oldPte.isAccessed)
+			flags |= PAGE_ACCESSED;
+		if (oldPte.isDirty)
+			flags |= PAGE_MODIFIED;
+		*_flags = flags;
+	}
+
 	return B_OK;
 }
 
 
 void
 RISCV64VMTranslationMap::UnmapPages(VMArea* area, addr_t base, size_t size,
-	bool updatePageQueue)
+	bool updatePageQueue, bool deletingAddressSpace)
 {
 	TRACE("RISCV64VMTranslationMap::UnmapPages(0x%" B_PRIxADDR "(%s), 0x%"
 		B_PRIxADDR ", 0x%" B_PRIxSIZE ", %d)\n", (addr_t)area,
@@ -465,56 +397,12 @@ RISCV64VMTranslationMap::UnmapPages(VMArea* area, addr_t base, size_t size,
 
 		fMapCount--;
 
-		if (oldPte.isAccessed)
+		if (oldPte.isAccessed && !deletingAddressSpace)
 			InvalidatePage(start);
 
 		if (area->cache_type != CACHE_TYPE_DEVICE) {
-			// get the page
-			vm_page* page = vm_lookup_page(oldPte.ppn);
-			ASSERT(page != NULL);
-			if (false) {
-				WriteVmPage(page); dprintf("\n");
-			}
-
-			DEBUG_PAGE_ACCESS_START(page);
-
-			// transfer the accessed/dirty flags to the page
-			page->accessed = oldPte.isAccessed;
-			page->modified = oldPte.isDirty;
-
-			// remove the mapping object/decrement the wired_count of the
-			// page
-			if (area->wiring == B_NO_LOCK) {
-				vm_page_mapping* mapping = NULL;
-				vm_page_mappings::Iterator iterator
-					= page->mappings.GetIterator();
-				while ((mapping = iterator.Next()) != NULL) {
-					if (mapping->area == area)
-						break;
-				}
-
-				ASSERT(mapping != NULL);
-
-				area->mappings.Remove(mapping);
-				page->mappings.Remove(mapping);
-				queue.Add(mapping);
-			} else
-				page->DecrementWiredCount();
-
-			if (!page->IsMapped()) {
-				atomic_add(&gMappedPagesCount, -1);
-
-				if (updatePageQueue) {
-					if (page->Cache()->temporary)
-						vm_page_set_state(page, PAGE_STATE_INACTIVE);
-					else if (page->modified)
-						vm_page_set_state(page, PAGE_STATE_MODIFIED);
-					else
-						vm_page_set_state(page, PAGE_STATE_CACHED);
-				}
-			}
-
-			DEBUG_PAGE_ACCESS_END(page);
+			PageUnmapped(area, oldPte.ppn, oldPte.isAccessed, oldPte.isDirty,
+				updatePageQueue, &queue);
 		}
 
 		// flush explicitly, since we directly use the lock
@@ -534,105 +422,7 @@ RISCV64VMTranslationMap::UnmapPages(VMArea* area, addr_t base, size_t size,
 		| (isKernelSpace ? CACHE_DONT_LOCK_KERNEL_SPACE : 0);
 
 	while (vm_page_mapping* mapping = queue.RemoveHead())
-		object_cache_free(gPageMappingsObjectCache, mapping, freeFlags);
-}
-
-
-void
-RISCV64VMTranslationMap::UnmapArea(VMArea* area, bool deletingAddressSpace,
-	bool ignoreTopCachePageFlags)
-{
-	TRACE("RISCV64VMTranslationMap::UnmapArea(0x%" B_PRIxADDR "(%s), 0x%"
-		B_PRIxADDR ", 0x%" B_PRIxSIZE ", %d, %d)\n", (addr_t)area,
-		area->name, area->Base(), area->Size(), deletingAddressSpace,
-		ignoreTopCachePageFlags);
-
-	if (area->cache_type == CACHE_TYPE_DEVICE || area->wiring != B_NO_LOCK) {
-		UnmapPages(area, area->Base(), area->Size(), true);
-		return;
-	}
-
-	bool unmapPages = !deletingAddressSpace || !ignoreTopCachePageFlags;
-
-	RecursiveLocker locker(fLock);
-	ThreadCPUPinner pinner(thread_get_current_thread());
-
-	VMAreaMappings mappings;
-	mappings.MoveFrom(&area->mappings);
-
-	for (VMAreaMappings::Iterator it = mappings.GetIterator();
-			vm_page_mapping* mapping = it.Next();) {
-
-		vm_page* page = mapping->page;
-		page->mappings.Remove(mapping);
-
-		VMCache* cache = page->Cache();
-
-		bool pageFullyUnmapped = false;
-		if (!page->IsMapped()) {
-			atomic_add(&gMappedPagesCount, -1);
-			pageFullyUnmapped = true;
-		}
-
-		if (unmapPages || cache != area->cache) {
-			addr_t address = area->Base()
-				+ ((page->cache_offset * B_PAGE_SIZE)
-				- area->cache_offset);
-
-			std::atomic<Pte>* pte = LookupPte(address, false, NULL);
-			if (pte == NULL || !pte->load().isValid) {
-				panic("page %p has mapping for area %p "
-					"(%#" B_PRIxADDR "), but has no "
-					"page table", page, area, address);
-				continue;
-			}
-
-			Pte oldPte = pte->exchange({});
-
-			// transfer the accessed/dirty flags to the page and
-			// invalidate the mapping, if necessary
-			if (oldPte.isAccessed) {
-				page->accessed = true;
-
-				if (!deletingAddressSpace)
-					InvalidatePage(address);
-			}
-
-			if (oldPte.isDirty)
-				page->modified = true;
-
-			if (pageFullyUnmapped) {
-				DEBUG_PAGE_ACCESS_START(page);
-
-				if (cache->temporary) {
-					vm_page_set_state(page,
-						PAGE_STATE_INACTIVE);
-				} else if (page->modified) {
-					vm_page_set_state(page,
-						PAGE_STATE_MODIFIED);
-				} else {
-					vm_page_set_state(page,
-						PAGE_STATE_CACHED);
-				}
-
-				DEBUG_PAGE_ACCESS_END(page);
-			}
-		}
-
-		fMapCount--;
-	}
-
-	Flush();
-		// flush explicitely, since we directly use the lock
-
-	locker.Unlock();
-
-	bool isKernelSpace = area->address_space == VMAddressSpace::Kernel();
-	uint32 freeFlags = CACHE_DONT_WAIT_FOR_MEMORY
-		| (isKernelSpace ? CACHE_DONT_LOCK_KERNEL_SPACE : 0);
-
-	while (vm_page_mapping* mapping = mappings.RemoveHead())
-		object_cache_free(gPageMappingsObjectCache, mapping, freeFlags);
+		vm_free_page_mapping(mapping->page->physical_page_number, mapping, freeFlags);
 }
 
 
@@ -735,23 +525,6 @@ status_t RISCV64VMTranslationMap::Protect(addr_t base, addr_t top,
 	}
 
 	return B_OK;
-}
-
-
-status_t
-RISCV64VMTranslationMap::ProtectPage(VMArea* area, addr_t address,
-	uint32 attributes)
-{
-	NOT_IMPLEMENTED_PANIC();
-	return B_OK;
-}
-
-
-status_t
-RISCV64VMTranslationMap::ProtectArea(VMArea* area, uint32 attributes)
-{
-	NOT_IMPLEMENTED_PANIC();
-	return B_NOT_SUPPORTED;
 }
 
 

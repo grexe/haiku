@@ -26,10 +26,12 @@ const static uint32 kMaxUnusedVnodes = 8192;
 
 /*!	\brief Guards sUnusedVnodeList and sUnusedVnodes.
 
-	Innermost lock. Must not be held when acquiring any other lock.
+	Must have at least a read-lock of sHotVnodesLock when acquiring!
 */
-static mutex sUnusedVnodesLock = MUTEX_INITIALIZER("unused vnodes");
-static list sUnusedVnodeList;
+static spinlock sUnusedVnodesLock = B_SPINLOCK_INITIALIZER;
+typedef DoublyLinkedList<Vnode, DoublyLinkedListMemberGetLink<Vnode, &Vnode::unused_link> >
+	UnusedVnodeList;
+static UnusedVnodeList sUnusedVnodeList;
 static uint32 sUnusedVnodes = 0;
 
 static const int32 kMaxHotVnodes = 1024;
@@ -46,7 +48,10 @@ static int32 sUnusedVnodesCheckCount = 0;
 static void
 flush_hot_vnodes_locked()
 {
-	MutexLocker unusedLocker(sUnusedVnodesLock);
+	// Since sUnusedVnodesLock is always acquired after sHotVnodesLock,
+	// we can safely hold it for the whole duration of the flush.
+	// We don't want to be descheduled while holding the write-lock, anyway.
+	InterruptsSpinLocker unusedLocker(sUnusedVnodesLock);
 
 	int32 count = std::min(sNextHotVnodeIndex, kMaxHotVnodes);
 	for (int32 i = 0; i < count; i++) {
@@ -56,7 +61,7 @@ flush_hot_vnodes_locked()
 
 		if (vnode->IsHot()) {
 			if (vnode->IsUnused()) {
-				list_add_item(&sUnusedVnodeList, vnode);
+				sUnusedVnodeList.Add(vnode);
 				sUnusedVnodes++;
 			}
 			vnode->SetHot(false);
@@ -145,8 +150,8 @@ vnode_used(Vnode* vnode)
 	vnode->SetUnused(false);
 
 	if (!vnode->IsHot()) {
-		MutexLocker unusedLocker(sUnusedVnodesLock);
-		list_remove_item(&sUnusedVnodeList, vnode);
+		InterruptsSpinLocker unusedLocker(sUnusedVnodesLock);
+		sUnusedVnodeList.Remove(vnode);
 		sUnusedVnodes--;
 	}
 }
@@ -173,8 +178,8 @@ vnode_to_be_freed(Vnode* vnode)
 			}
 		}
 	} else if (vnode->IsUnused()) {
-		MutexLocker unusedLocker(sUnusedVnodesLock);
-		list_remove_item(&sUnusedVnodeList, vnode);
+		InterruptsSpinLocker unusedLocker(sUnusedVnodesLock);
+		sUnusedVnodeList.Remove(vnode);
 		sUnusedVnodes--;
 	}
 

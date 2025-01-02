@@ -31,34 +31,12 @@
 using std::nothrow;
 
 
-static const uint32 kDiskSystemFlags =
-	0
-//	| B_DISK_SYSTEM_SUPPORTS_CHECKING
-//	| B_DISK_SYSTEM_SUPPORTS_REPAIRING
-	| B_DISK_SYSTEM_SUPPORTS_RESIZING
-	| B_DISK_SYSTEM_SUPPORTS_MOVING
-//	| B_DISK_SYSTEM_SUPPORTS_SETTING_CONTENT_NAME
-	| B_DISK_SYSTEM_SUPPORTS_SETTING_CONTENT_PARAMETERS
-	| B_DISK_SYSTEM_SUPPORTS_INITIALIZING
-//	| B_DISK_SYSTEM_SUPPORTS_CONTENT_NAME
-
-	| B_DISK_SYSTEM_SUPPORTS_RESIZING_CHILD
-	| B_DISK_SYSTEM_SUPPORTS_MOVING_CHILD
-//	| B_DISK_SYSTEM_SUPPORTS_SETTING_NAME
-	| B_DISK_SYSTEM_SUPPORTS_SETTING_TYPE
-//	| B_DISK_SYSTEM_SUPPORTS_SETTING_PARAMETERS
-	| B_DISK_SYSTEM_SUPPORTS_CREATING_CHILD
-	| B_DISK_SYSTEM_SUPPORTS_DELETING_CHILD
-//	| B_DISK_SYSTEM_SUPPORTS_NAME
-;
-
-
 // #pragma mark - PartitionMapAddOn
 
 
 PartitionMapAddOn::PartitionMapAddOn()
 	:
-	BDiskSystemAddOn(kPartitionTypeIntel, kDiskSystemFlags)
+	BDiskSystemAddOn(kPartitionTypeIntel)
 {
 }
 
@@ -340,7 +318,7 @@ PartitionMapHandle::GetParameterEditor(B_PARAMETER_EDITOR_TYPE type,
 	if (type == B_CREATE_PARAMETER_EDITOR
 		|| type == B_PROPERTIES_PARAMETER_EDITOR) {
 		try {
-			*editor = new PrimaryPartitionEditor();
+			*editor = new PrimaryPartitionEditor(type == B_CREATE_PARAMETER_EDITOR);
 		} catch (std::bad_alloc&) {
 			return B_NO_MEMORY;
 		}

@@ -1,6 +1,6 @@
 /*
  * Copyright 2013, Stephan Aßmus <superstippi@gmx.de>.
- * Copyright 2017-2021, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2017-2024, Andrew Lindesay <apl@lindesay.co.nz>.
  * All rights reserved. Distributed under the terms of the MIT License.
  */
 
@@ -24,13 +24,12 @@
 #include "support.h"
 
 #include "AppUtils.h"
-#include "FeaturedPackagesView.h"
 #include "Logger.h"
 #include "MainWindow.h"
-#include "PackageIconTarRepository.h"
+#include "PackageUtils.h"
 #include "ServerHelper.h"
 #include "ServerSettings.h"
-#include "ScreenshotWindow.h"
+#include "SharedIcons.h"
 #include "StorageUtils.h"
 
 
@@ -56,9 +55,7 @@ App::~App()
 	// We cannot let global destructors cleanup static BitmapRef objects,
 	// since calling BBitmap destructors needs a valid BApplication still
 	// around. That's why we do it here.
-	PackageIconTarRepository::CleanupDefaultIcon();
-	FeaturedPackagesView::CleanupIcons();
-	ScreenshotWindow::CleanupIcons();
+	SharedIcons::UnsetAllIcons();
 }
 
 
@@ -389,7 +386,8 @@ App::_Open(const BEntry& entry)
 		return;
 	}
 
-	package->SetLocalFilePath(path.Path());
+	PackageLocalInfoRef localInfo = PackageUtils::NewLocalInfo(package);
+	localInfo->SetLocalFilePath(path.Path());
 
 	// Set if the package is active
 	//
@@ -416,9 +414,10 @@ App::_Open(const BEntry& entry)
 		}
 	}
 
-	if (active) {
-		package->SetState(ACTIVATED);
-	}
+	if (active)
+		localInfo->SetState(ACTIVATED);
+
+	package->SetLocalInfo(localInfo);
 
 	BMessage settings;
 	_LoadSettings(settings);

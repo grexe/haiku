@@ -337,7 +337,7 @@ private:
 
 class NodeGetter : public CachedBlock {
 public:
-	NodeGetter(Volume* volume)
+	NodeGetter(Volume* volume = NULL)
 		:
 		CachedBlock(volume)
 	{
@@ -349,12 +349,16 @@ public:
 
 	status_t SetTo(const Inode* inode)
 	{
+		Unset();
+		fVolume = inode->GetVolume();
 		return CachedBlock::SetTo(fVolume->VnodeToBlock(inode->ID()));
 	}
 
 	status_t SetToWritable(Transaction& transaction, const Inode* inode,
 		bool empty = false)
 	{
+		Unset();
+		fVolume = inode->GetVolume();
 		return CachedBlock::SetToWritable(transaction,
 			fVolume->VnodeToBlock(inode->ID()), empty);
 	}

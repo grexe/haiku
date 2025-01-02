@@ -649,7 +649,7 @@ Inode::_RemoveSmallData(bfs_inode* node, small_data* item, int32 index)
 		memset(item, 0, item->Size());
 
 	// update all current iterators
-	SinglyLinkedList<AttributeIterator>::Iterator iterator
+	SinglyLinkedList<AttributeIterator>::ConstIterator iterator
 		= fIterators.GetIterator();
 	while (iterator.HasNext()) {
 		iterator.Next()->Update(index, -1);
@@ -853,7 +853,7 @@ Inode::_AddSmallData(Transaction& transaction, NodeGetter& nodeGetter,
 		memset(item, 0, (uint8*)node + fVolume->InodeSize() - (uint8*)item);
 
 	// update all current iterators
-	SinglyLinkedList<AttributeIterator>::Iterator iterator
+	SinglyLinkedList<AttributeIterator>::ConstIterator iterator
 		= fIterators.GetIterator();
 	while (iterator.HasNext()) {
 		iterator.Next()->Update(index, 1);
@@ -2669,8 +2669,7 @@ Inode::Create(Transaction& transaction, Inode* parent, const char* name,
 				return B_NOT_A_DIRECTORY;
 
 			// we want to open the file, so we should have the rights to do so
-			if (inode->CheckPermissions(open_mode_to_access(openMode)
-					| ((openMode & O_TRUNC) != 0 ? W_OK : 0)) != B_OK)
+			if (inode->CheckPermissions(open_mode_to_access(openMode)) != B_OK)
 				return B_NOT_ALLOWED;
 
 			if ((openMode & O_TRUNC) != 0) {

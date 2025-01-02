@@ -28,6 +28,7 @@
 #include "Logger.h"
 #include "PackageInfo.h"
 #include "PackageManager.h"
+#include "PackageUtils.h"
 
 #include <package/Context.h>
 #include <package/manager/Exceptions.h>
@@ -201,15 +202,19 @@ LocalPkgDataLoadProcess::RunInternal()
 			foundPackages[repoPackageInfo.Name()] = modelInfo;
 		}
 
+		PackageLocalInfoRef localInfo = PackageUtils::NewLocalInfo(modelInfo);
+		PackageCoreInfoRef coreInfo = PackageUtils::NewCoreInfo(modelInfo);
+
 		// The package list here considers those packages that are installed
 		// in the system as well as those that exist in remote repositories.
 		// It is better if the 'depot name' is from the remote repository
 		// because then it will be possible to perform a rating on it later.
 
-		if (modelInfo->DepotName().IsEmpty()
-			|| modelInfo->DepotName() == REPOSITORY_NAME_SYSTEM
-			|| modelInfo->DepotName() == REPOSITORY_NAME_INSTALLED) {
-			modelInfo->SetDepotName(repositoryName);
+		BString depotName = PackageUtils::DepotName(modelInfo);
+
+		if (depotName.IsEmpty() || depotName == REPOSITORY_NAME_SYSTEM
+			|| depotName == REPOSITORY_NAME_INSTALLED) {
+			coreInfo->SetDepotName(repositoryName);
 		}
 
 		modelInfo->AddListener(fPackageInfoListener);
@@ -232,30 +237,30 @@ LocalPkgDataLoadProcess::RunInternal()
 				HDDEBUG("pkg [%s] repository [%s] not recognized --> ignored",
 					modelInfo->Name().String(), repositoryName.String());
 			} else {
-				(*it)->AddPackage(modelInfo);
+				DepotInfoRef depot = *it;
+				depot->AddPackage(modelInfo);
 				HDTRACE("pkg [%s] assigned to [%s]",
 					modelInfo->Name().String(), repositoryName.String());
 			}
 
 			remotePackages[modelInfo->Name()] = modelInfo;
 		} else {
-			if (repository == static_cast<const BSolverRepository*>(
-					manager.SystemRepository())) {
-				modelInfo->AddInstallationLocation(
-					B_PACKAGE_INSTALLATION_LOCATION_SYSTEM);
-				if (!modelInfo->IsSystemPackage()) {
-					systemInstalledPackages[repoPackageInfo.FileName()]
-						= modelInfo;
-				}
-			} else if (repository == static_cast<const BSolverRepository*>(
-					manager.HomeRepository())) {
-				modelInfo->AddInstallationLocation(
-					B_PACKAGE_INSTALLATION_LOCATION_HOME);
+			if (repository == static_cast<const BSolverRepository*>(manager.SystemRepository())) {
+				localInfo->AddInstallationLocation(B_PACKAGE_INSTALLATION_LOCATION_SYSTEM);
+				if (!localInfo->IsSystemPackage())
+					systemInstalledPackages[repoPackageInfo.FileName()] = modelInfo;
+			} else if (repository
+				== static_cast<const BSolverRepository*>(manager.HomeRepository())) {
+				localInfo->AddInstallationLocation(B_PACKAGE_INSTALLATION_LOCATION_HOME);
 			}
+
 		}
 
-		if (modelInfo->IsSystemPackage())
+		if (localInfo->IsSystemPackage())
 			systemFlaggedPackages.Add(repoPackageInfo.FileName());
+
+		modelInfo->SetLocalInfo(localInfo);
+		modelInfo->SetCoreInfo(coreInfo);
 	}
 
 	BAutolock lock(fModel->Lock());
@@ -355,8 +360,13 @@ LocalPkgDataLoadProcess::RunInternal()
 			if (element->Type() == BSolverResultElement::B_TYPE_INSTALL) {
 				PackageInfoMap::iterator it = systemInstalledPackages.find(
 					package->Info().FileName());
-				if (it != systemInstalledPackages.end())
-					it->second->SetSystemDependency(true);
+				if (it != systemInstalledPackages.end()) {
+					PackageInfoRef systemInstalledPackage = it->second;
+					PackageLocalInfoRef localInfo
+						= PackageUtils::NewLocalInfo(systemInstalledPackage);
+					localInfo->SetSystemDependency(true);
+					systemInstalledPackage->SetLocalInfo(localInfo);
+				}
 			}
 		}
 	} catch (BFatalErrorException& ex) {

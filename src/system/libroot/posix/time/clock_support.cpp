@@ -14,7 +14,10 @@
 #include <OS.h>
 
 #include <errno_private.h>
+#include <pthread_private.h>
+#include <syscall_clock_info.h>
 #include <syscall_utils.h>
+#include <time_private.h>
 
 #include <syscalls.h>
 
@@ -54,9 +57,7 @@ clock_getres(clockid_t clockID, struct timespec* resolution)
 int
 clock_gettime(clockid_t clockID, struct timespec* time)
 {
-	// get the time in microseconds
 	bigtime_t microSeconds;
-
 	switch (clockID) {
 		case CLOCK_MONOTONIC:
 			microSeconds = system_time();
@@ -74,10 +75,7 @@ clock_gettime(clockid_t clockID, struct timespec* time)
 		}
 	}
 
-	// set the result
-	time->tv_sec = microSeconds / 1000000;
-	time->tv_nsec = (microSeconds % 1000000) * 1000;
-
+	bigtime_to_timespec(microSeconds, *time);
 	return 0;
 }
 
@@ -89,13 +87,9 @@ clock_settime(clockid_t clockID, const struct timespec* time)
 	if (clockID == CLOCK_MONOTONIC)
 		RETURN_AND_SET_ERRNO(EINVAL);
 
-	// check timespec validity
-	if (time->tv_sec < 0 || time->tv_nsec < 0 || time->tv_nsec >= 1000000000)
+	bigtime_t microSeconds;
+	if (!timespec_to_bigtime(*time, microSeconds))
 		RETURN_AND_SET_ERRNO(EINVAL);
-
-	// convert to microseconds and set the clock
-	bigtime_t microSeconds = (bigtime_t)time->tv_sec * 1000000
-		+ time->tv_nsec / 1000;
 
 	RETURN_AND_SET_ERRNO(_kern_set_clock(clockID, microSeconds));
 }
@@ -106,11 +100,9 @@ clock_nanosleep(clockid_t clockID, int flags, const struct timespec* time,
 	struct timespec* remainingTime)
 {
 	// convert time to microseconds (round up)
-	if (time->tv_sec < 0 || time->tv_nsec < 0 || time->tv_nsec >= 1000000000)
+	bigtime_t microSeconds;
+	if (!timespec_to_bigtime(*time, microSeconds))
 		RETURN_AND_TEST_CANCEL(EINVAL);
-
-	bigtime_t microSeconds = (bigtime_t)time->tv_sec * 1000000
-		+ (time->tv_nsec + 999) / 1000;
 
 	// get timeout flags
 	uint32 timeoutFlags;
@@ -131,8 +123,7 @@ clock_nanosleep(clockid_t clockID, int flags, const struct timespec* time,
 	// remaining wait time.
 	if (error == B_INTERRUPTED && remainingTime != NULL) {
 		if (remainingMicroSeconds > 0) {
-			remainingTime->tv_sec = remainingMicroSeconds / 1000000;
-			remainingTime->tv_nsec = (remainingMicroSeconds % 1000000) * 1000;
+			bigtime_to_timespec(remainingMicroSeconds, *remainingTime);
 		} else {
 			// We were slow enough that the wait time passed anyway.
 			error = B_OK;
@@ -156,9 +147,7 @@ clock_getcpuclockid(pid_t pid, clockid_t* _clockID)
 		return 0;
 	}
 
-	// test-get the time to verify the team exists and we have permission
-	bigtime_t microSeconds;
-	status_t error = _kern_get_clock(pid, &microSeconds);
+	status_t error = _kern_get_cpuclockid(pid, TEAM_ID, _clockID);
 	if (error != B_OK) {
 		// Since pid is > 0, B_BAD_VALUE always means a team with that ID
 		// doesn't exist. Translate the error code accordingly.
@@ -167,6 +156,24 @@ clock_getcpuclockid(pid_t pid, clockid_t* _clockID)
 		return error;
 	}
 
-	*_clockID = pid;
+	return 0;
+}
+
+
+int
+pthread_getcpuclockid(pthread_t thread, clockid_t* _clockID)
+{
+	if (thread->id < 0)
+		return ESRCH;
+
+	status_t error = _kern_get_cpuclockid(thread->id, THREAD_ID, _clockID);
+	if (error != B_OK) {
+		// Since thread->id is > 0, B_BAD_VALUE always means a thread with that ID
+		// doesn't exist. Translate the error code accordingly.
+		if (error == B_BAD_VALUE)
+			return ESRCH;
+		return error;
+	}
+
 	return 0;
 }

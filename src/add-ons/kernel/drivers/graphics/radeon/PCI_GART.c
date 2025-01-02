@@ -102,7 +102,7 @@ static status_t createGARTBuffer( GART_info *gart, size_t size )
 
 	gart->buffer.area = map_physical_memory( "Radeon aligned PCI GART buffer",
 		(addr_t)aligned_phys,
-		size, B_ANY_KERNEL_BLOCK_ADDRESS | B_MTR_WC,
+		size, B_ANY_KERNEL_BLOCK_ADDRESS | B_WRITE_COMBINING_MEMORY,
 		B_READ_AREA | B_WRITE_AREA, &gart->buffer.ptr );
 
 	if( gart->buffer.area < 0 ) {
@@ -162,8 +162,7 @@ static status_t initGATT( GART_info *gart )
 	get_memory_map(gart->GATT.ptr, B_PAGE_SIZE, PTB_map, 1);
 	gart->GATT.phys = PTB_map[0].address;
 
-	SHOW_INFO(3, "GATT_ptr=%p, GATT_phys=%p", gart->GATT.ptr,
-		(void *)gart->GATT.phys);
+	SHOW_INFO(3, "GATT_ptr=%p, GATT_phys=%#" B_PRIx32, gart->GATT.ptr, gart->GATT.phys);
 
 	// get address mapping
 	memset(gart->GATT.ptr, 0, num_pages * sizeof(uint32));

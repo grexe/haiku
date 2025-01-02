@@ -82,7 +82,12 @@ VirtioSCSIController::VirtioSCSIController(device_node *node)
 	}
 
 	::virtio_queue virtioQueues[3];
-	fStatus = fVirtio->alloc_queues(fVirtioDevice, 3, virtioQueues);
+	uint16 requestedSizes[3] = { 0, 0, 0 };
+	requestedSizes[2] = fConfig.seg_max + 2;
+		// two entries are taken up by the header and result
+
+	fStatus = fVirtio->alloc_queues(fVirtioDevice, 3, virtioQueues,
+		requestedSizes);
 	if (fStatus != B_OK) {
 		ERROR("queue allocation failed (%s)\n", strerror(fStatus));
 		return;
@@ -147,7 +152,6 @@ VirtioSCSIController::PathInquiry(scsi_path_inquiry *info)
 {
 	info->hba_inquiry = SCSI_PI_TAG_ABLE;
 	info->hba_misc = 0;
-	info->sim_priv = 0;
 	info->initiator_id = VIRTIO_SCSI_INITIATOR_ID;
 	info->hba_queue_size = fConfig.cmd_per_lun != 0 ? fConfig.cmd_per_lun : 1;
 	memset(info->vuhba_flags, 0, sizeof(info->vuhba_flags));
@@ -232,16 +236,21 @@ VirtioSCSIController::ExecuteRequest(scsi_ccb *ccb)
 	fRequest->FillRequest(inCount, outCount, entries);
 
 	atomic_add(&fCurrentRequest, 1);
-	fInterruptCondition.Add(&fInterruptConditionEntry);
+	ConditionVariableEntry entry;
+	fInterruptCondition.Add(&entry);
 
-	fVirtio->queue_request_v(fRequestVirtioQueue, entries,
+	result = fVirtio->queue_request_v(fRequestVirtioQueue, entries,
 		outCount, inCount, (void *)(addr_t)fCurrentRequest);
 
-	result = fInterruptConditionEntry.Wait(B_RELATIVE_TIMEOUT,
-		fRequest->Timeout());
+	if (result != B_OK)
+		ERROR("queueing failed with status: %#" B_PRIx32 "\n", result);
+	else {
+		result = entry.Wait(B_RELATIVE_TIMEOUT, fRequest->Timeout());
+		if (result != B_OK)
+			ERROR("wait failed with status: %#" B_PRIx32 "\n", result);
+	}
 
 	if (result != B_OK) {
-		ERROR("wait failed with status: %#" B_PRIx32 "\n", result);
 		fRequest->Abort();
 		return result;
 	}

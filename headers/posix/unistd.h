@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2015 Haiku, Inc. All Rights Reserved.
+ * Copyright 2004-2024, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  */
 #ifndef _UNISTD_H_
@@ -341,8 +341,10 @@ extern int		fchdir(int fd);
 extern char		*getcwd(char *buffer, size_t size);
 
 extern int		pipe(int fildes[2]);
+extern int		pipe2(int fildes[2], int flags);
 extern int		dup(int fd);
 extern int		dup2(int fd1, int fd2);
+extern int		dup3(int fd1, int fd2, int flags);
 extern int		close(int fd);
 extern int		link(const char *toPath, const char *path);
 extern int		linkat(int toFD, const char *toPath, int pathFD,
@@ -359,21 +361,31 @@ extern int		symlinkat(const char *toPath, int fd, const char *symlinkPath);
 
 extern int      ftruncate(int fd, off_t newSize);
 extern int      truncate(const char *path, off_t newSize);
-struct ioctl_args {
-    void* argument;
-    size_t size;
-};
-int __ioctl(int fd, ulong cmd, struct ioctl_args args);
+
+/* We want the 3rd and 4th arguments to ioctl to be optional, but we can't use varargs because
+ * then we have no way to know if the optional arguments are present, and calling va_next is
+ * undefined behavior (it may or may not work depending on the calling convention).
+ *
+ * In C++, we implement ioctl using default function arguments, but in C this isn't possible.
+ * So, the C implementation is done as vararg macro that use preprocessor magic to call the
+ * 4 argument function and fill in the omitted arguments.
+ *
+ * The legacy ioctl function in C with vararg arguments is still provided for ABI compatibility
+ * with existing applications, but should not be used anymore by newly compiled code.
+ */
+extern int		__ioctl(int fd, ulong cmd, void* argument, size_t size);
 #ifndef __cplusplus
 extern int		ioctl(int fd, unsigned long op, ...);
-#ifndef _KERNEL_MODE
-#define ioctl(a, b, c...) __ioctl(a, b, (struct ioctl_args){ c })
-#endif
+#define _IOCTL2(a, b) 		__ioctl(a, b, NULL, 0)
+#define _IOCTL3(a, b, c)	__ioctl(a, b, (void*)(c), 0)
+#define _IOCTL4(a, b, c, d)	__ioctl(a, b, (void*)(c), d)
+#define _IOCTL(ARG1, ARG2, ARG3, ARG4, NAME, ...) NAME
+#define ioctl(...) _IOCTL(__VA_ARGS__, _IOCTL4, _IOCTL3, _IOCTL2)(__VA_ARGS__)
 #else
 inline int
 ioctl(int fd, unsigned long op, void* argument = NULL, size_t size = 0)
 {
-	return __ioctl(fd, op, (struct ioctl_args){ argument, size });
+	return __ioctl(fd, op, argument, size);
 }
 #endif
 
@@ -480,6 +492,8 @@ extern char 	*crypt(const char *key, const char *salt);
 extern void 	encrypt(char block[64], int edflag);
 extern int		getopt(int argc, char *const *argv, const char *shortOpts);
 extern void 	swab(const void *src, void *dest, ssize_t nbytes);
+
+int				getentropy(void *buf, size_t buflen);
 
 /* getopt() related external variables */
 extern char *optarg;

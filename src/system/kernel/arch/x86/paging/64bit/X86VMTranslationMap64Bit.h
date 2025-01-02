@@ -32,12 +32,11 @@ struct X86VMTranslationMap64Bit final : X86VMTranslationMap {
 									bool markPresent);
 
 	virtual	status_t			UnmapPage(VMArea* area, addr_t address,
-									bool updatePageQueue);
+									bool updatePageQueue,
+									bool deletingAddressSpace, uint32* _flags);
 	virtual	void				UnmapPages(VMArea* area, addr_t base,
-									size_t size, bool updatePageQueue);
-	virtual	void				UnmapArea(VMArea* area,
-									bool deletingAddressSpace,
-									bool ignoreTopCachePageFlags);
+									size_t size, bool updatePageQueue,
+									bool deletingAddressSpace);
 
 	virtual	status_t			Query(addr_t virtualAddress,
 									phys_addr_t* _physicalAddress,
@@ -56,6 +55,10 @@ struct X86VMTranslationMap64Bit final : X86VMTranslationMap {
 									VMArea* area, addr_t address,
 									bool unmapIfUnaccessed,
 									bool& _modified);
+
+	virtual	bool				DebugGetReverseMappingInfo(
+									phys_addr_t physicalAddress,
+									ReverseMappingInfoCallback& callback);
 
 	virtual	X86PagingStructures* PagingStructures() const;
 	inline	X86PagingStructures64Bit* PagingStructures64Bit() const

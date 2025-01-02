@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2021, Haiku, Inc. All Rights Reserved.
+ * Copyright 2013-2024, Haiku, Inc. All Rights Reserved.
  * Distributed under the terms of the MIT License.
  *
  * Authors:
@@ -35,9 +35,11 @@
 
 #include "AutoDeleter.h"
 #include "AutoLocker.h"
+#include "HaikuDepotConstants.h"
 #include "Logger.h"
 #include "OpenPackageProcess.h"
 #include "PackageInfo.h"
+#include "PackageUtils.h"
 #include "ProblemWindow.h"
 #include "ResultWindow.h"
 
@@ -140,10 +142,18 @@ void
 PackageManager::CollectPackageActions(PackageInfoRef package,
 		Collector<PackageActionRef>& actionList)
 {
-	if (package->IsSystemPackage() || package->IsSystemDependency())
+	if (!package.IsSet())
 		return;
 
-	switch (package->State()) {
+	PackageLocalInfoRef localInfo = package->LocalInfo();
+
+	if (!localInfo.IsSet())
+		return;
+
+	if (localInfo->IsSystemPackage() || localInfo->IsSystemDependency())
+		return;
+
+	switch (PackageUtils::State(package)) {
 		case ACTIVATED:
 		case INSTALLED:
 			_CollectPackageActionsForActivatedOrInstalled(package, actionList);
@@ -178,8 +188,7 @@ PackageManager::_CollectPackageActionsForActivatedOrInstalled(
 	// Add OpenPackageActions for each deskbar link found in the
 	// package
 	std::vector<DeskbarLink> foundLinks;
-	if (OpenPackageProcess::FindAppToLaunch(package, foundLinks)
-		&& foundLinks.size() < 4) {
+	if (OpenPackageProcess::FindAppToLaunch(package, foundLinks) && foundLinks.size() < 4) {
 		std::vector<DeskbarLink>::const_iterator it;
 		for (it = foundLinks.begin(); it != foundLinks.end(); it++) {
 			const DeskbarLink& aLink = *it;
@@ -192,38 +201,40 @@ PackageManager::_CollectPackageActionsForActivatedOrInstalled(
 PackageActionRef
 PackageManager::_CreateUninstallPackageAction(const PackageInfoRef& package)
 {
-	BString title = B_TRANSLATE("Uninstall %PackageTitle%");
-	title.ReplaceAll("%PackageTitle%", package->Title());
+	BString actionTitle = B_TRANSLATE("Uninstall %PackageTitle%");
+	BString packageTitle;
+	PackageUtils::TitleOrName(package, packageTitle);
+	actionTitle.ReplaceAll("%PackageTitle%", packageTitle);
 
 	BMessage message(MSG_PKG_UNINSTALL);
-	message.AddString(KEY_TITLE, title);
+	message.AddString(KEY_TITLE, actionTitle);
 	message.AddString(KEY_PACKAGE_NAME, package->Name());
 
-	return PackageActionRef(new PackageAction(title, message));
+	return PackageActionRef(new PackageAction(actionTitle, message), true);
 }
 
 
 PackageActionRef
 PackageManager::_CreateInstallPackageAction(const PackageInfoRef& package)
 {
-	BString title = B_TRANSLATE("Install %PackageTitle%");
-	title.ReplaceAll("%PackageTitle%", package->Title());
+	BString actionTitle = B_TRANSLATE("Install %PackageTitle%");
+	BString packageTitle;
+	PackageUtils::TitleOrName(package, packageTitle);
+	actionTitle.ReplaceAll("%PackageTitle%", packageTitle);
 
 	BMessage message(MSG_PKG_INSTALL);
-	message.AddString(KEY_TITLE, title);
+	message.AddString(KEY_TITLE, actionTitle);
 	message.AddString(KEY_PACKAGE_NAME, package->Name());
 
-	return PackageActionRef(new PackageAction(title, message));
+	return PackageActionRef(new PackageAction(actionTitle, message), true);
 }
 
 
 PackageActionRef
-PackageManager::_CreateOpenPackageAction(const PackageInfoRef& package,
-	const DeskbarLink& link)
+PackageManager::_CreateOpenPackageAction(const PackageInfoRef& package, const DeskbarLink& link)
 {
-	BPath linkPath(link.Link());
 	BString title = B_TRANSLATE("Open %DeskbarLink%");
-	title.ReplaceAll("%DeskbarLink%", linkPath.Leaf());
+	title.ReplaceAll("%DeskbarLink%", link.Title());
 
 	BMessage deskbarLinkMessage;
 	if (link.Archive(&deskbarLinkMessage) != B_OK)
@@ -234,7 +245,7 @@ PackageManager::_CreateOpenPackageAction(const PackageInfoRef& package,
 	message.AddMessage(KEY_DESKBAR_LINK, &deskbarLinkMessage);
 	message.AddString(KEY_PACKAGE_NAME, package->Name());
 
-	return PackageActionRef(new PackageAction(title, message));
+	return PackageActionRef(new PackageAction(title, message), true);
 }
 
 
@@ -486,7 +497,9 @@ BSolverPackage*
 PackageManager::_GetSolverPackage(PackageInfoRef package)
 {
 	int32 flags = BSolver::B_FIND_IN_NAME;
-	if (package->State() == ACTIVATED || package->State() == INSTALLED)
+	PackageState state = PackageUtils::State(package);
+
+	if (state == ACTIVATED || state == INSTALLED)
 		flags |= BSolver::B_FIND_INSTALLED_ONLY;
 
 	BObjectList<BSolverPackage> packages;
@@ -496,9 +509,9 @@ PackageManager::_GetSolverPackage(PackageInfoRef package)
 			BSolverPackage* solverPackage = packages.ItemAt(i);
 			if (solverPackage->Name() != package->Name())
 				continue;
-			else if (package->State() == NONE
-				&& dynamic_cast<BPackageManager::RemoteRepository*>(
-					solverPackage->Repository()) == NULL) {
+			else if (state == NONE
+				&& dynamic_cast<BPackageManager::RemoteRepository*>(solverPackage->Repository())
+					== NULL) {
 				continue;
 			}
 			return solverPackage;

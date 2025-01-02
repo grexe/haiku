@@ -218,6 +218,7 @@ static uint16 nvidia_device_list[] = {
 	0x01d3, /* Nvidia Geforce 7300 SE */
 	0x01d7,	/* Nvidia Quadro NVS 110M/Geforce 7300 Go */
 	0x01d8,	/* Nvidia Geforce 7400 GO */
+	0x01da,	/* Nvidia Quadro NVS 110M */
 	0x01dd, /* Nvidia Geforce 7500 LE */
 	0x01df, /* Nvidia Geforce 7300 GS */
 	0x01f0, /* Nvidia Geforce4 MX Integrated GPU */
@@ -685,7 +686,7 @@ map_device(device_info *di)
 		/* WARNING: Nvidia needs to map framebuffer as viewed from PCI space! */
 		physicalAddress,
 		di->pcii.u.h0.base_register_sizes[frame_buffer],
-		B_ANY_KERNEL_BLOCK_ADDRESS | B_MTR_WC,
+		B_ANY_KERNEL_BLOCK_ADDRESS | B_WRITE_COMBINING_MEMORY,
 		B_READ_AREA | B_WRITE_AREA | B_CLONEABLE_AREA,
 		&(si->framebuffer));
 
@@ -839,7 +840,7 @@ nv_interrupt(void *data)
 	int32 handled = B_UNHANDLED_INTERRUPT;
 	device_info *di = (device_info *)data;
 	shared_info *si = di->si;
-	int32 *flags = &(si->flags);
+	int32 *flags = (int32*)&(si->flags);
 	vuint32 *regs;
 
 	/* is someone already handling an interrupt for this device? */
@@ -960,7 +961,7 @@ open_hook(const char* name, uint32 flags, void** cookie)
 	/* map the net DMA command buffer into vmem, using Write Combining */
 	si->dma_area = map_physical_memory(
 		"NV aligned DMA cmd buffer", (addr_t)si->dma_buffer_pci, net_buf_size,
-		B_ANY_KERNEL_BLOCK_ADDRESS | B_MTR_WC,
+		B_ANY_KERNEL_BLOCK_ADDRESS | B_WRITE_COMBINING_MEMORY,
 		B_READ_AREA | B_WRITE_AREA, &(si->dma_buffer));
 	/* if failed with write combining try again without */
 	if (si->dma_area < 0) {

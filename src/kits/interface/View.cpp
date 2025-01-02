@@ -4067,7 +4067,7 @@ BView::StrokeShape(BShape* shape, ::pattern pattern)
 	if (shape == NULL || fOwner == NULL)
 		return;
 
-	shape_data* sd = (shape_data*)shape->fPrivateData;
+	shape_data* sd = BShape::Private(*shape).PrivateData();
 	if (sd->opCount == 0 || sd->ptCount == 0)
 		return;
 
@@ -4076,10 +4076,7 @@ BView::StrokeShape(BShape* shape, ::pattern pattern)
 
 	fOwner->fLink->StartMessage(AS_STROKE_SHAPE);
 	fOwner->fLink->Attach<BRect>(shape->Bounds());
-	fOwner->fLink->Attach<int32>(sd->opCount);
-	fOwner->fLink->Attach<int32>(sd->ptCount);
-	fOwner->fLink->Attach(sd->opList, sd->opCount * sizeof(uint32));
-	fOwner->fLink->Attach(sd->ptList, sd->ptCount * sizeof(BPoint));
+	fOwner->fLink->AttachShape(*shape);
 
 	_FlushIfNotInTransaction();
 }
@@ -4091,7 +4088,7 @@ BView::FillShape(BShape* shape, ::pattern pattern)
 	if (shape == NULL || fOwner == NULL)
 		return;
 
-	shape_data* sd = (shape_data*)(shape->fPrivateData);
+	shape_data* sd = BShape::Private(*shape).PrivateData();
 	if (sd->opCount == 0 || sd->ptCount == 0)
 		return;
 
@@ -4100,10 +4097,7 @@ BView::FillShape(BShape* shape, ::pattern pattern)
 
 	fOwner->fLink->StartMessage(AS_FILL_SHAPE);
 	fOwner->fLink->Attach<BRect>(shape->Bounds());
-	fOwner->fLink->Attach<int32>(sd->opCount);
-	fOwner->fLink->Attach<int32>(sd->ptCount);
-	fOwner->fLink->Attach(sd->opList, sd->opCount * sizeof(int32));
-	fOwner->fLink->Attach(sd->ptList, sd->ptCount * sizeof(BPoint));
+	fOwner->fLink->AttachShape(*shape);
 
 	_FlushIfNotInTransaction();
 }
@@ -4115,7 +4109,7 @@ BView::FillShape(BShape* shape, const BGradient& gradient)
 	if (shape == NULL || fOwner == NULL)
 		return;
 
-	shape_data* sd = (shape_data*)(shape->fPrivateData);
+	shape_data* sd = BShape::Private(*shape).PrivateData();
 	if (sd->opCount == 0 || sd->ptCount == 0)
 		return;
 
@@ -4123,10 +4117,7 @@ BView::FillShape(BShape* shape, const BGradient& gradient)
 
 	fOwner->fLink->StartMessage(AS_FILL_SHAPE_GRADIENT);
 	fOwner->fLink->Attach<BRect>(shape->Bounds());
-	fOwner->fLink->Attach<int32>(sd->opCount);
-	fOwner->fLink->Attach<int32>(sd->ptCount);
-	fOwner->fLink->Attach(sd->opList, sd->opCount * sizeof(int32));
-	fOwner->fLink->Attach(sd->ptList, sd->ptCount * sizeof(BPoint));
+	fOwner->fLink->AttachShape(*shape);
 	fOwner->fLink->AttachGradient(gradient);
 
 	_FlushIfNotInTransaction();
@@ -5986,17 +5977,14 @@ BView::_ClipToShape(BShape* shape, bool inverse)
 	if (shape == NULL)
 		return;
 
-	shape_data* sd = (shape_data*)shape->fPrivateData;
+	shape_data* sd = BShape::Private(*shape).PrivateData();
 	if (sd->opCount == 0 || sd->ptCount == 0)
 		return;
 
 	if (_CheckOwnerLockAndSwitchCurrent()) {
 		fOwner->fLink->StartMessage(AS_VIEW_CLIP_TO_SHAPE);
 		fOwner->fLink->Attach<bool>(inverse);
-		fOwner->fLink->Attach<int32>(sd->opCount);
-		fOwner->fLink->Attach<int32>(sd->ptCount);
-		fOwner->fLink->Attach(sd->opList, sd->opCount * sizeof(uint32));
-		fOwner->fLink->Attach(sd->ptList, sd->ptCount * sizeof(BPoint));
+		fOwner->fLink->AttachShape(*shape);
 		_FlushIfNotInTransaction();
 	}
 }

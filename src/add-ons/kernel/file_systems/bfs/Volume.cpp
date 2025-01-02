@@ -33,11 +33,18 @@ static const int32 kDesiredAllocationGroups = 56;
 
 
 bool
+disk_super_block::IsMagicValid() const
+{
+	return Magic1() == (int32)SUPER_BLOCK_MAGIC1
+		&& Magic2() == (int32)SUPER_BLOCK_MAGIC2
+		&& Magic3() == (int32)SUPER_BLOCK_MAGIC3;
+}
+
+
+bool
 disk_super_block::IsValid() const
 {
-	if (Magic1() != (int32)SUPER_BLOCK_MAGIC1
-		|| Magic2() != (int32)SUPER_BLOCK_MAGIC2
-		|| Magic3() != (int32)SUPER_BLOCK_MAGIC3
+	if (!IsMagicValid()
 		|| (int32)block_size != inode_size
 		|| ByteOrder() != SUPER_BLOCK_FS_LENDIAN
 		|| (1UL << BlockShift()) != BlockSize()
@@ -82,7 +89,7 @@ disk_super_block::Initialize(const char* diskName, off_t numBlocks,
 
 	int32 bitsPerBlock = blockSize << 3;
 	off_t bitmapBlocks = (numBlocks + bitsPerBlock - 1) / bitsPerBlock;
-	int32 blocksPerGroup = 1;
+	int32 bitmapBlocksPerGroup = 1;
 	int32 groupShift = 13;
 
 	for (int32 i = 8192; i < bitsPerBlock; i *= 2) {
@@ -97,19 +104,20 @@ disk_super_block::Initialize(const char* diskName, off_t numBlocks,
 	int32 numGroups;
 
 	while (true) {
-		numGroups = (bitmapBlocks + blocksPerGroup - 1) / blocksPerGroup;
+		numGroups = (bitmapBlocks + bitmapBlocksPerGroup - 1) / bitmapBlocksPerGroup;
 		if (numGroups > kDesiredAllocationGroups) {
 			if (groupShift == 16)
 				break;
 
 			groupShift++;
-			blocksPerGroup *= 2;
+			bitmapBlocksPerGroup *= 2;
 		} else
 			break;
 	}
 
 	num_ags = HOST_ENDIAN_TO_BFS_INT32(numGroups);
-	blocks_per_ag = HOST_ENDIAN_TO_BFS_INT32(blocksPerGroup);
+	// blocks_per_ag holds the number of bitmap blocks that are in each allocation group
+	blocks_per_ag = HOST_ENDIAN_TO_BFS_INT32(bitmapBlocksPerGroup);
 	ag_shift = HOST_ENDIAN_TO_BFS_INT32(groupShift);
 }
 
@@ -413,7 +421,7 @@ Volume::UpdateLiveQueries(Inode* inode, const char* attribute, int32 type,
 {
 	MutexLocker _(fQueryLock);
 
-	SinglyLinkedList<Query>::Iterator iterator = fQueries.GetIterator();
+	DoublyLinkedList<Query>::Iterator iterator = fQueries.GetIterator();
 	while (iterator.HasNext()) {
 		Query* query = iterator.Next();
 		query->LiveUpdate(inode, attribute, type, oldKey, oldLength, newKey,
@@ -431,7 +439,7 @@ Volume::UpdateLiveQueriesRenameMove(Inode* inode, ino_t oldDirectoryID,
 	size_t oldLength = strlen(oldName);
 	size_t newLength = strlen(newName);
 
-	SinglyLinkedList<Query>::Iterator iterator = fQueries.GetIterator();
+	DoublyLinkedList<Query>::Iterator iterator = fQueries.GetIterator();
 	while (iterator.HasNext()) {
 		Query* query = iterator.Next();
 		query->LiveUpdateRenameMove(inode, oldDirectoryID, oldName, oldLength,
@@ -498,10 +506,14 @@ Volume::DeleteCheckVisitor()
 Volume::CheckSuperBlock(const uint8* data, uint32* _offset)
 {
 	disk_super_block* superBlock = (disk_super_block*)(data + 512);
-	if (superBlock->IsValid()) {
-		if (_offset != NULL)
-			*_offset = 512;
-		return B_OK;
+	if (superBlock->IsMagicValid()) {
+		if (superBlock->IsValid()) {
+			if (_offset != NULL)
+				*_offset = 512;
+			return B_OK;
+		}
+
+		FATAL(("invalid superblock at offset 512!\n"));
 	}
 
 #ifndef BFS_LITTLE_ENDIAN_ONLY

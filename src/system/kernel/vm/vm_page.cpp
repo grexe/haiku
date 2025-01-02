@@ -102,7 +102,7 @@ static const int32 kPageUsageDecline = 1;
 
 int32 gMappedPagesCount;
 
-static VMPageQueue sPageQueues[PAGE_STATE_COUNT];
+static VMPageQueue sPageQueues[PAGE_STATE_FIRST_UNQUEUED];
 
 static VMPageQueue& sFreePageQueue = sPageQueues[PAGE_STATE_FREE];
 static VMPageQueue& sClearPageQueue = sPageQueues[PAGE_STATE_CLEAR];
@@ -179,8 +179,8 @@ struct PageReservationWaiter
 		: public DoublyLinkedListLinkImpl<PageReservationWaiter> {
 	Thread*	thread;
 	uint32	dontTouch;		// reserve not to touch
-	uint32	missing;		// pages missing for the reservation
-	int32	threadPriority;
+	uint32	requested;		// total pages requested
+	uint32	reserved;		// pages reserved so far
 
 	bool operator<(const PageReservationWaiter& other) const
 	{
@@ -188,7 +188,7 @@ struct PageReservationWaiter
 		// and (secondarily) descending thread priority.
 		if (dontTouch != other.dontTouch)
 			return dontTouch < other.dontTouch;
-		return threadPriority > other.threadPriority;
+		return thread->priority > other.thread->priority;
 	}
 };
 
@@ -780,7 +780,7 @@ list_page(vm_page* page)
 	if (page->busy_writing) kprintf("W"); else kprintf("-");
 	if (page->accessed)     kprintf("A"); else kprintf("-");
 	if (page->modified)     kprintf("M"); else kprintf("-");
-	if (page->unused)       kprintf("U"); else kprintf("-");
+	kprintf("-");
 
 	kprintf(" usage:%3u", page->usage_count);
 	kprintf(" wired:%5u", page->WiredCount());
@@ -955,11 +955,30 @@ dump_page_long(int argc, char **argv)
 		page = vm_lookup_page(pageAddress / B_PAGE_SIZE);
 	}
 
+	if (page == NULL) {
+		kprintf("Page not found.\n");
+		return 0;
+	}
+
 	kprintf("PAGE: %p\n", page);
+
+	const off_t pageOffset = (addr_t)page - (addr_t)sPages;
+	const off_t pageIndex = pageOffset / (off_t)sizeof(vm_page);
+	if (pageIndex < 0) {
+		kprintf("\taddress is before start of page array!"
+			" (offset %" B_PRIdOFF ")\n", pageOffset);
+	} else if ((page_num_t)pageIndex >= sNumPages) {
+		kprintf("\taddress is after end of page array!"
+			" (offset %" B_PRIdOFF ")\n", pageOffset);
+	} else if ((pageIndex * (off_t)sizeof(vm_page)) != pageOffset) {
+		kprintf("\taddress isn't a multiple of page structure size!"
+			" (offset %" B_PRIdOFF ", expected align %" B_PRIuSIZE ")\n",
+			pageOffset, sizeof(vm_page));
+	}
+
 	kprintf("queue_next,prev: %p, %p\n", page->queue_link.next,
 		page->queue_link.previous);
-	kprintf("physical_number: %#" B_PRIxPHYSADDR "\n",
-		page->physical_page_number);
+	kprintf("physical_number: %#" B_PRIxPHYSADDR "\n", page->physical_page_number);
 	kprintf("cache:           %p\n", page->Cache());
 	kprintf("cache_offset:    %" B_PRIuPHYSADDR "\n", page->cache_offset);
 	kprintf("cache_next:      %p\n", page->cache_next);
@@ -970,14 +989,19 @@ dump_page_long(int argc, char **argv)
 	kprintf("busy_writing:    %d\n", page->busy_writing);
 	kprintf("accessed:        %d\n", page->accessed);
 	kprintf("modified:        %d\n", page->modified);
-	#if DEBUG_PAGE_QUEUE
-		kprintf("queue:           %p\n", page->queue);
-	#endif
-	#if DEBUG_PAGE_ACCESS
-		kprintf("accessor:        %" B_PRId32 "\n", page->accessing_thread);
-	#endif
-	kprintf("area mappings:\n");
+#if DEBUG_PAGE_QUEUE
+	kprintf("queue:           %p\n", page->queue);
+#endif
+#if DEBUG_PAGE_ACCESS
+	kprintf("accessor:        %" B_PRId32 "\n", page->accessing_thread);
+#endif
 
+	if (pageIndex < 0 || (page_num_t)pageIndex >= sNumPages) {
+		// Don't try to read the mappings.
+		return 0;
+	}
+
+	kprintf("area mappings:\n");
 	vm_page_mappings::Iterator iterator = page->mappings.GetIterator();
 	vm_page_mapping *mapping;
 	while ((mapping = iterator.Next()) != NULL) {
@@ -986,37 +1010,45 @@ dump_page_long(int argc, char **argv)
 	}
 
 	if (searchMappings) {
+		struct Callback : VMTranslationMap::ReverseMappingInfoCallback {
+			VMAddressSpace*	fAddressSpace;
+
+			virtual bool HandleVirtualAddress(addr_t virtualAddress)
+			{
+				phys_addr_t physicalAddress;
+				uint32 flags = 0;
+				if (fAddressSpace->TranslationMap()->QueryInterrupt(virtualAddress,
+						&physicalAddress, &flags) != B_OK) {
+					kprintf(" aspace %" B_PRId32 ": %#"	B_PRIxADDR " (querying failed)\n",
+						fAddressSpace->ID(), virtualAddress);
+					return false;
+				}
+				VMArea* area = fAddressSpace->LookupArea(virtualAddress);
+				kprintf("  aspace %" B_PRId32 ", area %" B_PRId32 ": %#"
+					B_PRIxADDR " (%c%c%s%s)\n", fAddressSpace->ID(),
+					area != NULL ? area->id : -1, virtualAddress,
+					(flags & B_KERNEL_READ_AREA) != 0 ? 'r' : '-',
+					(flags & B_KERNEL_WRITE_AREA) != 0 ? 'w' : '-',
+					(flags & PAGE_MODIFIED) != 0 ? " modified" : "",
+					(flags & PAGE_ACCESSED) != 0 ? " accessed" : "");
+				return false;
+			}
+		} callback;
+
 		kprintf("all mappings:\n");
 		VMAddressSpace* addressSpace = VMAddressSpace::DebugFirst();
 		while (addressSpace != NULL) {
-			size_t pageCount = addressSpace->Size() / B_PAGE_SIZE;
-			for (addr_t address = addressSpace->Base(); pageCount != 0;
-					address += B_PAGE_SIZE, pageCount--) {
-				phys_addr_t physicalAddress;
-				uint32 flags = 0;
-				if (addressSpace->TranslationMap()->QueryInterrupt(address,
-						&physicalAddress, &flags) == B_OK
-					&& (flags & PAGE_PRESENT) != 0
-					&& physicalAddress / B_PAGE_SIZE
-						== page->physical_page_number) {
-					VMArea* area = addressSpace->LookupArea(address);
-					kprintf("  aspace %" B_PRId32 ", area %" B_PRId32 ": %#"
-						B_PRIxADDR " (%c%c%s%s)\n", addressSpace->ID(),
-						area != NULL ? area->id : -1, address,
-						(flags & B_KERNEL_READ_AREA) != 0 ? 'r' : '-',
-						(flags & B_KERNEL_WRITE_AREA) != 0 ? 'w' : '-',
-						(flags & PAGE_MODIFIED) != 0 ? " modified" : "",
-						(flags & PAGE_ACCESSED) != 0 ? " accessed" : "");
-				}
-			}
+			callback.fAddressSpace = addressSpace;
+			addressSpace->TranslationMap()->DebugGetReverseMappingInfo(
+				page->physical_page_number * B_PAGE_SIZE, callback);
 			addressSpace = VMAddressSpace::DebugNext(addressSpace);
 		}
 	}
 
 	set_debug_variable("_cache", (addr_t)page->Cache());
-	#if DEBUG_PAGE_ACCESS
-		set_debug_variable("_accessor", page->accessing_thread);
-	#endif
+#if DEBUG_PAGE_ACCESS
+	set_debug_variable("_accessor", page->accessing_thread);
+#endif
 
 	return 0;
 }
@@ -1165,9 +1197,9 @@ dump_page_stats(int argc, char **argv)
 	for (PageReservationWaiterList::Iterator it
 			= sPageReservationWaiters.GetIterator();
 		PageReservationWaiter* waiter = it.Next();) {
-		kprintf("  %6" B_PRId32 ": missing: %6" B_PRIu32
+		kprintf("  %6" B_PRId32 ": requested: %6" B_PRIu32 ", reserved: %6" B_PRIu32
 			", don't touch: %6" B_PRIu32 "\n", waiter->thread->id,
-			waiter->missing, waiter->dontTouch);
+			waiter->requested, waiter->reserved, waiter->dontTouch);
 	}
 
 	kprintf("\nfree queue: %p, count = %" B_PRIuPHYSADDR "\n", &sFreePageQueue,
@@ -1483,7 +1515,7 @@ reserve_some_pages(uint32 count, uint32 dontTouch)
 static void
 wake_up_page_reservation_waiters()
 {
-	MutexLocker pageDeficitLocker(sPageDeficitLock);
+	ASSERT_LOCKED_MUTEX(&sPageDeficitLock);
 
 	// TODO: If this is a low priority thread, we might want to disable
 	// interrupts or otherwise ensure that we aren't unscheduled. Otherwise
@@ -1491,19 +1523,18 @@ wake_up_page_reservation_waiters()
 	// prevents us from running.
 
 	while (PageReservationWaiter* waiter = sPageReservationWaiters.Head()) {
-		int32 reserved = reserve_some_pages(waiter->missing,
+		int32 reserved = reserve_some_pages(waiter->requested - waiter->reserved,
 			waiter->dontTouch);
 		if (reserved == 0)
 			return;
 
-		atomic_add(&sUnsatisfiedPageReservations, -reserved);
-		waiter->missing -= reserved;
+		sUnsatisfiedPageReservations -= reserved;
+		waiter->reserved += reserved;
 
-		if (waiter->missing > 0)
+		if (waiter->reserved != waiter->requested)
 			return;
 
 		sPageReservationWaiters.Remove(waiter);
-
 		thread_unblock(waiter->thread, B_OK);
 	}
 }
@@ -1513,8 +1544,10 @@ static inline void
 unreserve_pages(uint32 count)
 {
 	atomic_add(&sUnreservedFreePages, count);
-	if (atomic_get(&sUnsatisfiedPageReservations) != 0)
+	if (atomic_get(&sUnsatisfiedPageReservations) != 0) {
+		MutexLocker pageDeficitLocker(sPageDeficitLock);
 		wake_up_page_reservation_waiters();
+	}
 }
 
 
@@ -1751,9 +1784,11 @@ mark_page_range_in_use(page_num_t startPage, page_num_t length, bool wired)
 			case PAGE_STATE_FREE:
 			case PAGE_STATE_CLEAR:
 			{
-// TODO: This violates the page reservation policy, since we remove pages from
-// the free/clear queues without having reserved them before. This should happen
-// in the early boot process only, though.
+				// This violates the page reservation policy, since we remove pages
+				// from the free/clear queues without having reserved them before.
+				// This should happen in the early boot process only, though.
+				ASSERT(gKernelStartup);
+
 				DEBUG_PAGE_ACCESS_START(page);
 				VMPageQueue& queue = page->State() == PAGE_STATE_FREE
 					? sFreePageQueue : sClearPageQueue;
@@ -1773,7 +1808,7 @@ mark_page_range_in_use(page_num_t startPage, page_num_t length, bool wired)
 			case PAGE_STATE_CACHED:
 			default:
 				// uh
-				dprintf("mark_page_range_in_use: page %#" B_PRIxPHYSADDR
+				panic("mark_page_range_in_use: page %#" B_PRIxPHYSADDR
 					" in non-free state %d!\n", startPage + i, page->State());
 				break;
 		}
@@ -1963,6 +1998,7 @@ public:
 
 	virtual void IOFinished(status_t status, bool partialTransfer,
 		generic_size_t bytesTransferred);
+
 private:
 	PageWriterRun*		fRun;
 	struct VMCache*		fCache;
@@ -2371,7 +2407,7 @@ page_writer(void* /*unused*/)
 #if ENABLE_SWAP_SUPPORT
 		page_stats pageStats;
 		get_page_stats(pageStats);
-		bool activePaging = do_active_paging(pageStats);
+		const bool activePaging = do_active_paging(pageStats);
 #endif
 
 		// depending on how urgent it becomes to get pages to disk, we adjust
@@ -2469,6 +2505,28 @@ page_writer(void* /*unused*/)
 
 			cache->AcquireRefLocked();
 			numPages++;
+
+			// Write adjacent pages at the same time, if they're also modified.
+			if (cache->temporary)
+				continue;
+			while (page->cache_next != NULL && numPages < kNumPages) {
+				page = page->cache_next;
+				if (page->busy || page->State() != PAGE_STATE_MODIFIED)
+					break;
+				if (page->WiredCount() > 0)
+					break;
+
+				DEBUG_PAGE_ACCESS_START(page);
+				sModifiedPageQueue.RequeueUnlocked(page, true);
+				run.AddPage(page);
+				DEBUG_PAGE_ACCESS_END(page);
+
+				cache->AcquireStoreRef();
+				cache->AcquireRefLocked();
+				numPages++;
+				if (maxPagesToSee > 0)
+					maxPagesToSee--;
+			}
 		}
 
 #ifdef TRACE_VM_PAGE
@@ -2699,10 +2757,9 @@ idle_scan_active_pages(page_stats& pageStats)
 		// wouldn't notice when those would become unused and could thus be
 		// moved to the cached list.
 		int32 usageCount;
-		if (page->WiredCount() > 0 || page->usage_count > 0
-			|| !cache->temporary) {
+		if (page->WiredCount() > 0 || page->usage_count > 0 || !cache->temporary)
 			usageCount = vm_clear_page_mapping_accessed_flags(page);
-		} else
+		else
 			usageCount = vm_remove_all_page_mappings_if_unaccessed(page);
 
 		if (usageCount > 0) {
@@ -3044,50 +3101,70 @@ page_daemon(void* /*unused*/)
 /*!	Returns how many pages could *not* be reserved.
 */
 static uint32
-reserve_pages(uint32 count, int priority, bool dontWait)
+reserve_pages(uint32 missing, int priority, bool dontWait)
 {
-	int32 dontTouch = kPageReserveForPriority[priority];
+	const uint32 requested = missing;
+	const int32 dontTouch = kPageReserveForPriority[priority];
 
 	while (true) {
-		count -= reserve_some_pages(count, dontTouch);
-		if (count == 0)
+		missing -= reserve_some_pages(missing, dontTouch);
+		if (missing == 0)
 			return 0;
 
 		if (sUnsatisfiedPageReservations == 0) {
-			count -= free_cached_pages(count, dontWait);
-			if (count == 0)
-				return count;
+			missing -= free_cached_pages(missing, dontWait);
+			if (missing == 0)
+				return 0;
 		}
 
 		if (dontWait)
-			return count;
+			return missing;
 
 		// we need to wait for pages to become available
 
 		MutexLocker pageDeficitLocker(sPageDeficitLock);
-
-		bool notifyDaemon = sUnsatisfiedPageReservations == 0;
-		sUnsatisfiedPageReservations += count;
-
 		if (atomic_get(&sUnreservedFreePages) > dontTouch) {
 			// the situation changed
-			sUnsatisfiedPageReservations -= count;
+			pageDeficitLocker.Unlock();
 			continue;
 		}
 
+		const bool notifyDaemon = (sUnsatisfiedPageReservations == 0);
+		sUnsatisfiedPageReservations += missing;
+
 		PageReservationWaiter waiter;
-		waiter.dontTouch = dontTouch;
-		waiter.missing = count;
 		waiter.thread = thread_get_current_thread();
-		waiter.threadPriority = waiter.thread->priority;
+		waiter.dontTouch = dontTouch;
+		waiter.requested = requested;
+		waiter.reserved = requested - missing;
 
 		// insert ordered (i.e. after all waiters with higher or equal priority)
 		PageReservationWaiter* otherWaiter = NULL;
 		for (PageReservationWaiterList::Iterator it
-				= sPageReservationWaiters.GetIterator();
-			(otherWaiter = it.Next()) != NULL;) {
+					= sPageReservationWaiters.GetIterator();
+				(otherWaiter = it.Next()) != NULL;) {
 			if (waiter < *otherWaiter)
 				break;
+		}
+
+		if (otherWaiter != NULL && sPageReservationWaiters.Head() == otherWaiter) {
+			// We're higher-priority than the head waiter; steal its reservation.
+			if (otherWaiter->reserved >= missing) {
+				otherWaiter->reserved -= missing;
+				return 0;
+			}
+
+			missing -= otherWaiter->reserved;
+			waiter.reserved += otherWaiter->reserved;
+			otherWaiter->reserved = 0;
+		} else if (!sPageReservationWaiters.IsEmpty() && waiter.reserved != 0) {
+			// We're lower-priority than the head waiter, but we have a reservation.
+			// We must have raced with other threads somehow. Unreserve and try again.
+			sUnsatisfiedPageReservations -= missing;
+			missing += waiter.reserved;
+			atomic_add(&sUnreservedFreePages, waiter.reserved);
+			wake_up_page_reservation_waiters();
+			continue;
 		}
 
 		sPageReservationWaiters.InsertBefore(otherWaiter, &waiter);
@@ -3100,11 +3177,10 @@ reserve_pages(uint32 count, int priority, bool dontWait)
 
 		pageDeficitLocker.Unlock();
 
-		low_resource(B_KERNEL_RESOURCE_PAGES, count, B_RELATIVE_TIMEOUT, 0);
+		low_resource(B_KERNEL_RESOURCE_PAGES, missing, B_RELATIVE_TIMEOUT, 0);
 		thread_block();
 
-		pageDeficitLocker.Lock();
-
+		ASSERT(waiter.requested == waiter.reserved);
 		return 0;
 	}
 }
@@ -3371,6 +3447,12 @@ vm_page_init(kernel_args *args)
 			args->physical_allocated_range[i].size / B_PAGE_SIZE, true);
 	}
 
+	// prevent future allocations from the kernel args ranges
+	args->num_physical_allocated_ranges = 0;
+
+	// report initially available memory
+	vm_unreserve_memory(vm_page_num_free_pages() * B_PAGE_SIZE);
+
 	// The target of actually free pages. This must be at least the system
 	// reserve, but should be a few more pages, so we don't have to extract
 	// a cached page with each allocation.
@@ -3381,7 +3463,7 @@ vm_page_init(kernel_args *args)
 	// keep things tight. free + cached is the pool of immediately allocatable
 	// pages. We want a few inactive pages, so when we're actually paging, we
 	// have a reasonably large set of pages to work with.
-	if (sUnreservedFreePages < 16 * 1024) {
+	if (sUnreservedFreePages < (16 * 1024)) {
 		sFreeOrCachedPagesTarget = sFreePagesTarget + 128;
 		sInactivePagesTarget = sFreePagesTarget / 3;
 	} else {
@@ -3619,7 +3701,7 @@ vm_page_allocate_page(vm_page_reservation* reservation, uint32 flags)
 	}
 
 	if (page->CacheRef() != NULL)
-		panic("supposed to be free page %p has cache\n", page);
+		panic("supposed to be free page %p has cache @! page %p; cache _cache", page, page);
 
 	DEBUG_PAGE_ACCESS_START(page);
 
@@ -3801,7 +3883,7 @@ allocate_page_run(page_num_t start, page_num_t length, uint32 flags,
 		if (freedCachedPages > 0)
 			unreserve_pages(freedCachedPages);
 
-		if (nextIndex - start < length) {
+		if ((nextIndex - start) < length) {
 			// failed to allocate all cached pages -- free all that we've got
 			freeClearQueueLocker.Lock();
 			allocate_page_run_cleanup(freePages, clearPages);
@@ -3821,12 +3903,9 @@ allocate_page_run(page_num_t start, page_num_t length, uint32 flags,
 
 	// add pages to target queue
 	if (pageState < PAGE_STATE_FIRST_UNQUEUED) {
-		freePages.MoveFrom(&clearPages);
+		freePages.TakeFrom(&clearPages);
 		sPageQueues[pageState].AppendUnlocked(freePages, length);
 	}
-
-	// Note: We don't unreserve the pages since we pulled them out of the
-	// free/clear queues without adjusting sUnreservedFreePages.
 
 #if VM_PAGE_ALLOCATION_TRACKING_AVAILABLE
 	AbstractTraceEntryWithStackTrace* traceEntry
@@ -3909,7 +3988,7 @@ vm_page_allocate_page_run(uint32 flags, page_num_t length,
 	// ones, the odds are that we won't find enough contiguous ones, so we skip
 	// the first iteration in this case.
 	int32 freePages = sUnreservedFreePages;
-	int useCached = freePages > 0 && (page_num_t)freePages > 2 * length ? 0 : 1;
+	bool useCached = (freePages > 0) && ((page_num_t)freePages > (length * 2));
 
 	for (;;) {
 		if (alignmentMask != 0 || boundaryMask != 0) {
@@ -3921,7 +4000,7 @@ vm_page_allocate_page_run(uint32 flags, page_num_t length,
 
 			// enforce boundary
 			if (boundaryMask != 0 && ((offsetStart ^ (offsetStart
-				+ length - 1)) & boundaryMask) != 0) {
+					+ length - 1)) & boundaryMask) != 0) {
 				offsetStart = (offsetStart + length - 1) & boundaryMask;
 			}
 
@@ -3929,10 +4008,10 @@ vm_page_allocate_page_run(uint32 flags, page_num_t length,
 		}
 
 		if (start + length > end) {
-			if (useCached == 0) {
+			if (!useCached) {
 				// The first iteration with free pages only was unsuccessful.
 				// Try again also considering cached pages.
-				useCached = 1;
+				useCached = true;
 				start = requestedStart;
 				continue;
 			}
@@ -3954,7 +4033,7 @@ vm_page_allocate_page_run(uint32 flags, page_num_t length,
 			uint32 pageState = sPages[start + i].State();
 			if (pageState != PAGE_STATE_FREE
 				&& pageState != PAGE_STATE_CLEAR
-				&& (pageState != PAGE_STATE_CACHED || useCached == 0)) {
+				&& (pageState != PAGE_STATE_CACHED || !useCached)) {
 				foundRun = false;
 				break;
 			}
@@ -3962,8 +4041,10 @@ vm_page_allocate_page_run(uint32 flags, page_num_t length,
 
 		if (foundRun) {
 			i = allocate_page_run(start, length, flags, freeClearQueueLocker);
-			if (i == length)
+			if (i == length) {
+				reservation.count = 0;
 				return &sPages[start];
+			}
 
 			// apparently a cached page couldn't be allocated -- skip it and
 			// continue
@@ -4022,12 +4103,14 @@ vm_page_free_etc(VMCache* cache, vm_page* page,
 	PAGE_ASSERT(page, page->State() != PAGE_STATE_FREE
 		&& page->State() != PAGE_STATE_CLEAR);
 
-	if (page->State() == PAGE_STATE_MODIFIED && cache->temporary)
+	if (page->State() == PAGE_STATE_MODIFIED && (cache != NULL && cache->temporary))
 		atomic_add(&sModifiedTemporaryPages, -1);
 
 	free_page(page, false);
 	if (reservation == NULL)
 		unreserve_pages(1);
+	else
+		reservation->count++;
 }
 
 
@@ -4037,11 +4120,7 @@ vm_page_set_state(vm_page *page, int pageState)
 	PAGE_ASSERT(page, page->State() != PAGE_STATE_FREE
 		&& page->State() != PAGE_STATE_CLEAR);
 
-	if (pageState == PAGE_STATE_FREE || pageState == PAGE_STATE_CLEAR) {
-		free_page(page, pageState == PAGE_STATE_CLEAR);
-		unreserve_pages(1);
-	} else
-		set_page_state(page, pageState);
+	set_page_state(page, pageState);
 }
 
 
@@ -4098,20 +4177,6 @@ page_num_t
 vm_page_num_pages(void)
 {
 	return sNumPages - sNonExistingPages;
-}
-
-
-/*! There is a subtle distinction between the page counts returned by
-	this function and vm_page_num_free_pages():
-	The latter returns the number of pages that are completely uncommitted,
-	whereas this one returns the number of pages that are available for
-	use by being reclaimed as well (IOW it factors in things like cache pages
-	as available).
-*/
-page_num_t
-vm_page_num_available_pages(void)
-{
-	return vm_available_memory() / B_PAGE_SIZE;
 }
 
 

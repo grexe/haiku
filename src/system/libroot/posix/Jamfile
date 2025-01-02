@@ -29,6 +29,7 @@ for architectureObject in [ MultiArchSubDirSetup ] {
 		MergeObject <$(architecture)>posix_main.o :
 			assert.cpp
 			cat.cpp
+			devctl.c
 			dlfcn.c
 			dirent.cpp
 			errno.c
@@ -57,8 +58,7 @@ for arch in $(TARGET_ARCHS) {
 
 SubInclude HAIKU_TOP src system libroot posix crypt ;
 SubInclude HAIKU_TOP src system libroot posix locale ;
-SubInclude HAIKU_TOP src system libroot posix malloc_hoard2 ;
-SubInclude HAIKU_TOP src system libroot posix malloc_debug ;
+SubInclude HAIKU_TOP src system libroot posix malloc ;
 SubInclude HAIKU_TOP src system libroot posix pthread ;
 SubInclude HAIKU_TOP src system libroot posix signal ;
 SubInclude HAIKU_TOP src system libroot posix stdio ;

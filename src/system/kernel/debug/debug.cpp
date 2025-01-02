@@ -485,6 +485,14 @@ read_line(char* buffer, int32 maxLength,
 					remove_char_from_line(buffer, position, length);
 				}
 				break;
+			case 0x1f & 'D':	// CTRL-D -- continue
+				length = 0;
+				buffer[length++] = 'e';
+				buffer[length++] = 's';
+				buffer[length++] = '\0';
+				kputchar('\n');
+				done = true;
+				break;
 			case 0x1f & 'K':	// CTRL-K -- clear line after current position
 				if (position < length) {
 					// clear chars
@@ -1681,6 +1689,9 @@ debug_init(kernel_args* args)
 
 	debug_paranoia_init();
 	arch_debug_console_init(args);
+
+	if (frame_buffer_console_init(args) == B_OK && blue_screen_init_early() == B_OK)
+		sBlueScreenOutput = true;
 }
 
 
@@ -1707,7 +1718,7 @@ debug_init_post_vm(kernel_args* args)
 
 	debug_heap_init();
 	debug_variables_init();
-	frame_buffer_console_init(args);
+	frame_buffer_console_init_post_vm(args);
 	tracing_init();
 }
 
@@ -1727,7 +1738,7 @@ debug_init_post_settings(struct kernel_args* args)
 	sDebugScreenEnabled = get_safemode_boolean("debug_screen", false);
 
 	if ((sBlueScreenOutput || sDebugScreenEnabled)
-		&& blue_screen_init() != B_OK)
+			&& blue_screen_init() != B_OK)
 		sBlueScreenOutput = sDebugScreenEnabled = false;
 
 	if (sDebugScreenEnabled)

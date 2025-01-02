@@ -20,6 +20,14 @@ extern int32 gMappedPagesCount;
 
 struct vm_page_reservation {
 	uint32	count;
+
+#if KDEBUG && defined(__cplusplus)
+	vm_page_reservation() : count(0) {}
+	~vm_page_reservation()
+	{
+		ASSERT(count == 0);
+	}
+#endif
 };
 
 
@@ -43,7 +51,6 @@ void vm_page_requeue(struct vm_page *page, bool tail);
 // get some data about the number of pages in the system
 page_num_t vm_page_num_pages(void);
 page_num_t vm_page_num_free_pages(void);
-page_num_t vm_page_num_available_pages(void);
 page_num_t vm_page_num_unused_pages(void);
 void vm_page_get_stats(system_info *info);
 phys_addr_t vm_page_max_address();

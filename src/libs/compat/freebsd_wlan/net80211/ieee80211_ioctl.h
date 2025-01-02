@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -24,8 +24,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $FreeBSD: releng/12.0/sys/net80211/ieee80211_ioctl.h 326272 2017-11-27 15:23:17Z pfg $
  */
 #ifndef _NET80211_IEEE80211_IOCTL_H_
 #define _NET80211_IEEE80211_IOCTL_H_
@@ -562,13 +560,13 @@ struct ieee80211_regdomain_req {
 	IEEE80211_REGDOMAIN_SIZE((_req)->chaninfo.ic_nchans)
 
 /*
- * Get driver capabilities.  Driver, hardware crypto, and
+ * Get driver capabilities.  Driver, hardware/software crypto, and
  * HT/802.11n capabilities, and a table that describes what
  * the radio can do.
  */
 struct ieee80211_devcaps_req {
 	uint32_t	dc_drivercaps;		/* general driver caps */
-	uint32_t	dc_cryptocaps;		/* hardware crypto support */
+	uint32_t	dc_cryptocaps;		/* software + hardware crypto support */
 	uint32_t	dc_htcaps;		/* HT/802.11n support */
 	uint32_t	dc_vhtcaps;		/* VHT/802.11ac capabilities */
 	struct ieee80211req_chaninfo dc_chaninfo;

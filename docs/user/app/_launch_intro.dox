@@ -99,7 +99,7 @@ service x-vnd.MyGreatServer {
 	if {
 		file_exists /path/to/license/file
 	}
-	not_safemode
+	no_safemode
 	on_demand
 }
 \endcode
@@ -109,7 +109,7 @@ braces completely:
 service x-vnd.MyGreatServer {
 	launch /path/to/my/great/server
 	if file_exists /path/to/license/file
-	not_safemode
+	no_safemode
 	on demand
 }
 \endcode
@@ -132,7 +132,7 @@ be either specified directly, or you can let a shell script define them for you:
 service  x-vnd.MyGreatServer {
 	env {
 		from_script /path/to/my/script.sh
-		LC_TYPE C.UTF-8
+		LC_CTYPE C.UTF-8
 	}
 	launch /path/to/my/great/server
 }

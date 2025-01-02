@@ -43,12 +43,11 @@ struct RISCV64VMTranslationMap: public VMTranslationMap {
 									bool markPresent);
 
 	virtual	status_t			UnmapPage(VMArea* area, addr_t address,
-									bool updatePageQueue);
+									bool updatePageQueue,
+									bool deletingAddressSpace, uint32* _flags);
 	virtual	void				UnmapPages(VMArea* area, addr_t base,
-									size_t size, bool updatePageQueue);
-	virtual	void				UnmapArea(VMArea* area,
-									bool deletingAddressSpace,
-									bool ignoreTopCachePageFlags);
+									size_t size, bool updatePageQueue,
+									bool deletingAddressSpace);
 
 	virtual	status_t			Query(addr_t virtualAddress,
 									phys_addr_t* _physicalAddress,
@@ -59,10 +58,6 @@ struct RISCV64VMTranslationMap: public VMTranslationMap {
 
 	virtual	status_t			Protect(addr_t base, addr_t top,
 									uint32 attributes, uint32 memoryType);
-			status_t			ProtectPage(VMArea* area, addr_t address,
-									uint32 attributes);
-			status_t			ProtectArea(VMArea* area,
-									uint32 attributes);
 
 			void				SetFlags(addr_t virtualAddress,
 									uint32 flags);

@@ -33,8 +33,7 @@ public:
 	virtual	status_t			MapEarly(kernel_args* args,
 									addr_t virtualAddress,
 									phys_addr_t physicalAddress,
-									uint8 attributes,
-									page_num_t (*get_free_page)(kernel_args*));
+									uint8 attributes);
 
 	virtual	bool				IsKernelPageAccessible(addr_t virtualAddress,
 									uint32 protection);
@@ -238,17 +237,17 @@ ARMPagingMethod32Bit::PageTableEntryFlagsToAttributes(uint32 pageTableEntry)
 ARMPagingMethod32Bit::MemoryTypeToPageTableEntryFlags(uint32 memoryType)
 {
 	switch (memoryType) {
-		case B_MTR_UC:
+		case B_UNCACHED_MEMORY:
 			// Strongly Ordered
 			return 0;
-		case B_MTR_WC:
+		case B_WRITE_COMBINING_MEMORY:
 			// Shareable Device Memory
 			return ARM_MMU_L2_FLAG_B;
-		case B_MTR_WT:
+		case B_WRITE_THROUGH_MEMORY:
 			// Outer and Inner Write-Through, no Write-Allocate
 			return ARM_MMU_L2_FLAG_C;
-		case B_MTR_WP:
-		case B_MTR_WB:
+		case B_WRITE_PROTECTED_MEMORY:
+		case B_WRITE_BACK_MEMORY:
 		default:
 			// Outer and Inner Write-Back, no Write-Allocate
 			return ARM_MMU_L2_FLAG_B | ARM_MMU_L2_FLAG_C;

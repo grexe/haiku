@@ -517,7 +517,11 @@ MouseDevice::_ControlThread()
 				&& message->AddFloat("be:wheel_delta_x",
 					movements.wheel_xdelta) == B_OK
 				&& message->AddFloat("be:wheel_delta_y",
-					movements.wheel_ydelta) == B_OK)
+					movements.wheel_ydelta) == B_OK
+				&& message->AddInt32("be:device_subtype",
+					fIsTouchpad
+						? B_TOUCHPAD_POINTING_DEVICE
+						: B_MOUSE_POINTING_DEVICE) == B_OK)
 				fTarget.EnqueueMessage(message);
 			else
 				delete message;
@@ -555,14 +559,12 @@ MouseDevice::_UpdateSettings()
 	MD_CALLED();
 	// retrieve current values
 
-	if (get_mouse_map(&fSettings.map) != B_OK)
+	if (get_mouse_map(fDeviceRef.name, &fSettings.map) != B_OK)
 		LOG_ERR("error when get_mouse_map\n");
-	else {
-		fDeviceRemapsButtons
-			= ioctl(fDevice, MS_SET_MAP, &fSettings.map) == B_OK;
-	}
+	else
+		fDeviceRemapsButtons = ioctl(fDevice, MS_SET_MAP, &fSettings.map) == B_OK;
 
-	if (get_click_speed(&fSettings.click_speed) == B_OK) {
+	if (get_click_speed(fDeviceRef.name, &fSettings.click_speed) == B_OK) {
 		if (fIsTouchpad)
 			fTouchpadMovementMaker.click_speed = fSettings.click_speed;
 		ioctl(fDevice, MS_SET_CLICKSPEED, &fSettings.click_speed);
@@ -639,7 +641,9 @@ MouseDevice::_BuildMouseMessage(uint32 what, uint64 when, uint32 buttons,
 	if (message->AddInt64("when", when) < B_OK
 		|| message->AddInt32("buttons", buttons) < B_OK
 		|| message->AddInt32("x", deltaX) < B_OK
-		|| message->AddInt32("y", deltaY) < B_OK) {
+		|| message->AddInt32("y", deltaY) < B_OK
+		|| message->AddInt32("be:device_subtype",
+			fIsTouchpad ? B_TOUCHPAD_POINTING_DEVICE : B_MOUSE_POINTING_DEVICE) < B_OK) {
 		delete message;
 		return NULL;
 	}

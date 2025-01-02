@@ -26,8 +26,10 @@
 #include "LanguageMenuUtils.h"
 #include "Logger.h"
 #include "MarkupParser.h"
+#include "PackageUtils.h"
 #include "RatingView.h"
 #include "ServerHelper.h"
+#include "SharedIcons.h"
 #include "TextDocumentView.h"
 #include "WebAppInterface.h"
 
@@ -154,8 +156,8 @@ protected:
 	virtual const BBitmap* StarBitmap()
 	{
 		if (fRatingDeterminate)
-			return fStarBlueBitmap->Bitmap(BITMAP_SIZE_16);
-		return fStarGrayBitmap->Bitmap(BITMAP_SIZE_16);
+			return SharedIcons::IconStarBlue16Scaled()->Bitmap();
+		return SharedIcons::IconStarGrey16Scaled()->Bitmap();
 	}
 
 private:
@@ -169,12 +171,11 @@ private:
 };
 
 
-RatePackageWindow::RatePackageWindow(BWindow* parent, BRect frame,
-	Model& model)
+RatePackageWindow::RatePackageWindow(BWindow* parent, BRect frame, Model& model)
 	:
-	BWindow(frame, B_TRANSLATE("Rate package"),
-		B_FLOATING_WINDOW_LOOK, B_FLOATING_SUBSET_WINDOW_FEEL,
-		B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
+	BWindow(frame, B_TRANSLATE("Rate package"), B_FLOATING_WINDOW_LOOK,
+		B_FLOATING_SUBSET_WINDOW_FEEL,
+		B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS | B_CLOSE_ON_ESCAPE),
 	fModel(model),
 	fRatingText(),
 	fTextEditor(new TextEditor(), true),
@@ -270,9 +271,9 @@ void
 RatePackageWindow::_InitLanguagesMenu(BPopUpMenu* menu)
 {
 	AutoLocker<BLocker> locker(fModel.Lock());
-	fCommentLanguageId = fModel.Language()->PreferredLanguage()->ID();
+	fCommentLanguageId = fModel.PreferredLanguage()->ID();
 
-	LanguageMenuUtils::AddLanguagesToMenu(fModel.Language(), menu);
+	LanguageMenuUtils::AddLanguagesToMenu(fModel.Languages(), menu);
 	menu->SetTargetForItems(this);
 	LanguageMenuUtils::MarkLanguageInMenu(fCommentLanguageId, menu);
 }
@@ -303,23 +304,6 @@ RatePackageWindow::_InitStabilitiesMenu(BPopUpMenu* menu)
 			item->SetMarked(true);
 		}
 	}
-}
-
-
-void
-RatePackageWindow::DispatchMessage(BMessage* message, BHandler *handler)
-{
-	if (message->what == B_KEY_DOWN) {
-		int8 key;
-			// if the user presses escape, close the window.
-		if ((message->FindInt8("byte", &key) == B_OK)
-			&& key == B_ESCAPE) {
-			Quit();
-			return;
-		}
-	}
-
-	BWindow::DispatchMessage(message, handler);
 }
 
 
@@ -410,21 +394,26 @@ RatePackageWindow::_RefreshPackageData()
 void
 RatePackageWindow::SetPackage(const PackageInfoRef& package)
 {
+	if (!package.IsSet())
+		HDFATAL("attempt to provide an unset package");
+
 	BAutolock locker(this);
 	if (!locker.IsLocked() || fWorkerThread >= 0)
 		return;
 
 	fPackage = package;
+	BString packageTitle;
+	PackageUtils::TitleOrName(fPackage, packageTitle);
 
 	BString windowTitle(B_TRANSLATE("Rate %Package%"));
-	windowTitle.ReplaceAll("%Package%", package->Title());
+	windowTitle.ReplaceAll("%Package%", packageTitle);
 	SetTitle(windowTitle);
 
 	// See if the user already made a rating for this package,
 	// pre-fill the UI with that rating. (When sending the rating, the
 	// old one will be replaced.)
-	thread_id thread = spawn_thread(&_QueryRatingThreadEntry,
-		"Query rating", B_NORMAL_PRIORITY, this);
+	thread_id thread
+		= spawn_thread(&_QueryRatingThreadEntry, "Query rating", B_NORMAL_PRIORITY, this);
 	if (thread >= 0)
 		_SetWorkerThread(thread);
 }
@@ -544,28 +533,43 @@ RatePackageWindow::_QueryRatingThread()
 		return;
 	}
 
+	PackageCoreInfoRef coreInfo = package->CoreInfo();
+
+	if (!coreInfo.IsSet()) {
+		HDERROR("rating query: No package core info");
+		_SetWorkerThread(-1);
+		return;
+	}
+
+	PackageVersionRef version = coreInfo->Version();
+
+	if (!version.IsSet()) {
+		HDERROR("rating query: No package version");
+		_SetWorkerThread(-1);
+		return;
+	}
+
 	WebAppInterface* interface = fModel.GetWebAppInterface();
 
 	BMessage info;
-	const DepotInfo* depot = fModel.DepotForName(package->DepotName());
 	BString webAppRepositoryCode;
 	BString webAppRepositorySourceCode;
+	BString depotName = PackageUtils::DepotName(package);
+	DepotInfoRef depot = fModel.DepotForName(depotName);
 
-	if (depot != NULL) {
+	if (depot.IsSet()) {
 		webAppRepositoryCode = depot->WebAppRepositoryCode();
 		webAppRepositorySourceCode = depot->WebAppRepositorySourceCode();
 	}
 
-	if (webAppRepositoryCode.IsEmpty()
-			|| webAppRepositorySourceCode.IsEmpty()) {
-		HDERROR("unable to obtain the repository code or repository source "
-			"code for depot; %s", package->DepotName().String());
+	if (webAppRepositoryCode.IsEmpty() || webAppRepositorySourceCode.IsEmpty()) {
+		HDERROR("unable to obtain the repository code or repository source code for depot; %s",
+			depotName.String());
 		BMessenger(this).SendMessage(B_QUIT_REQUESTED);
 	} else {
-		status_t status = interface->RetrieveUserRatingForPackageAndVersionByUser(
-				package->Name(), package->Version(), package->Architecture(),
-				webAppRepositoryCode, webAppRepositorySourceCode,
-				nickname, info);
+		status_t status = interface->RetrieveUserRatingForPackageAndVersionByUser(package->Name(),
+			*(version.Get()), coreInfo->Architecture(), webAppRepositoryCode,
+			webAppRepositorySourceCode, nickname, info);
 
 		if (status == B_OK) {
 				// could be an error or could be a valid response envelope
@@ -620,6 +624,34 @@ RatePackageWindow::_SendRatingThreadEntry(void* data)
 void
 RatePackageWindow::_SendRatingThread()
 {
+	PackageCoreInfoRef coreInfo = fPackage->CoreInfo();
+
+	if (!coreInfo.IsSet()) {
+		HDERROR("upload rating: package core info not set");
+		return;
+	}
+
+	PackageVersionRef version = coreInfo->Version();
+
+	if (!version.IsSet()) {
+		HDERROR("upload rating: package version not set");
+		return;
+	}
+
+	BString depotName = coreInfo->DepotName();
+
+	if (depotName.IsEmpty()) {
+		HDERROR("upload rating: depot name not set");
+		return;
+	}
+
+	BString architecture = coreInfo->Architecture();
+
+	if (architecture.IsEmpty()) {
+		HDERROR("upload rating: architecture not set");
+		return;
+	}
+
 	if (!Lock()) {
 		HDERROR("upload rating: Failed to lock window");
 		return;
@@ -627,7 +659,6 @@ RatePackageWindow::_SendRatingThread()
 
 	BMessenger messenger = BMessenger(this);
 	BString package = fPackage->Name();
-	BString architecture = fPackage->Architecture();
 	BString webAppRepositoryCode;
 	BString webAppRepositorySourceCode;
 	int rating = (int)fRating;
@@ -641,9 +672,9 @@ RatePackageWindow::_SendRatingThread()
 	if (!fRatingDeterminate)
 		rating = RATING_NONE;
 
-	const DepotInfo* depot = fModel.DepotForName(fPackage->DepotName());
+	const DepotInfoRef depot = fModel.DepotForName(depotName);
 
-	if (depot != NULL) {
+	if (depot.IsSet()) {
 		webAppRepositoryCode = depot->WebAppRepositoryCode();
 		webAppRepositorySourceCode = depot->WebAppRepositorySourceCode();
 	}
@@ -653,16 +684,14 @@ RatePackageWindow::_SendRatingThread()
 	Unlock();
 
 	if (webAppRepositoryCode.IsEmpty()) {
-		HDERROR("unable to find the web app repository code for the "
-			"local depot %s",
-			fPackage->DepotName().String());
+		HDERROR("unable to find the web app repository code for the local depot %s",
+			depotName.String());
 		return;
 	}
 
 	if (webAppRepositorySourceCode.IsEmpty()) {
-		HDERROR("unable to find the web app repository source code for the "
-			"local depot %s",
-			fPackage->DepotName().String());
+		HDERROR("unable to find the web app repository source code for the local depot %s",
+			depotName.String());
 		return;
 	}
 
@@ -673,13 +702,13 @@ RatePackageWindow::_SendRatingThread()
 	BMessage info;
 	if (ratingID.Length() > 0) {
 		HDINFO("will update the existing user rating [%s]", ratingID.String());
-		status = interface->UpdateUserRating(ratingID,
-			languageId, comment, stability, rating, active, info);
+		status = interface->UpdateUserRating(ratingID, languageId, comment, stability, rating,
+			active, info);
 	} else {
 		HDINFO("will create a new user rating for pkg [%s]", package.String());
-		status = interface->CreateUserRating(package, fPackage->Version(),
-			architecture, webAppRepositoryCode, webAppRepositorySourceCode,
-			languageId, comment, stability, rating, info);
+		status = interface->CreateUserRating(package, *(version.Get()), architecture,
+			webAppRepositoryCode, webAppRepositorySourceCode, languageId, comment, stability,
+			rating, info);
 	}
 
 	if (status == B_OK) {

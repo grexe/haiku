@@ -645,43 +645,34 @@ nvme_disk_io(void* cookie, io_request* request)
 		}
 		// SetStatusAndNotify() takes care of unlocking memory if necessary.
 
-		// This is slightly inefficient, as we could use a BStackOrHeapArray in
-		// the optimal case (few physical entries required), but we would not
-		// know whether or not that was possible until calling get_memory_map()
-		// and then potentially reallocating, which would complicate the logic.
-
-		int32 vtophys_length = (request->Length() / B_PAGE_SIZE) + 2;
-		nvme_request.iovecs = vtophys = (physical_entry*)malloc(sizeof(physical_entry)
-			* vtophys_length);
+		const int32 vtophysLength = (request->Length() / B_PAGE_SIZE) + 2;
+		if (vtophysLength <= 8) {
+			vtophys = (physical_entry*)alloca(sizeof(physical_entry) * vtophysLength);
+		} else {
+			vtophys = (physical_entry*)malloc(sizeof(physical_entry) * vtophysLength);
+			vtophysDeleter.SetTo(vtophys);
+		}
 		if (vtophys == NULL) {
 			TRACE_ERROR("failed to allocate memory for iovecs\n");
 			request->SetStatusAndNotify(B_NO_MEMORY);
 			return B_NO_MEMORY;
 		}
-		vtophysDeleter.SetTo(vtophys);
 
 		for (size_t i = 0; i < buffer->VecCount(); i++) {
 			generic_io_vec virt = buffer->VecAt(i);
-			uint32 entries = vtophys_length - nvme_request.iovec_count;
+			uint32 entries = vtophysLength - nvme_request.iovec_count;
 
 			// Avoid copies by going straight into the vtophys array.
 			status = get_memory_map_etc(request->TeamID(), (void*)virt.base,
 				virt.length, vtophys + nvme_request.iovec_count, &entries);
-			if (status == B_BUFFER_OVERFLOW) {
-				TRACE("vtophys array was too small, reallocating\n");
 
-				vtophysDeleter.Detach();
-				vtophys_length *= 2;
-				nvme_request.iovecs = vtophys = (physical_entry*)realloc(vtophys,
-					sizeof(physical_entry) * vtophys_length);
-				vtophysDeleter.SetTo(vtophys);
-				if (vtophys == NULL) {
-					status = B_NO_MEMORY;
-				} else {
-					// Try again, with the larger buffer this time.
-					i--;
-					continue;
-				}
+			if (status == B_BAD_VALUE && entries == 0)
+				status = B_BUFFER_OVERFLOW;
+			if (status == B_BUFFER_OVERFLOW) {
+				// Too many physical_entries to use unbounced I/O.
+				vtophysDeleter.Delete();
+				vtophys = NULL;
+				break;
 			}
 			if (status != B_OK) {
 				TRACE_ERROR("I/O get_memory_map failed: %s\n", strerror(status));
@@ -691,6 +682,8 @@ nvme_disk_io(void* cookie, io_request* request)
 
 			nvme_request.iovec_count += entries;
 		}
+
+		nvme_request.iovecs = vtophys;
 	} else {
 		nvme_request.iovecs = (physical_entry*)buffer->Vecs();
 		nvme_request.iovec_count = buffer->VecCount();
@@ -698,7 +691,7 @@ nvme_disk_io(void* cookie, io_request* request)
 
 	// See if we need to bounce anything other than the first or last vec.
 	const size_t block_size = handle->info->block_size;
-	bool bounceAll = false;
+	bool bounceAll = (nvme_request.iovecs == NULL);
 	for (int32 i = 1; !bounceAll && i < (nvme_request.iovec_count - 1); i++) {
 		if ((nvme_request.iovecs[i].address % B_PAGE_SIZE) != 0)
 			bounceAll = true;
@@ -730,7 +723,7 @@ nvme_disk_io(void* cookie, io_request* request)
 
 	// See if we need to bounce due to rounding.
 	const off_t rounded_pos = ROUNDDOWN(request->Offset(), block_size);
-	phys_size_t rounded_len = ROUNDUP(request->Length() + (request->Offset()
+	const phys_size_t rounded_len = ROUNDUP(request->Length() + (request->Offset()
 		- rounded_pos), block_size);
 	if (rounded_pos != request->Offset() || rounded_len != request->Length())
 		bounceAll = true;
@@ -739,9 +732,6 @@ nvme_disk_io(void* cookie, io_request* request)
 		// Let the bounced I/O routine take care of everything from here.
 		return nvme_disk_bounced_io(handle, request);
 	}
-
-	nvme_request.lba_start = rounded_pos / block_size;
-	nvme_request.lba_count = rounded_len / block_size;
 
 	// No bouncing was required.
 	ReadLocker readLocker;
@@ -757,6 +747,7 @@ nvme_disk_io(void* cookie, io_request* request)
 
 	const uint32 max_io_blocks = handle->info->max_io_blocks;
 	int32 remaining = nvme_request.iovec_count;
+	nvme_request.lba_start = rounded_pos / block_size;
 	while (remaining > 0) {
 		nvme_request.iovec_count = min_c(remaining,
 			NVME_MAX_SGL_DESCRIPTORS / 2);
@@ -786,6 +777,8 @@ nvme_disk_io(void* cookie, io_request* request)
 
 	if (status != B_OK)
 		TRACE_ERROR("I/O failed: %s\n", strerror(status));
+
+	readLocker.Unlock();
 
 	request->SetTransferredBytes(status != B_OK,
 		(nvme_request.lba_start * block_size) - rounded_pos);

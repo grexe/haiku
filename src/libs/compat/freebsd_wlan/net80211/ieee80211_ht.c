@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2007-2008 Sam Leffler, Errno Consulting
  * All rights reserved.
@@ -24,11 +24,6 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#include <sys/cdefs.h>
-#ifdef __FreeBSD__
-__FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_ht.c 327231 2017-12-27 03:23:21Z eadler $");
-#endif
 
 /*
  * IEEE 802.11n protocol support.
@@ -495,7 +490,7 @@ ieee80211_decap_amsdu(struct ieee80211_node *ni, struct mbuf *m)
 		}
 		if (m->m_pkthdr.len == framelen)
 			break;
-		n = m_split(m, framelen, M_NOWAIT);
+		n = m_split(m, framelen, IEEE80211_M_NOWAIT);
 		if (n == NULL) {
 			IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
 			    ni->ni_macaddr, "a-msdu",
@@ -522,7 +517,7 @@ ampdu_rx_purge_slot(struct ieee80211_rx_ampdu *rap, int i)
 	struct mbuf *m;
 
 	/* Walk the queue, removing frames as appropriate */
-	while (mbufq_len(&rap->rxa_mq[i]) != 0) {
+	for (;;) {
 		m = mbufq_dequeue(&rap->rxa_mq[i]);
 		if (m == NULL)
 			break;
@@ -572,7 +567,7 @@ ampdu_rx_add_slot(struct ieee80211_rx_ampdu *rap, int off, int tid,
 	/*
 	 * Get the rxs of the final mbuf in the slot, if one exists.
 	 */
-	if (mbufq_len(&rap->rxa_mq[off]) != 0) {
+	if (!mbufq_empty(&rap->rxa_mq[off])) {
 		rxs_final = ieee80211_get_rx_params_ptr(mbufq_last(&rap->rxa_mq[off]));
 	}
 
@@ -602,7 +597,7 @@ ampdu_rx_add_slot(struct ieee80211_rx_ampdu *rap, int off, int tid,
 	 * If the list is empty OR we have determined we can put more
 	 * driver decap'ed AMSDU frames in here, then insert.
 	 */
-	if ((mbufq_len(&rap->rxa_mq[off]) == 0) || (toss_dup == 0)) {
+	if (mbufq_empty(&rap->rxa_mq[off]) || (toss_dup == 0)) {
 		if (mbufq_enqueue(&rap->rxa_mq[off], m) != 0) {
 			IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_INPUT | IEEE80211_MSG_11N,
 			    ni->ni_macaddr,
@@ -817,7 +812,7 @@ ampdu_dispatch_slot(struct ieee80211_rx_ampdu *rap, struct ieee80211_node *ni,
 	struct mbuf *m;
 	int n = 0;
 
-	while (mbufq_len(&rap->rxa_mq[i]) != 0) {
+	for (;;) {
 		m = mbufq_dequeue(&rap->rxa_mq[i]);
 		if (m == NULL)
 			break;
@@ -1019,7 +1014,7 @@ ieee80211_ampdu_reorder(struct ieee80211_node *ni, struct mbuf *m,
 
 	/* NB: m_len known to be sufficient */
 	wh = mtod(m, struct ieee80211_qosframe *);
-	if (wh->i_fc[0] != IEEE80211_FC0_QOSDATA) {
+	if (!IEEE80211_IS_QOSDATA(wh)) {
 		/*
 		 * Not QoS data, shouldn't get here but just
 		 * return it to the caller for processing.
@@ -1080,7 +1075,7 @@ again:
 			/*
 			 * Dispatch as many packets as we can.
 			 */
-			KASSERT((mbufq_len(&rap->rxa_mq[0]) == 0), ("unexpected dup"));
+			KASSERT(mbufq_empty(&rap->rxa_mq[0]), ("unexpected dup"));
 			ampdu_dispatch(ni, m);
 			ampdu_rx_dispatch(rap, ni);
 			return CONSUMED;
@@ -1936,12 +1931,12 @@ ieee80211_vht_get_vhtflags(struct ieee80211_node *ni, uint32_t htflags)
 	uint32_t vhtflags = 0;
 
 	vhtflags = 0;
-	if (ni->ni_flags & IEEE80211_NODE_VHT && vap->iv_flags_vht & IEEE80211_FVHT_VHT) {
+	if (ni->ni_flags & IEEE80211_NODE_VHT && vap->iv_vht_flags & IEEE80211_FVHT_VHT) {
 		if ((ni->ni_vht_chanwidth == IEEE80211_VHT_CHANWIDTH_160MHZ) &&
 		    /* XXX 2 means "160MHz and 80+80MHz", 1 means "160MHz" */
-		    (_IEEE80211_MASKSHIFT(vap->iv_vhtcaps,
+		    (_IEEE80211_MASKSHIFT(vap->iv_vht_cap.vht_cap_info,
 		     IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_MASK) >= 1) &&
-		    (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT160)) {
+		    (vap->iv_vht_flags & IEEE80211_FVHT_USEVHT160)) {
 			vhtflags = IEEE80211_CHAN_VHT160;
 			/* Mirror the HT40 flags */
 			if (htflags == IEEE80211_CHAN_HT40U) {
@@ -1951,9 +1946,9 @@ ieee80211_vht_get_vhtflags(struct ieee80211_node *ni, uint32_t htflags)
 			}
 		} else if ((ni->ni_vht_chanwidth == IEEE80211_VHT_CHANWIDTH_80P80MHZ) &&
 		    /* XXX 2 means "160MHz and 80+80MHz" */
-		    (_IEEE80211_MASKSHIFT(vap->iv_vhtcaps,
+		    (_IEEE80211_MASKSHIFT(vap->iv_vht_cap.vht_cap_info,
 		     IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_MASK) == 2) &&
-		    (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT80P80)) {
+		    (vap->iv_vht_flags & IEEE80211_FVHT_USEVHT80P80)) {
 			vhtflags = IEEE80211_CHAN_VHT80P80;
 			/* Mirror the HT40 flags */
 			if (htflags == IEEE80211_CHAN_HT40U) {
@@ -1962,7 +1957,7 @@ ieee80211_vht_get_vhtflags(struct ieee80211_node *ni, uint32_t htflags)
 				vhtflags |= IEEE80211_CHAN_HT40D;
 			}
 		} else if ((ni->ni_vht_chanwidth == IEEE80211_VHT_CHANWIDTH_80MHZ) &&
-		    (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT80)) {
+		    (vap->iv_vht_flags & IEEE80211_FVHT_USEVHT80)) {
 			vhtflags = IEEE80211_CHAN_VHT80;
 			/* Mirror the HT40 flags */
 			if (htflags == IEEE80211_CHAN_HT40U) {
@@ -1980,11 +1975,11 @@ ieee80211_vht_get_vhtflags(struct ieee80211_node *ni, uint32_t htflags)
 			 * 'ht40' as that flag.
 			 */
 			if ((htflags == IEEE80211_CHAN_HT40U) &&
-			    (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT40)) {
+			    (vap->iv_vht_flags & IEEE80211_FVHT_USEVHT40)) {
 				vhtflags = IEEE80211_CHAN_VHT40U
 				    | IEEE80211_CHAN_HT40U;
 			} else if (htflags == IEEE80211_CHAN_HT40D &&
-			    (vap->iv_flags_vht & IEEE80211_FVHT_USEVHT40)) {
+			    (vap->iv_vht_flags & IEEE80211_FVHT_USEVHT40)) {
 				vhtflags = IEEE80211_CHAN_VHT40D
 				    | IEEE80211_CHAN_HT40D;
 			} else if (htflags == IEEE80211_CHAN_HT20) {
@@ -2351,7 +2346,7 @@ ieee80211_addba_response(struct ieee80211_node *ni,
 	int status, int baparamset, int batimeout)
 {
 	struct ieee80211vap *vap = ni->ni_vap;
-	int bufsiz, tid;
+	int bufsiz;
 
 	/* XXX locking */
 	addba_stop_timeout(tap);
@@ -2360,7 +2355,9 @@ ieee80211_addba_response(struct ieee80211_node *ni,
 		/* XXX override our request? */
 		tap->txa_wnd = (bufsiz == 0) ?
 		    IEEE80211_AGGR_BAWMAX : min(bufsiz, IEEE80211_AGGR_BAWMAX);
+#ifdef __notyet__
 		tid = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_TID);
+#endif
 		tap->txa_flags |= IEEE80211_AGGR_RUNNING;
 		tap->txa_attempts = 0;
 		/* TODO: this should be a vap flag */
@@ -2486,16 +2483,20 @@ ht_recv_action_ba_addba_response(struct ieee80211_node *ni,
 	struct ieee80211_tx_ampdu *tap;
 	uint8_t dialogtoken, policy;
 	uint16_t baparamset, batimeout, code;
-	int tid, bufsiz;
-	int amsdu;
+	int tid;
+#ifdef IEEE80211_DEBUG
+	int amsdu, bufsiz;
+#endif
 
 	dialogtoken = frm[2];
 	code = le16dec(frm+3);
 	baparamset = le16dec(frm+5);
 	tid = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_TID);
+#ifdef IEEE80211_DEBUG
 	bufsiz = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_BUFSIZ);
-	policy = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_POLICY);
 	amsdu = !! _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_AMSDU);
+#endif
+	policy = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_BAPS_POLICY);
 	batimeout = le16dec(frm+7);
 
 	tap = &ni->ni_tx_ampdu[tid];
@@ -2563,11 +2564,16 @@ ht_recv_action_ba_delba(struct ieee80211_node *ni,
 	struct ieee80211com *ic = ni->ni_ic;
 	struct ieee80211_rx_ampdu *rap;
 	struct ieee80211_tx_ampdu *tap;
-	uint16_t baparamset, code;
+	uint16_t baparamset;
+#ifdef IEEE80211_DEBUG
+	uint16_t code;
+#endif
 	int tid;
 
 	baparamset = le16dec(frm+2);
+#ifdef IEEE80211_DEBUG
 	code = le16dec(frm+4);
+#endif
 
 	tid = _IEEE80211_MASKSHIFT(baparamset, IEEE80211_DELBAPS_TID);
 
@@ -3192,20 +3198,20 @@ ieee80211_set_mcsset(struct ieee80211com *ic, uint8_t *frm)
 			for (i = 39; i <= 52; i++)
 				setbit(frm, i);
 		}
-		if (ic->ic_txstream >= 4) {
+		if (ic->ic_rxstream >= 4) {
 			for (i = 53; i <= 76; i++)
 				setbit(frm, i);
 		}
 	}
 
+	txparams = 0x1;			/* TX MCS set defined */
 	if (ic->ic_rxstream != ic->ic_txstream) {
-		txparams = 0x1;			/* TX MCS set defined */
 		txparams |= 0x2;		/* TX RX MCS not equal */
 		txparams |= (ic->ic_txstream - 1) << 2;	/* num TX streams */
 		if (ic->ic_htcaps & IEEE80211_HTC_TXUNEQUAL)
 			txparams |= 0x16;	/* TX unequal modulation sup */
-	} else
-		txparams = 0;
+	}
+
 	frm[12] = txparams;
 }
 
@@ -3597,4 +3603,144 @@ ieee80211_add_htinfo_vendor(uint8_t *frm, struct ieee80211_node *ni)
 	frm[4] = (BCM_OUI >> 16) & 0xff;
 	frm[5] = BCM_OUI_HTINFO;
 	return ieee80211_add_htinfo_body(frm + 6, ni);
+}
+
+/*
+ * Get the HT density for the given 802.11n node.
+ *
+ * Take into account the density advertised from the peer.
+ * Larger values are longer A-MPDU density spacing values, and
+ * we want to obey them per station if we get them.
+ */
+int
+ieee80211_ht_get_node_ampdu_density(const struct ieee80211_node *ni)
+{
+	struct ieee80211vap *vap;
+	int peer_mpdudensity;
+
+	vap = ni->ni_vap;
+	peer_mpdudensity =
+	    _IEEE80211_MASKSHIFT(ni->ni_htparam, IEEE80211_HTCAP_MPDUDENSITY);
+	if (vap->iv_ampdu_density > peer_mpdudensity)
+		peer_mpdudensity = vap->iv_ampdu_density;
+	return (peer_mpdudensity);
+}
+
+/*
+ * Get the transmit A-MPDU limit for the given 802.11n node.
+ *
+ * Take into account the limit advertised from the peer.
+ * Smaller values indicate smaller maximum A-MPDU sizes, and
+ * should be used when forming an A-MPDU to the given peer.
+ */
+int
+ieee80211_ht_get_node_ampdu_limit(const struct ieee80211_node *ni)
+{
+	struct ieee80211vap *vap;
+	int peer_mpdulimit;
+
+	vap = ni->ni_vap;
+	peer_mpdulimit =
+	    _IEEE80211_MASKSHIFT(ni->ni_htparam, IEEE80211_HTCAP_MAXRXAMPDU);
+
+	return (MIN(vap->iv_ampdu_limit, peer_mpdulimit));
+}
+
+/*
+ * Return true if short-GI is available when transmitting to
+ * the given node at 20MHz.
+ *
+ * Ensure it's configured and available in the VAP / driver as
+ * well as the node.
+ */
+bool
+ieee80211_ht_check_tx_shortgi_20(const struct ieee80211_node *ni)
+{
+	const struct ieee80211vap *vap;
+	const struct ieee80211com *ic;
+
+	if (! ieee80211_ht_check_tx_ht(ni))
+		return (false);
+
+	vap = ni->ni_vap;
+	ic = ni->ni_ic;
+
+	return ((ic->ic_htcaps & IEEE80211_HTCAP_SHORTGI20) &&
+	    (ni->ni_htcap & IEEE80211_HTCAP_SHORTGI20) &&
+	    (vap->iv_flags_ht & IEEE80211_FHT_SHORTGI20));
+}
+
+/*
+ * Return true if short-GI is available when transmitting to
+ * the given node at 40MHz.
+ *
+ * Ensure it's configured and available in the VAP / driver as
+ * well as the node and BSS.
+ */
+bool
+ieee80211_ht_check_tx_shortgi_40(const struct ieee80211_node *ni)
+{
+	const struct ieee80211vap *vap;
+	const struct ieee80211com *ic;
+
+	if (! ieee80211_ht_check_tx_ht40(ni))
+		return (false);
+
+	vap = ni->ni_vap;
+	ic = ni->ni_ic;
+
+	return ((ic->ic_htcaps & IEEE80211_HTCAP_SHORTGI40) &&
+	    (ni->ni_htcap & IEEE80211_HTCAP_SHORTGI40) &&
+	    (vap->iv_flags_ht & IEEE80211_FHT_SHORTGI40));
+}
+
+/*
+ * Return true if HT rates can be used for the given node.
+ *
+ * There are some situations seen in the wild, wild past where
+ * HT APs would announce HT but no HT rates.
+ */
+bool
+ieee80211_ht_check_tx_ht(const struct ieee80211_node *ni)
+{
+	const struct ieee80211vap *vap;
+	const struct ieee80211_channel *bss_chan;
+
+	if (ni == NULL || ni->ni_chan == IEEE80211_CHAN_ANYC ||
+	    ni->ni_vap == NULL || ni->ni_vap->iv_bss == NULL)
+		return (false);
+
+	vap = ni->ni_vap;
+	bss_chan = vap->iv_bss->ni_chan;
+
+	if (bss_chan == IEEE80211_CHAN_ANYC)
+		return (false);
+
+	if (IEEE80211_IS_CHAN_HT(ni->ni_chan) &&
+	    ni->ni_htrates.rs_nrates == 0)
+		return (false);
+	return (IEEE80211_IS_CHAN_HT(ni->ni_chan));
+}
+
+/*
+ * Return true if HT40 rates can be transmitted to the given node.
+ *
+ * This verifies that the BSS is HT40 capable and the current
+ * node channel width is 40MHz.
+ */
+bool
+ieee80211_ht_check_tx_ht40(const struct ieee80211_node *ni)
+{
+	struct ieee80211vap *vap;
+	struct ieee80211_channel *bss_chan;
+
+	if (! ieee80211_ht_check_tx_ht(ni))
+		return (false);
+
+	vap = ni->ni_vap;
+	bss_chan = vap->iv_bss->ni_chan;
+
+	return (IEEE80211_IS_CHAN_HT40(bss_chan) &&
+	    IEEE80211_IS_CHAN_HT40(ni->ni_chan) &&
+	    (ni->ni_chw == 40));
 }

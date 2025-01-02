@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -27,8 +27,6 @@
  */
 
 #include <sys/cdefs.h>
-__FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_ioctl.c 331797 2018-03-30 18:50:13Z brooks $");
-
 /*
  * IEEE 802.11 ioctl support (FreeBSD-specific)
  */
@@ -43,11 +41,13 @@ __FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_ioctl.c 331797 2018-03-30
 #include <sys/socket.h>
 #include <sys/sockio.h>
 #include <sys/systm.h>
+#include <sys/epoch.h>
 
 #include <net/if.h>
 #include <net/if_var.h>
 #include <net/if_dl.h>
 #include <net/if_media.h>
+#include <net/if_private.h>
 #include <net/ethernet.h>
 
 #ifdef INET
@@ -332,7 +332,7 @@ ieee80211_ioctl_getscanresults(struct ieee80211vap *vap,
 		void *p;
 
 		space = req.space;
-		/* XXX M_WAITOK after driver lock released */
+		/* XXX IEEE80211_M_WAITOK after driver lock released */
 		p = IEEE80211_MALLOC(space, M_TEMP,
 		    IEEE80211_M_NOWAIT | IEEE80211_M_ZERO);
 		if (p == NULL)
@@ -478,7 +478,7 @@ getstainfo_common(struct ieee80211vap *vap, struct ieee80211req *ireq,
 		req.space = ireq->i_len;
 	if (req.space > 0) {
 		space = req.space;
-		/* XXX M_WAITOK after driver lock released */
+		/* XXX IEEE80211_M_WAITOK after driver lock released */
 		p = IEEE80211_MALLOC(space, M_TEMP,
 		    IEEE80211_M_NOWAIT | IEEE80211_M_ZERO);
 		if (p == NULL) {
@@ -710,9 +710,13 @@ ieee80211_ioctl_getdevcaps(struct ieee80211com *ic,
 	if (dc == NULL)
 		return ENOMEM;
 	dc->dc_drivercaps = ic->ic_caps;
-	dc->dc_cryptocaps = ic->ic_cryptocaps;
+	/*
+	 * Announce the set of both hardware and software supported
+	 * ciphers.
+	 */
+	dc->dc_cryptocaps = ic->ic_cryptocaps | ic->ic_sw_cryptocaps;
 	dc->dc_htcaps = ic->ic_htcaps;
-	dc->dc_vhtcaps = ic->ic_vhtcaps;
+	dc->dc_vhtcaps = ic->ic_vht_cap.vht_cap_info;
 	ci = &dc->dc_chaninfo;
 	ic->ic_getradiocaps(ic, maxchans, &ci->ic_nchans, ci->ic_chans);
 	KASSERT(ci->ic_nchans <= maxchans,
@@ -1157,7 +1161,7 @@ ieee80211_ioctl_get80211(struct ieee80211vap *vap, u_long cmd,
 			ireq->i_val = 1;
 		break;
 	case IEEE80211_IOC_VHTCONF:
-		ireq->i_val = vap->iv_flags_vht & IEEE80211_FVHT_MASK;
+		ireq->i_val = vap->iv_vht_flags & IEEE80211_FVHT_MASK;
 		break;
 	default:
 		error = ieee80211_ioctl_getdefault(vap, ireq);
@@ -1349,7 +1353,7 @@ domlme(void *arg, struct ieee80211_node *ni)
 	 * NB: if ni_associd is zero then the node is already cleaned
 	 * up and we don't need to do this (we're safely holding a
 	 * reference but should otherwise not modify it's state).
-	 */
+	 */ 
 	if (ni->ni_associd == 0)
 		return;
 	mlmedebug(vap, ni->ni_macaddr, mop->op, mop->reason);
@@ -1591,7 +1595,7 @@ setmlme_assoc_adhoc(struct ieee80211vap *vap,
 	    ("expected opmode IBSS or AHDEMO not %s",
 	    ieee80211_opmode_name[vap->iv_opmode]));
 
-	if (ssid_len == 0)
+	if (ssid_len == 0 || ssid_len > IEEE80211_NWID_LEN)
 		return EINVAL;
 
 	sr = IEEE80211_MALLOC(sizeof(*sr), M_TEMP,
@@ -2608,8 +2612,10 @@ ieee80211_scanreq(struct ieee80211vap *vap, struct ieee80211_scan_req *sr)
 		sr->sr_flags |= IEEE80211_IOC_SCAN_NOPICK;
 
 	IEEE80211_DPRINTF(vap, IEEE80211_MSG_SCAN,
-	    "%s: flags 0x%x%s duration 0x%x mindwell %u maxdwell %u nssid %d\n",
-	    __func__, sr->sr_flags,
+	    "%s: vap %p iv_state %#x (%s) flags 0x%x%s "
+	    "duration 0x%x mindwell %u maxdwell %u nssid %d\n",
+	    __func__, vap, vap->iv_state, ieee80211_state_name[vap->iv_state],
+	    sr->sr_flags,
 	    (vap->iv_ifp->if_flags & IFF_UP) == 0 ? " (!IFF_UP)" : "",
 	    sr->sr_duration, sr->sr_mindwell, sr->sr_maxdwell, sr->sr_nssid);
 	/*
@@ -3518,6 +3524,26 @@ ieee80211_ioctl_set80211(struct ieee80211vap *vap, u_long cmd, struct ieee80211r
 		else
 			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_USEVHT80P80);
 
+		/* Check if we can do STBC TX/RX before changing the setting. */
+		if ((ireq->i_val & IEEE80211_FVHT_STBC_TX) &&
+		    ((vap->iv_vht_cap.vht_cap_info & IEEE80211_VHTCAP_TXSTBC) == 0))
+			return EOPNOTSUPP;
+		if ((ireq->i_val & IEEE80211_FVHT_STBC_RX) &&
+		    ((vap->iv_vht_cap.vht_cap_info & IEEE80211_VHTCAP_RXSTBC_MASK) == 0))
+			return EOPNOTSUPP;
+
+		/* TX */
+		if (ireq->i_val & IEEE80211_FVHT_STBC_TX)
+			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_STBC_TX);
+		else
+			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_STBC_TX);
+
+		/* RX */
+		if (ireq->i_val & IEEE80211_FVHT_STBC_RX)
+			ieee80211_syncflag_vht(vap, IEEE80211_FVHT_STBC_RX);
+		else
+			ieee80211_syncflag_vht(vap, -IEEE80211_FVHT_STBC_RX);
+
 		error = ENETRESET;
 		break;
 
@@ -3611,6 +3637,8 @@ ieee80211_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 		IEEE80211_UNLOCK(ic);
 		/* Wait for parent ioctl handler if it was queued */
 		if (wait) {
+			struct epoch_tracker et;
+
 			ieee80211_waitfor_parent(ic);
 
 			/*
@@ -3620,13 +3648,13 @@ ieee80211_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 			 * NB: device may be detached during initialization;
 			 * use if_ioctl for existence check.
 			 */
-			if_addr_rlock(ifp);
+			NET_EPOCH_ENTER(et);
 			if (ifp->if_ioctl == ieee80211_ioctl &&
 			    (ifp->if_flags & IFF_UP) == 0 &&
 			    !IEEE80211_ADDR_EQ(vap->iv_myaddr, IF_LLADDR(ifp)))
 				IEEE80211_ADDR_COPY(vap->iv_myaddr,
 				    IF_LLADDR(ifp));
-			if_addr_runlock(ifp);
+			NET_EPOCH_EXIT(et);
 		}
 		break;
 	case SIOCADDMULTI:
@@ -3650,8 +3678,8 @@ ieee80211_ioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 		break;
 	case SIOCG80211STATS:
 		ifr = (struct ifreq *)data;
-		copyout(&vap->iv_stats, ifr_data_get_ptr(ifr),
-		    sizeof (vap->iv_stats));
+		error = copyout(&vap->iv_stats, ifr_data_get_ptr(ifr),
+		    sizeof(vap->iv_stats));
 		break;
 	case SIOCSIFMTU:
 		ifr = (struct ifreq *)data;

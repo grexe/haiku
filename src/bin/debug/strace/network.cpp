@@ -79,10 +79,19 @@ static const enum_info kShutdownHow[] = {
 };
 
 
+static const FlagsTypeHandler::FlagInfo kSocketFlagInfos[] = {
+	FLAG_INFO_ENTRY(SOCK_NONBLOCK),
+	FLAG_INFO_ENTRY(SOCK_CLOEXEC),
+
+	{ 0, NULL }
+};
+
+
 static FlagsTypeHandler::FlagsList kRecvFlags;
 static EnumTypeHandler::EnumMap kSocketFamilyMap;
 static EnumTypeHandler::EnumMap kSocketTypeMap;
 static EnumTypeHandler::EnumMap kShutdownHowMap;
+static FlagsTypeHandler::FlagsList kSocketFlags;
 
 
 void
@@ -99,6 +108,9 @@ patch_network()
 	}
 	for (int i = 0; kShutdownHow[i].name != NULL; i++) {
 		kShutdownHowMap[kShutdownHow[i].index] = kShutdownHow[i].name;
+	}
+	for (int i = 0; kSocketFlagInfos[i].name != NULL; i++) {
+		kSocketFlags.push_back(kSocketFlagInfos[i]);
 	}
 
 	Syscall *recv = get_syscall("_kern_recv");
@@ -118,27 +130,11 @@ patch_network()
 	socket->GetParameter("family")->SetHandler(
 		new EnumTypeHandler(kSocketFamilyMap));
 	socket->GetParameter("type")->SetHandler(
-		new EnumTypeHandler(kSocketTypeMap));
+		new EnumFlagsTypeHandler(kSocketTypeMap, kSocketFlags));
 
 	Syscall *shutdown = get_syscall("_kern_shutdown_socket");
 	shutdown->GetParameter("how")->SetHandler(
 		new EnumTypeHandler(kShutdownHowMap));
-
-	Syscall *poll = get_syscall("_kern_poll");
-	poll->ParameterAt(0)->SetInOut(true);
-
-	Syscall *select = get_syscall("_kern_select");
-	select->ParameterAt(1)->SetInOut(true);
-	select->ParameterAt(2)->SetInOut(true);
-	select->ParameterAt(3)->SetInOut(true);
-
-	Syscall *wait = get_syscall("_kern_wait_for_child");
-	wait->ParameterAt(2)->SetOut(true);
-	wait->ParameterAt(3)->SetOut(true);
-
-	Syscall *createPipe = get_syscall("_kern_create_pipe");
-	createPipe->ParameterAt(0)->SetOut(true);
-	createPipe->ParameterAt(0)->SetCount(2);
 
 	Syscall *socketPair = get_syscall("_kern_socketpair");
 	socketPair->ParameterAt(3)->SetOut(true);
@@ -146,6 +142,8 @@ patch_network()
 	socketPair->GetParameter("family")->SetHandler(
 		new EnumTypeHandler(kSocketFamilyMap));
 	socketPair->GetParameter("type")->SetHandler(
-		new EnumTypeHandler(kSocketTypeMap));
+		new EnumFlagsTypeHandler(kSocketTypeMap, kSocketFlags));
 
+	Syscall *accept = get_syscall("_kern_accept");
+	accept->GetParameter("flags")->SetHandler(new FlagsTypeHandler(kSocketFlags));
 }

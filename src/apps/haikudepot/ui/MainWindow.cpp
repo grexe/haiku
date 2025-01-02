@@ -37,14 +37,16 @@
 #include "DecisionProvider.h"
 #include "FeaturedPackagesView.h"
 #include "FilterView.h"
+#include "LocaleUtils.h"
 #include "Logger.h"
 #include "PackageInfoView.h"
 #include "PackageListView.h"
 #include "PackageManager.h"
+#include "PackageUtils.h"
 #include "ProcessCoordinator.h"
 #include "ProcessCoordinatorFactory.h"
 #include "RatePackageWindow.h"
-#include "support.h"
+#include "RatingUtils.h"
 #include "ScreenshotWindow.h"
 #include "SettingsWindow.h"
 #include "ShuttingDownWindow.h"
@@ -52,6 +54,7 @@
 #include "UserLoginWindow.h"
 #include "UserUsageConditionsWindow.h"
 #include "WorkStatusView.h"
+#include "support.h"
 
 
 #undef B_TRANSLATION_CONTEXT
@@ -186,6 +189,8 @@ MainWindow::MainWindow(const BMessage& settings)
 	if ((fCoordinatorRunningSem = create_sem(1, "ProcessCoordinatorSem")) < B_OK)
 		debugger("unable to create the process coordinator semaphore");
 
+	_InitPreferredLanguage();
+
 	fPackageInfoListener = PackageInfoListenerRef(
 		new MainWindowPackageInfoListener(this), true);
 
@@ -256,11 +261,14 @@ MainWindow::MainWindow(const BMessage& settings)
 	BPackageRoster().StartWatching(this,
 		B_WATCH_PACKAGE_INSTALLATION_LOCATIONS);
 
-	_InitWorkerThreads();
 	_AdoptModel();
 	_StartBulkLoad();
 }
 
+
+/*!	This constructor is used when the application is loaded for the purpose of
+	viewing an HPKG file.
+*/
 
 MainWindow::MainWindow(const BMessage& settings, PackageInfoRef& package)
 	:
@@ -282,8 +290,12 @@ MainWindow::MainWindow(const BMessage& settings, PackageInfoRef& package)
 	fSinglePackageMode(true),
 	fIncrementViewCounterDelayedRunner(NULL)
 {
+	SetTitle(_WindowTitleForPackage(package));
+
 	if ((fCoordinatorRunningSem = create_sem(1, "ProcessCoordinatorSem")) < B_OK)
 		debugger("unable to create the process coordinator semaphore");
+
+	_InitPreferredLanguage();
 
 	fPackageInfoListener = PackageInfoListenerRef(
 		new MainWindowPackageInfoListener(this), true);
@@ -302,7 +314,7 @@ MainWindow::MainWindow(const BMessage& settings, PackageInfoRef& package)
 
 	// add the single package into the model so that any internal
 	// business logic is able to find the package.
-	DepotInfoRef depot(new DepotInfo("single-pkg-depot"), true);
+	DepotInfoRef depot(new DepotInfo(SINGLE_PACKAGE_DEPOT_NAME), true);
 	depot->AddPackage(package);
 	fModel.MergeOrAddDepot(depot);
 
@@ -316,8 +328,6 @@ MainWindow::MainWindow(const BMessage& settings, PackageInfoRef& package)
 	// start worker threads
 	BPackageRoster().StartWatching(this,
 		B_WATCH_PACKAGE_INSTALLATION_LOCATIONS);
-
-	_InitWorkerThreads();
 }
 
 
@@ -338,9 +348,6 @@ MainWindow::~MainWindow()
 		if (fShuttingDownWindow->Lock())
 			fShuttingDownWindow->Quit();
 	}
-
-	delete_sem(fPackageToPopulateSem);
-	wait_for_thread(fPopulatePackageWorker, NULL);
 
 	// We must clear the model early to release references.
 	fModel.Clear();
@@ -472,8 +479,8 @@ MainWindow::MessageReceived(BMessage* message)
 		case MSG_SHOW_AVAILABLE_PACKAGES:
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetShowAvailablePackages(
-					!fModel.ShowAvailablePackages());
+				PackageFilterModel* filterModel = fModel.PackageFilter();
+				filterModel->SetShowAvailablePackages(!filterModel->ShowAvailablePackages());
 			}
 			_AdoptModel();
 			break;
@@ -481,8 +488,8 @@ MainWindow::MessageReceived(BMessage* message)
 		case MSG_SHOW_INSTALLED_PACKAGES:
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetShowInstalledPackages(
-					!fModel.ShowInstalledPackages());
+				PackageFilterModel* filterModel = fModel.PackageFilter();
+				filterModel->SetShowInstalledPackages(!filterModel->ShowInstalledPackages());
 			}
 			_AdoptModel();
 			break;
@@ -490,7 +497,8 @@ MainWindow::MessageReceived(BMessage* message)
 		case MSG_SHOW_SOURCE_PACKAGES:
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetShowSourcePackages(!fModel.ShowSourcePackages());
+				PackageFilterModel* filterModel = fModel.PackageFilter();
+				filterModel->SetShowSourcePackages(!filterModel->ShowSourcePackages());
 			}
 			_AdoptModel();
 			break;
@@ -498,7 +506,8 @@ MainWindow::MessageReceived(BMessage* message)
 		case MSG_SHOW_DEVELOP_PACKAGES:
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetShowDevelopPackages(!fModel.ShowDevelopPackages());
+				PackageFilterModel* filterModel = fModel.PackageFilter();
+				filterModel->SetShowDevelopPackages(!filterModel->ShowDevelopPackages());
 			}
 			_AdoptModel();
 			break;
@@ -553,7 +562,7 @@ MainWindow::MessageReceived(BMessage* message)
 				code = "";
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetCategory(code);
+				fModel.PackageFilter()->SetCategory(code);
 			}
 			_AdoptModel();
 			break;
@@ -566,7 +575,7 @@ MainWindow::MessageReceived(BMessage* message)
 				name = "";
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetDepot(name);
+				fModel.PackageFilter()->SetDepotName(name);
 			}
 			_AdoptModel();
 			_UpdateAvailableRepositories();
@@ -581,7 +590,7 @@ MainWindow::MessageReceived(BMessage* message)
 				searchTerms = "";
 			{
 				BAutolock locker(fModel.Lock());
-				fModel.SetSearchTerms(searchTerms);
+				fModel.PackageFilter()->SetSearchTerms(searchTerms);
 			}
 			_AdoptModel();
 			break;
@@ -681,14 +690,16 @@ MainWindow::StoreSettings(BMessage& settings)
 		settings.AddString(SETTING_PACKAGE_LIST_VIEW_MODE,
 			main_window_package_list_view_mode_str(
 				fModel.PackageListViewMode()));
+
 		settings.AddBool(SETTING_SHOW_AVAILABLE_PACKAGES,
-			fModel.ShowAvailablePackages());
+			fModel.PackageFilter()->ShowAvailablePackages());
 		settings.AddBool(SETTING_SHOW_INSTALLED_PACKAGES,
-			fModel.ShowInstalledPackages());
+			fModel.PackageFilter()->ShowInstalledPackages());
 		settings.AddBool(SETTING_SHOW_DEVELOP_PACKAGES,
-			fModel.ShowDevelopPackages());
+			fModel.PackageFilter()->ShowDevelopPackages());
 		settings.AddBool(SETTING_SHOW_SOURCE_PACKAGES,
-			fModel.ShowSourcePackages());
+			fModel.PackageFilter()->ShowSourcePackages());
+
 		settings.AddBool(SETTING_CAN_SHARE_ANONYMOUS_USER_DATA,
 			fModel.CanShareAnonymousUsageData());
 	}
@@ -707,7 +718,7 @@ MainWindow::Consume(ProcessCoordinator *item)
 void
 MainWindow::PackageChanged(const PackageInfoEvent& event)
 {
-	uint32 watchedChanges = PKG_CHANGED_STATE | PKG_CHANGED_PROMINENCE;
+	uint32 watchedChanges = PKG_CHANGED_LOCAL_INFO | PKG_CHANGED_CLASSIFICATION;
 	if ((event.Changes() & watchedChanges) != 0) {
 		PackageInfoRef ref(event.Package());
 		BMessage message(MSG_PACKAGE_CHANGED);
@@ -862,14 +873,16 @@ MainWindow::_RestoreModelSettings(const BMessage& settings)
 	}
 
 	bool showOption;
+
 	if (settings.FindBool(SETTING_SHOW_AVAILABLE_PACKAGES, &showOption) == B_OK)
-		fModel.SetShowAvailablePackages(showOption);
+		fModel.PackageFilter()->SetShowAvailablePackages(showOption);
 	if (settings.FindBool(SETTING_SHOW_INSTALLED_PACKAGES, &showOption) == B_OK)
-		fModel.SetShowInstalledPackages(showOption);
+		fModel.PackageFilter()->SetShowInstalledPackages(showOption);
 	if (settings.FindBool(SETTING_SHOW_DEVELOP_PACKAGES, &showOption) == B_OK)
-		fModel.SetShowDevelopPackages(showOption);
+		fModel.PackageFilter()->SetShowDevelopPackages(showOption);
 	if (settings.FindBool(SETTING_SHOW_SOURCE_PACKAGES, &showOption) == B_OK)
-		fModel.SetShowSourcePackages(showOption);
+		fModel.PackageFilter()->SetShowSourcePackages(showOption);
+
 	if (settings.FindBool(SETTING_CAN_SHARE_ANONYMOUS_USER_DATA,
 			&showOption) == B_OK) {
 		fModel.SetCanShareAnonymousUsageData(showOption);
@@ -905,16 +918,12 @@ MainWindow::_PromptCanShareAnonymousUserData()
 
 
 void
-MainWindow::_InitWorkerThreads()
+MainWindow::_InitPreferredLanguage()
 {
-	fPackageToPopulateSem = create_sem(0, "PopulatePackage");
-	if (fPackageToPopulateSem >= 0) {
-		fPopulatePackageWorker = spawn_thread(&_PopulatePackageWorker,
-			"Package Populator", B_NORMAL_PRIORITY, this);
-		if (fPopulatePackageWorker >= 0)
-			resume_thread(fPopulatePackageWorker);
-	} else
-		fPopulatePackageWorker = -1;
+	LanguageRepository* repository = fModel.Languages();
+	LanguageRef defaultLanguage = LocaleUtils::DeriveDefaultLanguage(repository);
+	repository->AddLanguage(defaultLanguage);
+	fModel.SetPreferredLanguage(defaultLanguage);
 }
 
 
@@ -925,10 +934,10 @@ MainWindow::_AdoptModelControls()
 		return;
 
 	BAutolock locker(fModel.Lock());
-	fShowAvailablePackagesItem->SetMarked(fModel.ShowAvailablePackages());
-	fShowInstalledPackagesItem->SetMarked(fModel.ShowInstalledPackages());
-	fShowSourcePackagesItem->SetMarked(fModel.ShowSourcePackages());
-	fShowDevelopPackagesItem->SetMarked(fModel.ShowDevelopPackages());
+	fShowAvailablePackagesItem->SetMarked(fModel.PackageFilter()->ShowAvailablePackages());
+	fShowInstalledPackagesItem->SetMarked(fModel.PackageFilter()->ShowInstalledPackages());
+	fShowSourcePackagesItem->SetMarked(fModel.PackageFilter()->ShowSourcePackages());
+	fShowDevelopPackagesItem->SetMarked(fModel.PackageFilter()->ShowDevelopPackages());
 
 	if (fModel.PackageListViewMode() == PROMINENT)
 		fListTabs->Select(TAB_PROMINENT_PACKAGES);
@@ -973,12 +982,17 @@ MainWindow::_AddRemovePackageFromLists(const PackageInfoRef& package)
 
 	{
 		AutoLocker<BLocker> modelLocker(fModel.Lock());
-		matches = fModel.MatchesFilter(package);
+		matches = fModel.PackageFilter()->Filter()->AcceptsPackage(package);
 	}
 
 	if (matches) {
-		if (package->IsProminent())
-			fFeaturedPackagesView->AddPackage(package);
+		PackageClassificationInfoRef classification = package->PackageClassificationInfo();
+
+		if (classification.IsSet()) {
+			if (classification->IsProminent())
+				fFeaturedPackagesView->AddPackage(package);
+		}
+
 		fPackageListView->AddPackage(package);
 	} else {
 		fFeaturedPackagesView->RemovePackage(package);
@@ -1035,8 +1049,10 @@ MainWindow::_IncrementViewCounter(const PackageInfoRef package)
 	{
 		AutoLocker<BLocker> modelLocker(fModel.Lock());
 		bool canShareAnonymousUsageData = fModel.CanShareAnonymousUsageData();
-		if (canShareAnonymousUsageData && !package->Viewed()) {
-			package->SetViewed();
+		if (canShareAnonymousUsageData && !PackageUtils::Viewed(package)) {
+			PackageLocalInfoRef localInfo = PackageUtils::NewLocalInfo(package);
+			localInfo->SetViewed();
+			package->SetLocalInfo(localInfo);
 			shouldIncrementViewCounter = true;
 		}
 	}
@@ -1206,60 +1222,44 @@ MainWindow::_HandleWorkStatusChangeMessageReceived(const BMessage* message)
 }
 
 
-/*! This method will cause the package to have its data refreshed from
-    the server application.  The refresh happens in the background; this method
-    is asynchronous.
+/*! Initially only superficial data is loaded from the server into the data
+	model of the packages.  When the package is viewed, additional data needs
+	to be populated including ratings.
+
+	This method will cause the package to have its data refreshed from
+	the server application.  The refresh happens in the background; this method
+	is asynchronous.
 */
 
 void
 MainWindow::_PopulatePackageAsync(bool forcePopulate)
 {
-		// Trigger asynchronous package population from the web-app
-	{
-		AutoLocker<BLocker> lock(&fPackageToPopulateLock);
-		fPackageToPopulate = fPackageInfoView->Package();
-		fForcePopulatePackage = forcePopulate;
-	}
-	release_sem_etc(fPackageToPopulateSem, 1, 0);
+	const PackageInfoRef package = fPackageInfoView->Package();
 
-	HDDEBUG("pkg [%s] will be updated from the server.",
-		fPackageToPopulate->Name().String());
-}
+	if (!fModel.CanPopulatePackage(package))
+		return;
 
+	const char* packageNameStr = package->Name().String();
 
-/*! This method will run in the background.  The thread will block until there
-    is a package to be updated.  When the thread unblocks, it will update the
-    package with information from the server.
-*/
+	PackageLocalizedTextRef localized = package->LocalizedText();
 
-status_t
-MainWindow::_PopulatePackageWorker(void* arg)
-{
-	MainWindow* window = reinterpret_cast<MainWindow*>(arg);
-
-	while (acquire_sem(window->fPackageToPopulateSem) == B_OK) {
-		PackageInfoRef package;
-		bool force;
-		{
-			AutoLocker<BLocker> lock(&window->fPackageToPopulateLock);
-			package = window->fPackageToPopulate;
-			force = window->fForcePopulatePackage;
-		}
-
-		if (package.IsSet()) {
-			uint32 populateFlags = Model::POPULATE_USER_RATINGS
-				| Model::POPULATE_CHANGELOG;
-
-			if (force)
-				populateFlags |= Model::POPULATE_FORCE;
-
-			window->fModel.PopulatePackage(package, populateFlags);
-
-			HDDEBUG("populating package [%s]", package->Name().String());
+	if (localized.IsSet()) {
+		if (localized->HasChangelog() && (forcePopulate || localized->Changelog().IsEmpty())) {
+			_AddProcessCoordinator(
+				ProcessCoordinatorFactory::PopulatePkgChangelogCoordinator(&fModel, package));
+			HDINFO("pkg [%s] will have changelog updated from server.", packageNameStr);
+		} else {
+			HDDEBUG("pkg [%s] not have changelog updated from server.", packageNameStr);
 		}
 	}
 
-	return 0;
+	if (forcePopulate || RatingUtils::ShouldTryPopulateUserRatings(package->UserRatingInfo())) {
+		_AddProcessCoordinator(
+			ProcessCoordinatorFactory::PopulatePkgUserRatingsCoordinator(&fModel, package));
+		HDINFO("pkg [%s] will have user ratings updated from server.", packageNameStr);
+	} else {
+		HDDEBUG("pkg [%s] not have user ratings updated from server.", packageNameStr);
+	}
 }
 
 
@@ -1354,7 +1354,7 @@ MainWindow::_UpdateAvailableRepositories()
 
 			fRepositoryMenu->AddItem(item);
 
-			if (depot->Name() == fModel.Depot()) {
+			if (depot->Name() == fModel.PackageFilter()->DepotName()) {
 				item->SetMarked(true);
 				foundSelectedDepot = true;
 			}
@@ -1370,7 +1370,7 @@ bool
 MainWindow::_SelectedPackageHasWebAppRepositoryCode()
 {
 	const PackageInfoRef& package = fPackageInfoView->Package();
-	const BString depotName = package->DepotName();
+	const BString depotName = PackageUtils::DepotName(package);
 
 	if (depotName.IsEmpty()) {
 		HDDEBUG("the package [%s] has no depot name", package->Name().String());
@@ -1703,4 +1703,21 @@ MainWindow::_HandleScreenshotCached(const BMessage* message)
 {
 	ScreenshotCoordinate coordinate(message);
 	fPackageInfoView->HandleScreenshotCached(coordinate);
+}
+
+
+/*static*/ const BString
+MainWindow::_WindowTitleForPackage(const PackageInfoRef& pkg)
+{
+	PackageVersionRef version = PackageUtils::Version(pkg);
+	BString versionString = "???";
+
+	if (version.IsSet())
+		versionString = version->ToString();
+
+	BString title = B_TRANSLATE("HaikuDepot - %PackageName% %PackageVersion%");
+	title.ReplaceAll("%PackageName%", pkg->Name());
+	title.ReplaceAll("%PackageVersion%", versionString);
+
+	return title;
 }

@@ -198,10 +198,7 @@ update_device_send_stats(struct net_device* device, status_t status, size_t pack
 		atomic_add((int32*)&device->stats.send.packets, 1);
 		atomic_add64((int64*)&device->stats.send.bytes, packetSize);
 	} else {
-		if (status == ENOBUFS || status == EMSGSIZE)
-			atomic_add((int32*)&device->stats.send.dropped, 1);
-		else
-			atomic_add((int32*)&device->stats.send.errors, 1);
+		atomic_add((int32*)&device->stats.send.errors, 1);
 	}
 }
 
@@ -889,9 +886,19 @@ interface_protocol_control(net_datalink_protocol* _protocol, int32 option,
 		case SIOCGIFSTATS:
 		{
 			// get stats
+			struct ifreq_stats stats = interface->DeviceInterface()->device->stats;
+
+			struct ifreq_stats deviceStats;
+			if (protocol->device_module->control(protocol->device, SIOCGIFSTATS,
+					&deviceStats, sizeof(struct ifreq_stats)) == B_OK) {
+				stats.receive.dropped += deviceStats.receive.dropped;
+				stats.receive.errors += deviceStats.receive.errors;
+				stats.send = deviceStats.send;
+				stats.collisions += deviceStats.collisions;
+			}
+
 			return user_memcpy(&((struct ifreq*)argument)->ifr_stats,
-				&interface->DeviceInterface()->device->stats,
-				sizeof(struct ifreq_stats));
+				&stats, sizeof(struct ifreq_stats));
 		}
 
 		case SIOCGIFTYPE:

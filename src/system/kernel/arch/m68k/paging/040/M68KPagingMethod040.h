@@ -30,8 +30,7 @@ public:
 	virtual	status_t			MapEarly(kernel_args* args,
 									addr_t virtualAddress,
 									phys_addr_t physicalAddress,
-									uint8 attributes,
-									phys_addr_t (*get_free_page)(kernel_args*));
+									uint8 attributes);
 
 	virtual	bool				IsKernelPageAccessible(addr_t virtualAddress,
 									uint32 protection);
@@ -169,17 +168,17 @@ M68KPagingMethod040::MemoryTypeToPageTableEntryFlags(uint32 memoryType)
 	// (usually only write-combining for the frame buffer).
 #warning M68K: Check this
 	switch (memoryType) {
-		case B_MTR_UC:
+		case B_UNCACHED_MEMORY:
 			return CM_DISABLED_SERIALIZED | CM_CACHABLE_WRITETHROUGH;
 
-		case B_MTR_WC:
+		case B_WRITE_COMBINING_MEMORY:
 			return 0;
 
-		case B_MTR_WT:
+		case B_WRITE_THROUGH_MEMORY:
 			return CM_CACHABLE_WRITETHROUGH;
 
-		case B_MTR_WP:
-		case B_MTR_WB:
+		case B_WRITE_PROTECTED_MEMORY:
+		case B_WRITE_BACK_MEMORY:
 		default:
 			return 0;
 	}

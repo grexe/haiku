@@ -58,9 +58,22 @@ VMAnonymousNoSwapCache::Init(bool canOvercommit, int32 numPrecommittedPages,
 }
 
 
+ssize_t
+VMAnonymousNoSwapCache::Discard(off_t offset, off_t size)
+{
+	const ssize_t discarded = VMCache::Discard(offset, size);
+	if (discarded > 0 && fCanOvercommit)
+		Commit(committed_size - discarded, VM_PRIORITY_USER);
+	return discarded;
+}
+
+
 status_t
 VMAnonymousNoSwapCache::Commit(off_t size, int priority)
 {
+	AssertLocked();
+	ASSERT(size >= (page_count * B_PAGE_SIZE));
+
 	// If we can overcommit, we don't commit here, but in Fault(). We always
 	// unreserve memory, if we're asked to shrink our commitment, though.
 	if (fCanOvercommit && size > committed_size) {
@@ -89,6 +102,13 @@ VMAnonymousNoSwapCache::Commit(off_t size, int priority)
 
 	committed_size = size;
 	return B_OK;
+}
+
+
+bool
+VMAnonymousNoSwapCache::CanOvercommit()
+{
+	return fCanOvercommit;
 }
 
 
@@ -163,17 +183,17 @@ VMAnonymousNoSwapCache::Fault(struct VMAddressSpace* aspace, off_t offset)
 
 
 void
-VMAnonymousNoSwapCache::MergeStore(VMCache* _source)
+VMAnonymousNoSwapCache::Merge(VMCache* _source)
 {
 	VMAnonymousNoSwapCache* source
 		= dynamic_cast<VMAnonymousNoSwapCache*>(_source);
 	if (source == NULL) {
-		panic("VMAnonymousNoSwapCache::MergeStore(): merge with incompatible "
+		panic("VMAnonymousNoSwapCache::Merge(): merge with incompatible "
 			"cache %p requested", _source);
 		return;
 	}
 
-	// take over the source' committed size
+	// take over the source's committed size
 	committed_size += source->committed_size;
 	source->committed_size = 0;
 
@@ -182,6 +202,8 @@ VMAnonymousNoSwapCache::MergeStore(VMCache* _source)
 		vm_unreserve_memory(committed_size - actualSize);
 		committed_size = actualSize;
 	}
+
+	VMCache::Merge(source);
 }
 
 

@@ -135,10 +135,6 @@ scsi_create_bus(device_node *node, uint8 path_id)
 	mutex_init(&bus->mutex, "scsi_bus_mutex");
 	spinlock_irq_init(&bus->dpc_lock);
 
-	res = scsi_init_ccb_alloc(bus);
-	if (res < B_OK)
-		goto err2;
-
 	bus->service_thread = spawn_kernel_thread(scsi_service_threadproc,
 		"scsi_bus_service", BUS_SERVICE_PRIORITY, bus);
 
@@ -152,8 +148,6 @@ scsi_create_bus(device_node *node, uint8 path_id)
 	return bus;
 
 err1:
-	scsi_uninit_ccb_alloc(bus);
-err2:
 	mutex_destroy(&bus->mutex);
 	delete_sem(bus->start_service);
 err4:
@@ -167,19 +161,16 @@ err6:
 static status_t
 scsi_destroy_bus(scsi_bus_info *bus)
 {
-	int32 retcode;
-
 	// noone is using this bus now, time to clean it up
 	bus->shutting_down = true;
 	release_sem(bus->start_service);
 
+	status_t retcode;
 	wait_for_thread(bus->service_thread, &retcode);
 
 	delete_sem(bus->start_service);
 	mutex_destroy(&bus->mutex);
 	delete_sem(bus->scan_lun_lock);
-
-	scsi_uninit_ccb_alloc(bus);
 
 	return B_OK;
 }
@@ -217,6 +208,9 @@ scsi_init_bus(device_node *node, void **cookie)
 	if (pnp->get_attr_uint32(node, B_DMA_MAX_SEGMENT_COUNT,
 			&bus->dma_params.max_sg_blocks, true) != B_OK)
 		bus->dma_params.max_sg_blocks = ~0;
+	if (pnp->get_attr_uint64(node, B_DMA_HIGH_ADDRESS,
+			&bus->dma_params.high_address, true) != B_OK)
+		bus->dma_params.high_address = ~0;
 
 	// do some sanity check:
 	bus->dma_params.max_sg_block_size &= ~bus->dma_params.alignment;
@@ -302,6 +296,10 @@ static status_t
 scsi_bus_module_init(void)
 {
 	SHOW_FLOW0(4, "");
+
+	status_t status = init_ccb_alloc();
+	if (status != B_OK)
+		return status;
 	return init_temp_sg();
 }
 
@@ -311,6 +309,7 @@ scsi_bus_module_uninit(void)
 {
 	SHOW_INFO0(4, "");
 
+	uninit_ccb_alloc();
 	uninit_temp_sg();
 	return B_OK;
 }

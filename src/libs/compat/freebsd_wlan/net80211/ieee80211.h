@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -24,8 +24,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $FreeBSD: releng/12.0/sys/net80211/ieee80211.h 326272 2017-11-27 15:23:17Z pfg $
  */
 #ifndef _NET80211_IEEE80211_H_
 #define _NET80211_IEEE80211_H_
@@ -117,67 +115,174 @@ struct ieee80211_qosframe_addr4 {
 #define	IEEE80211_FC0_VERSION_0			0x00
 #define	IEEE80211_FC0_TYPE_MASK			0x0c
 #define	IEEE80211_FC0_TYPE_SHIFT		2
-#define	IEEE80211_FC0_TYPE_MGT			0x00
-#define	IEEE80211_FC0_TYPE_CTL			0x04
-#define	IEEE80211_FC0_TYPE_DATA			0x08
+#define	IEEE80211_FC0_TYPE_MGT			0x00	/* Management */
+#define	IEEE80211_FC0_TYPE_CTL			0x04	/* Control */
+#define	IEEE80211_FC0_TYPE_DATA			0x08	/* Data */
+#define	IEEE80211_FC0_TYPE_EXT			0x0c	/* Extension */
 
 #define	IEEE80211_FC0_SUBTYPE_MASK		0xf0
 #define	IEEE80211_FC0_SUBTYPE_SHIFT		4
-/* for TYPE_MGT */
-#define	IEEE80211_FC0_SUBTYPE_ASSOC_REQ		0x00
-#define	IEEE80211_FC0_SUBTYPE_ASSOC_RESP	0x10
-#define	IEEE80211_FC0_SUBTYPE_REASSOC_REQ	0x20
-#define	IEEE80211_FC0_SUBTYPE_REASSOC_RESP	0x30
-#define	IEEE80211_FC0_SUBTYPE_PROBE_REQ		0x40
-#define	IEEE80211_FC0_SUBTYPE_PROBE_RESP	0x50
-#define	IEEE80211_FC0_SUBTYPE_TIMING_ADV	0x60
-#define	IEEE80211_FC0_SUBTYPE_BEACON		0x80
-#define	IEEE80211_FC0_SUBTYPE_ATIM		0x90
-#define	IEEE80211_FC0_SUBTYPE_DISASSOC		0xa0
-#define	IEEE80211_FC0_SUBTYPE_AUTH		0xb0
-#define	IEEE80211_FC0_SUBTYPE_DEAUTH		0xc0
-#define	IEEE80211_FC0_SUBTYPE_ACTION		0xd0
-#define	IEEE80211_FC0_SUBTYPE_ACTION_NOACK	0xe0
-/* for TYPE_CTL */
-#define	IEEE80211_FC0_SUBTYPE_CONTROL_WRAP	0x70
-#define	IEEE80211_FC0_SUBTYPE_BAR		0x80
-#define	IEEE80211_FC0_SUBTYPE_BA		0x90
-#define	IEEE80211_FC0_SUBTYPE_PS_POLL		0xa0
-#define	IEEE80211_FC0_SUBTYPE_RTS		0xb0
-#define	IEEE80211_FC0_SUBTYPE_CTS		0xc0
-#define	IEEE80211_FC0_SUBTYPE_ACK		0xd0
-#define	IEEE80211_FC0_SUBTYPE_CF_END		0xe0
-#define	IEEE80211_FC0_SUBTYPE_CF_END_ACK	0xf0
-/* for TYPE_DATA (bit combination) */
-#define	IEEE80211_FC0_SUBTYPE_DATA		0x00
-#define	IEEE80211_FC0_SUBTYPE_CF_ACK		0x10
-#define	IEEE80211_FC0_SUBTYPE_CF_POLL		0x20
-#define	IEEE80211_FC0_SUBTYPE_CF_ACPL		0x30
-#define	IEEE80211_FC0_SUBTYPE_NODATA		0x40
-#define	IEEE80211_FC0_SUBTYPE_CFACK		0x50
-#define	IEEE80211_FC0_SUBTYPE_CFPOLL		0x60
-#define	IEEE80211_FC0_SUBTYPE_CF_ACK_CF_ACK	0x70
-#define	IEEE80211_FC0_SUBTYPE_QOS		0x80
-#define	IEEE80211_FC0_SUBTYPE_QOS_CFACK		0x90
-#define	IEEE80211_FC0_SUBTYPE_QOS_CFPOLL	0xa0
-#define	IEEE80211_FC0_SUBTYPE_QOS_CFACKPOLL	0xb0
-#define	IEEE80211_FC0_SUBTYPE_QOS_NULL		0xc0
+/* 802.11-2020 Table 9-1-Valid type and subtype combinations */
+/* For type 00 Management (IEEE80211_FC0_TYPE_MGT) */
+#define	IEEE80211_FC0_SUBTYPE_ASSOC_REQ		0x00	/* Association Request */
+#define	IEEE80211_FC0_SUBTYPE_ASSOC_RESP	0x10	/* Association Response */
+#define	IEEE80211_FC0_SUBTYPE_REASSOC_REQ	0x20	/* Reassociation Request */
+#define	IEEE80211_FC0_SUBTYPE_REASSOC_RESP	0x30	/* Reassociation Response */
+#define	IEEE80211_FC0_SUBTYPE_PROBE_REQ		0x40	/* Probe Request */
+#define	IEEE80211_FC0_SUBTYPE_PROBE_RESP	0x50	/* Probe Response */
+#define	IEEE80211_FC0_SUBTYPE_TIMING_ADV	0x60	/* Timing Advertisement */
+/* 0111 Reserved				0x70 */
+#define	IEEE80211_FC0_SUBTYPE_BEACON		0x80	/* Beacon */
+#define	IEEE80211_FC0_SUBTYPE_ATIM		0x90	/* ATIM */
+#define	IEEE80211_FC0_SUBTYPE_DISASSOC		0xa0	/* Disassociation */
+#define	IEEE80211_FC0_SUBTYPE_AUTH		0xb0	/* Authentication */
+#define	IEEE80211_FC0_SUBTYPE_DEAUTH		0xc0	/* Deauthentication */
+#define	IEEE80211_FC0_SUBTYPE_ACTION		0xd0	/* Action */
+#define	IEEE80211_FC0_SUBTYPE_ACTION_NOACK	0xe0	/* Action No Ack */
+/* 1111 Reserved				0xf0 */
+/* For type 01 Control (IEEE80211_FC0_TYPE_CTL) */
+/* 0000-0001 Reserved				0x00-0x10 */
+#define	IEEE80211_FC0_SUBTYPE_TRIGGER		0x20	/* Trigger, 80211ax-2021 */
+#define	IEEE80211_FC0_SUBTYPE_TACK		0x30	/* TACK */
+#define	IEEE80211_FC0_SUBTYPE_BF_REPORT_POLL	0x40	/* Beamforming Report Poll */
+#define	IEEE80211_FC0_SUBTYPE_VHT_HE_NDP	0x50	/* VHT/HE NDP Announcement, 80211ac/ax-2013/2021 */
+#define	IEEE80211_FC0_SUBTYPE_CTL_EXT		0x60	/* Control Frame Extension */
+#define	IEEE80211_FC0_SUBTYPE_CONTROL_WRAP	0x70	/* Control Wrapper */
+#define	IEEE80211_FC0_SUBTYPE_BAR		0x80	/* Block Ack Request (BlockAckReq) */
+#define	IEEE80211_FC0_SUBTYPE_BA		0x90	/* Block Ack (BlockAck) */
+#define	IEEE80211_FC0_SUBTYPE_PS_POLL		0xa0	/* PS-Poll */
+#define	IEEE80211_FC0_SUBTYPE_RTS		0xb0	/* RTS */
+#define	IEEE80211_FC0_SUBTYPE_CTS		0xc0	/* CTS */
+#define	IEEE80211_FC0_SUBTYPE_ACK		0xd0	/* Ack */
+#define	IEEE80211_FC0_SUBTYPE_CF_END		0xe0	/* CF-End */
+#define	IEEE80211_FC0_SUBTYPE_CF_END_ACK	0xf0	/* 1111 Reserved - what was CF_END_ACK? */
+/* For type 10 Data (IEEE80211_FC0_TYPE_DATA) */
+#define	IEEE80211_FC0_SUBTYPE_DATA		0x00	/* Data */
+/* 0001-0011 Reserved				0x10-0x30 */	/* Were: CF_ACK, CF_POLL, CF_ACPL */
+#define	IEEE80211_FC0_SUBTYPE_NODATA		0x40	/* Null */
+/* 0101-0111 Reserved				0x50-0x70 */	/* Were: CFACK, CFPOLL, CF_ACK_CF_ACK */
+#define	IEEE80211_FC0_SUBTYPE_QOS_MASK_ANY	0x80	/* QoS mask - matching any subtypes 8..15 */
+#define	IEEE80211_FC0_SUBTYPE_QOS_DATA		0x80	/* QoS Data */
+#define	IEEE80211_FC0_SUBTYPE_QOS_DATA_CFACK	0x90	/* QoS Data +CF-Ack */
+#define	IEEE80211_FC0_SUBTYPE_QOS_DATA_CFPOLL	0xa0	/* QoS Data +CF-Poll */
+#define	IEEE80211_FC0_SUBTYPE_QOS_DATA_CFACKPOLL 0xb0	/* QoS Data +CF-Ack +CF-Poll */
+#define	IEEE80211_FC0_SUBTYPE_QOS_NULL		0xc0	/* QoS Null */
+/* 1101 Reserved				0xd0 */
+#define	IEEE80211_FC0_SUBTYPE_QOS_CFPOLL	0xe0	/* QoS CF-Poll */
+#define	IEEE80211_FC0_SUBTYPE_QOS_CFACKPOLL	0xf0	/* QoS CF-Ack +CF-Poll */
+/* For type 11 Extension (IEEE80211_FC0_TYPE_EXT) */
+#define	IEEE80211_FC0_SUBTYPE_DMG_BEACON	0x00	/* DMG Beacon */
+#define	IEEE80211_FC0_SUBTYPE_S1G_BEACON	0x10	/* S1G Beacon */
+/* 0010-1111 Reserved				0x20-0xff */
 
-#define	IEEE80211_IS_MGMT(wh)					\
-	(!! (((wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK)		\
-	    == IEEE80211_FC0_TYPE_MGT))
+/* 802.11-2020 Table 9-2-Control Frame Extension */
+/* Reusing B11..B8, part of FC1 */
+#define	IEEE80211_CTL_EXT_SECTOR_ACK		0x00	/* Sector Ack, 80211ay-2021 */
+#define	IEEE80211_CTL_EXT_BA_SCHED		0x01	/* Block Ack Schedule, 80211ay-2021 */
+#define	IEEE80211_CTL_EXT_POLL			0x02	/* Poll */
+#define	IEEE80211_CTL_EXT_SPR			0x03	/* SPR */
+#define	IEEE80211_CTL_EXT_GRANT			0x04	/* Grant */
+#define	IEEE80211_CTL_EXT_DMG_CTS		0x05	/* DMG CTS */
+#define	IEEE80211_CTL_EXT_DMG_DTS		0x06	/* DMG DTS */
+#define	IEEE80211_CTL_EXT_GRANT_ACK		0x07	/* Grant Ack */
+#define	IEEE80211_CTL_EXT_SSW			0x08	/* SSW */
+#define	IEEE80211_CTL_EXT_SSW_FBACK		0x09	/* SSW-Feedback */
+#define	IEEE80211_CTL_EXT_SSW_ACK		0x0a	/* SSW-Ack */
+#define	IEEE80211_CTL_EXT_TDD_BF		0x0b	/* TDD Beamforming, 80211ay-2021 */
+/* 1100-1111 Reserved				0xc-0xf */
+
+/* Check the version field */
+#define	IEEE80211_IS_FC0_CHECK_VER(wh, v)			\
+	(((wh)->i_fc[0] & IEEE80211_FC0_VERSION_MASK) == (v))
+
+/* Check the version and type field */
+#define	IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, v, t)			\
+	(((((wh)->i_fc[0] & IEEE80211_FC0_VERSION_MASK) == (v))) &&	\
+	  (((wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK) == (t)))
+
+/* Check the version, type and subtype field */
+#define	IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh, v, t, st)		\
+	(((((wh)->i_fc[0] & IEEE80211_FC0_VERSION_MASK) == (v))) &&	\
+	  (((wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK) == (t)) &&		\
+	  (((wh)->i_fc[0] & IEEE80211_FC0_SUBTYPE_MASK) == (st)))
+
+#define	IEEE80211_IS_MGMT(wh)						\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, IEEE80211_FC0_VERSION_0,	\
+	 IEEE80211_FC0_TYPE_MGT))
 #define	IEEE80211_IS_CTL(wh)					\
-	(!! (((wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK)		\
-	    == IEEE80211_FC0_TYPE_CTL))
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, IEEE80211_FC0_VERSION_0,	\
+	 IEEE80211_FC0_TYPE_CTL))
 #define	IEEE80211_IS_DATA(wh)					\
-	(!! (((wh)->i_fc[0] & IEEE80211_FC0_TYPE_MASK)		\
-	    == IEEE80211_FC0_TYPE_DATA))
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, IEEE80211_FC0_VERSION_0,	\
+	 IEEE80211_FC0_TYPE_DATA))
+#define	IEEE80211_IS_EXT(wh)					\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, IEEE80211_FC0_VERSION_0,	\
+	 IEEE80211_FC0_TYPE_EXT))
 
-#define	IEEE80211_FC0_QOSDATA \
-	(IEEE80211_FC0_TYPE_DATA|IEEE80211_FC0_SUBTYPE_QOS|IEEE80211_FC0_VERSION_0)
+/* Management frame types */
 
-#define	IEEE80211_IS_QOSDATA(wh) \
-	((wh)->i_fc[0] == IEEE80211_FC0_QOSDATA)
+#define	IEEE80211_IS_MGMT_BEACON(wh)			\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_MGT,			\
+	 IEEE80211_FC0_SUBTYPE_BEACON))
+
+#define	IEEE80211_IS_MGMT_PROBE_RESP(wh)		\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_MGT,			\
+	 IEEE80211_FC0_SUBTYPE_PROBE_RESP))
+
+#define	IEEE80211_IS_MGMT_ACTION(wh)		\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_MGT,			\
+	 IEEE80211_FC0_SUBTYPE_ACTION))
+
+/* Control frame types */
+
+#define	IEEE80211_IS_CTL_PS_POLL(wh)			\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_CTL,			\
+	 IEEE80211_FC0_SUBTYPE_PS_POLL))
+
+#define	IEEE80211_IS_CTL_BAR(wh)			\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_CTL,			\
+	 IEEE80211_FC0_SUBTYPE_BAR))
+
+/* Data frame types */
+
+/*
+ * Return true if the frame is any of the QOS frame types, not just
+ * data frames.  Matching on the IEEE80211_FC0_SUBTYPE_QOS_ANY bit
+ * being set also matches on subtypes 8..15.
+ */
+#define	IEEE80211_IS_QOS_ANY(wh)					\
+	((IEEE80211_IS_FC0_CHECK_VER_TYPE(wh, IEEE80211_FC0_VERSION_0,	\
+	 IEEE80211_FC0_TYPE_DATA)) &&					\
+	 ((wh)->i_fc[0] & IEEE80211_FC0_SUBTYPE_QOS_MASK_ANY))
+
+/*
+ * Return true if this frame is QOS data, and only QOS data.
+ */
+#define	IEEE80211_IS_QOSDATA(wh)			\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_DATA,			\
+	 IEEE80211_FC0_SUBTYPE_QOS_DATA))
+
+/*
+ * Return true if this frame is a QoS NULL data frame.
+ */
+#define	IEEE80211_IS_QOS_NULL(wh)			\
+	(IEEE80211_IS_FC0_CHECK_VER_TYPE_SUBTYPE(wh,	\
+	 IEEE80211_FC0_VERSION_0,			\
+	 IEEE80211_FC0_TYPE_DATA,			\
+	 IEEE80211_FC0_SUBTYPE_QOS_NULL))
+
 
 #define	IEEE80211_FC1_DIR_MASK			0x03
 #define	IEEE80211_FC1_DIR_NODS			0x00	/* STA->STA */
@@ -194,6 +299,9 @@ struct ieee80211_qosframe_addr4 {
 #define	IEEE80211_FC1_MORE_DATA			0x20
 #define	IEEE80211_FC1_PROTECTED			0x40
 #define	IEEE80211_FC1_ORDER			0x80
+
+#define	IEEE80211_IS_PROTECTED(wh) \
+	((wh)->i_fc[1] & IEEE80211_FC1_PROTECTED)
 
 #define IEEE80211_HAS_SEQ(type, subtype) \
 	((type) != IEEE80211_FC0_TYPE_CTL && \
@@ -243,8 +351,8 @@ struct ieee80211_qosframe_addr4 {
 /* does frame have QoS sequence control data */
 #define	IEEE80211_QOS_HAS_SEQ(wh) \
 	(((wh)->i_fc[0] & \
-	  (IEEE80211_FC0_TYPE_MASK | IEEE80211_FC0_SUBTYPE_QOS)) == \
-	  (IEEE80211_FC0_TYPE_DATA | IEEE80211_FC0_SUBTYPE_QOS))
+	  (IEEE80211_FC0_TYPE_MASK | IEEE80211_FC0_SUBTYPE_QOS_DATA)) == \
+	  (IEEE80211_FC0_TYPE_DATA | IEEE80211_FC0_SUBTYPE_QOS_DATA))
 
 /*
  * WME/802.11e information element.
@@ -381,16 +489,65 @@ struct ieee80211_action {
 	uint8_t		ia_action;
 } __packed;
 
-#define	IEEE80211_ACTION_CAT_SM		0	/* Spectrum Management */
-#define	IEEE80211_ACTION_CAT_QOS	1	/* QoS */
-#define	IEEE80211_ACTION_CAT_DLS	2	/* DLS */
-#define	IEEE80211_ACTION_CAT_BA		3	/* BA */
-#define	IEEE80211_ACTION_CAT_HT		7	/* HT */
-#define	IEEE80211_ACTION_CAT_MESH	13	/* Mesh */
-#define	IEEE80211_ACTION_CAT_SELF_PROT	15	/* Self-protected */
-/* 16 - 125 reserved */
-#define	IEEE80211_ACTION_CAT_VHT	21
-#define	IEEE80211_ACTION_CAT_VENDOR	127	/* Vendor Specific */
+/* 80211-2020 Table 9-51-Category values */
+#define	IEEE80211_ACTION_CAT_SM			0	/* 9.6.2 Spectrum Management */
+#define	IEEE80211_ACTION_CAT_QOS		1	/* 9.6.3 QoS */
+/* Reserved					2	was IEEE80211_ACTION_CAT_DLS */
+#define	IEEE80211_ACTION_CAT_BA			3	/* 9.6.4 Block Ack */
+#define	IEEE80211_ACTION_CAT_PUBLIC		4	/* 9.6.7 Public */
+#define	IEEE80211_ACTION_CAT_RADIO_MEASUREMENT	5	/* 9.6.6 Radio Measurement */
+#define	IEEE80211_ACTION_CAT_FAST_BSS_TRANSITION 6	/* 9.6.8 Fast BSS Transition */
+#define	IEEE80211_ACTION_CAT_HT			7	/* 9.6.11 HT */
+#define	IEEE80211_ACTION_CAT_SA_QUERY		8	/* 9.6.9 SA Query */
+#define	IEEE80211_ACTION_CAT_PROTECTED_DUAL_OF_PUBLIC_ACTION 9 /* 9.6.10 Protected Dual of Public Action */
+#define	IEEE80211_ACTION_CAT_WNM		10	/* 9.6.13 WNM */
+#define	IEEE80211_ACTION_CAT_UNPROTECTED_WNM	11	/* 9.6.14 Unprotected WNM */
+#define	IEEE80211_ACTION_CAT_TDLS		12	/* 9.6.12 TDLS */
+#define	IEEE80211_ACTION_CAT_MESH		13	/* 9.6.16 Mesh */
+#define	IEEE80211_ACTION_CAT_MULTIHOP		14	/* 9.6.17 Multihop */
+#define	IEEE80211_ACTION_CAT_SELF_PROT		15	/* 9.6.15 Self-protected */
+#define	IEEE80211_ACTION_CAT_DMG		16	/* 9.6.19 DMG */
+/* Reserved					17	(R)Wi-Fi Alliance */
+#define	IEEE80211_ACTION_CAT_FAST_SESSION_TRANSFER 18	/* 9.6.20 Fast Session Transfer */
+#define	IEEE80211_ACTION_CAT_ROBUST_AV_STREAMING 19	/* 9.6.18 Robust AV Streaming */
+#define	IEEE80211_ACTION_CAT_UNPROTECTED_DMG	20	/* 9.6.21 Unprotected DMG */
+#define	IEEE80211_ACTION_CAT_VHT		21	/* 9.6.22 VHT */
+#define	IEEE80211_ACTION_CAT_UNPROTECTED_S1G	22	/* 9.6.24 Unprotected S1G */
+#define	IEEE80211_ACTION_CAT_S1G		23	/* 9.6.25 S1G */
+#define	IEEE80211_ACTION_CAT_FLOW_CONTROL	24	/* 9.6.26 Flow Control */
+#define	IEEE80211_ACTION_CAT_CTL_RESP_MCS_NEG	25	/* 9.6.27 Control Response MCS Negotiation */
+#define	IEEE80211_ACTION_CAT_FILS		26	/* 9.6.23 FILS */
+#define	IEEE80211_ACTION_CAT_CDMG		27	/* 9.6.28 CDMG */
+#define	IEEE80211_ACTION_CAT_CMMG		28	/* 9.6.29 CMMG */
+#define	IEEE80211_ACTION_CAT_GLK		29	/* 9.6.30 GLK */
+#define	IEEE80211_ACTION_CAT_HE			30	/* 9.6.31 HE, 80211ax-2021 */
+#define	IEEE80211_ACTION_CAT_PROTECTED_HE	31	/* 9.6.32 Protected HE, 80211ax-2021 */
+/* Reserved					32-125 */
+#define	IEEE80211_ACTION_CAT_VENDOR_SPECIFIC_PROTECTED 126 /* 9.6.5 Vendor-specific Protected */
+#define	IEEE80211_ACTION_CAT_VENDOR		127	/* 9.6.5 Vendor-specific */
+/* Error					128-255 */
+
+
+/* 80211-2020 Table 9-346-Spectrum Management Action field values */
+enum ieee80211_action_sm {
+	IEEE80211_ACTION_SM_SMREQ		= 0,	/* Spectrum Measurement Request */
+	IEEE80211_ACTION_SM_SMREP		= 1,	/* Spectrum Measurement Report */
+	IEEE80211_ACTION_SM_TPCREQ		= 2,	/* TPC Request */
+	IEEE80211_ACTION_SM_TPCREP		= 3,	/* TPC Report */
+	IEEE80211_ACTION_SM_CSA			= 4,	/* Channel Switch Announcement */
+	/* Reserved				= 5-255 */
+};
+
+/* 80211-2020 Table 9-363-Radio Measurement Action field values */
+enum ieee80211_action_radio_measurement {
+	IEEE80211_ACTION_RADIO_MEASUREMENT_RMREQ	= 0,	/* Radio Measurement Request */
+	IEEE80211_ACTION_RADIO_MEASUREMENT_RMREP	= 1,	/* Radio Measurement Report */
+	IEEE80211_ACTION_RADIO_MEASUREMENT_LMREQ	= 2,	/* Link Measurement Request */
+	IEEE80211_ACTION_RADIO_MEASUREMENT_LMREP	= 3,	/* Link Measurement Report */
+	IEEE80211_ACTION_RADIO_MEASUREMENT_NRREQ	= 4,	/* Neighbor Report Request */
+	IEEE80211_ACTION_RADIO_MEASUREMENT_NRRESP	= 5,	/* Neighbor Report Response */
+	/* Reserved					= 6-255 */
+};
 
 #define	IEEE80211_ACTION_HT_TXCHWIDTH	0	/* recommended xmit chan width*/
 #define	IEEE80211_ACTION_HT_MIMOPWRSAVE	1	/* MIMO power save */
@@ -765,11 +922,16 @@ struct ieee80211_ie_htinfo {
  * + rx_mcs_map/tx_mcs_map: bitmap of per-stream supported MCS;
  *    2 bits each.
  */
-#define	IEEE80211_VHT_MCS_SUPPORT_0_7		0	/* MCS0-7 */
-#define	IEEE80211_VHT_MCS_SUPPORT_0_8		1	/* MCS0-8 */
-#define	IEEE80211_VHT_MCS_SUPPORT_0_9		2	/* MCS0-9 */
-#define	IEEE80211_VHT_MCS_NOT_SUPPORTED		3	/* not supported */
 
+/* 802.11ac-2013, 8.4.2.160.3 Supported VHT-MCS and NSS Set field */
+enum ieee80211_vht_mcs_support {
+	IEEE80211_VHT_MCS_SUPPORT_0_7		= 0,	/* MCS0-7 */
+	IEEE80211_VHT_MCS_SUPPORT_0_8		= 1,	/* MCS0-8 */
+	IEEE80211_VHT_MCS_SUPPORT_0_9		= 2,	/* MCS0-9 */
+	IEEE80211_VHT_MCS_NOT_SUPPORTED		= 3	/* not supported */
+};
+
+/* 802.11ac-2013, 8.4.2.160.3 Supported VHT-MCS and NSS Set field */
 struct ieee80211_vht_mcs_info {
 	uint16_t rx_mcs_map;
 	uint16_t rx_highest;
@@ -777,29 +939,31 @@ struct ieee80211_vht_mcs_info {
 	uint16_t tx_highest;
 } __packed;
 
-/* VHT capabilities element: 802.11ac-2013 8.4.2.160 */
-struct ieee80211_ie_vhtcap {
-	uint8_t ie;
-	uint8_t len;
-	uint32_t vht_cap_info;
-	struct ieee80211_vht_mcs_info supp_mcs;
+/* 802.11ac-2013, 8.4.2.160.1 VHT Capabilities element structure */
+struct ieee80211_vht_cap {
+	uint32_t			vht_cap_info;
+	struct ieee80211_vht_mcs_info	supp_mcs;
 } __packed;
 
-/* VHT operation mode subfields - 802.11ac-2013 Table 8.183x */
-#define	IEEE80211_VHT_CHANWIDTH_USE_HT		0	/* Use HT IE for chw */
-#define	IEEE80211_VHT_CHANWIDTH_80MHZ		1	/* 80MHz */
-#define	IEEE80211_VHT_CHANWIDTH_160MHZ		2	/* 160MHz */
-#define	IEEE80211_VHT_CHANWIDTH_80P80MHZ	3	/* 80+80MHz */
+/* 802.11ac-2013, Table 8-183x-VHT Operation Information subfields */
+enum ieee80211_vht_chanwidth {
+	IEEE80211_VHT_CHANWIDTH_USE_HT		= 0,	/* 20 MHz or 40 MHz */
+	IEEE80211_VHT_CHANWIDTH_80MHZ		= 1,	/* 80MHz */
+	IEEE80211_VHT_CHANWIDTH_160MHZ		= 2,	/* 160MHz */
+	IEEE80211_VHT_CHANWIDTH_80P80MHZ	= 3,	/* 80+80MHz */
+	/* 4..255 reserved. */
+};
 
-/* VHT operation IE - 802.11ac-2013 8.4.2.161 */
-struct ieee80211_ie_vht_operation {
-	uint8_t ie;
-	uint8_t len;
-	uint8_t chan_width;
-	uint8_t center_freq_seg1_idx;
-	uint8_t center_freq_seg2_idx;
-	uint16_t basic_mcs_set;
+/* The name conflicts with the same structure in wpa.  Only ifconfig needs this. */
+#if defined(_KERNEL) || defined(WANT_NET80211)
+/* 802.11ac-2013 8.4.2.161 VHT Operation element */
+struct ieee80211_vht_operation {
+	uint8_t			chan_width;		/* enum ieee80211_vht_chanwidth */
+	uint8_t			center_freq_seq0_idx;	/* 20/40/80/160 - VHT chan1 */
+	uint8_t			center_freq_seq1_idx;	/* 80+80 - VHT chan2 */
+	uint16_t		basic_mcs_set;		/* Basic VHT-MCS and NSS Set */
 } __packed;
+#endif
 
 /* 802.11ac VHT Capabilities */
 #define	IEEE80211_VHTCAP_MAX_MPDU_LENGTH_3895	0x00000000
@@ -810,7 +974,7 @@ struct ieee80211_ie_vht_operation {
 
 #define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_MASK	0x0000000C
 #define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_MASK_S	2
-#define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_NONE		0
+#define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_NO160		0
 #define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_160MHZ		1
 #define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_160_80P80MHZ	2
 #define	IEEE80211_VHTCAP_SUPP_CHAN_WIDTH_RESERVED	3
@@ -929,6 +1093,8 @@ struct ieee80211_ie_vht_txpwrenv {
 
 /*
  * Management information element payloads.
+ *
+ * 802.11-2016 Table 9-77 (Element IDs).
  */
 
 enum {
@@ -970,6 +1136,7 @@ enum {
 	IEEE80211_ELEMID_COEX_2040	= 72,
 	IEEE80211_ELEMID_INTOL_CHN_REPORT	= 73,
 	IEEE80211_ELEMID_OVERLAP_BSS_SCAN_PARAM = 74,
+	IEEE80211_ELEMID_MMIC		= 76,
 	IEEE80211_ELEMID_TSF_REQ	= 91,
 	IEEE80211_ELEMID_TSF_RESP	= 92,
 	IEEE80211_ELEMID_WNM_SLEEP_MODE	= 93,
@@ -1008,10 +1175,16 @@ enum {
 	IEEE80211_ELEMID_MESHPXUC	= 138,
 	IEEE80211_ELEMID_MESHAH		= 60, /* XXX: remove */
 
-	/* 802.11ac */
+	/* 802.11ac-2013, Table 8-54-Element IDs */
 	IEEE80211_ELEMID_VHT_CAP	= 191,
 	IEEE80211_ELEMID_VHT_OPMODE	= 192,
+	IEEE80211_ELEMID_EXTENDED_BSS_LOAD = 193,
+	IEEE80211_ELEMID_WIDE_BW_CHANNEL_SWITCH = 194,
 	IEEE80211_ELEMID_VHT_PWR_ENV	= 195,
+	IEEE80211_ELEMID_CHANNEL_SWITCH_WRAPPER = 196,
+	IEEE80211_ELEMID_AID		= 197,
+	IEEE80211_ELEMID_QUIET_CHANNEL	= 198,
+	IEEE80211_ELEMID_OPMODE_NOTIF	= 199,
 };
 
 struct ieee80211_tim_ie {
@@ -1172,7 +1345,7 @@ struct ieee80211_csa_ie {
 #define	WPA_CSE_NULL		0x00
 #define	WPA_CSE_WEP40		0x01
 #define	WPA_CSE_TKIP		0x02
-#define	WPA_CSE_CCMP		0x04
+#define	WPA_CSE_CCMP		0x04		/* CCMP 128-bit */
 #define	WPA_CSE_WEP104		0x05
 
 #define	WPA_ASE_NONE		0x00
@@ -1181,21 +1354,62 @@ struct ieee80211_csa_ie {
 
 #define	WPS_OUI_TYPE		0x04
 
+/* 802.11-2016 Table 9-131 - Cipher Suite Selectors */
 #define	RSN_OUI			0xac0f00
 #define	RSN_VERSION		1		/* current supported version */
 
-#define	RSN_CSE_NULL		0x00
-#define	RSN_CSE_WEP40		0x01
-#define	RSN_CSE_TKIP		0x02
-#define	RSN_CSE_WRAP		0x03
-#define	RSN_CSE_CCMP		0x04
-#define	RSN_CSE_WEP104		0x05
+/* RSN cipher suite element */
+#define	RSN_CSE_NULL		0
+#define	RSN_CSE_WEP40		1
+#define	RSN_CSE_TKIP		2
+#define	RSN_CSE_WRAP		3		/* Reserved in the 802.11-2016 */
+#define	RSN_CSE_CCMP		4		/* CCMP 128 bit */
+#define	RSN_CSE_WEP104		5
+#define	RSN_CSE_BIP_CMAC_128	6
+/* 7 - "Group addressed traffic not allowed" */
+#define	RSN_CSE_GCMP_128	8
+#define	RSN_CSE_GCMP_256	9
+#define	RSN_CSE_CCMP_256	10
+#define	RSN_CSE_BIP_GMAC_128	11
+#define	RSN_CSE_BIP_GMAC_256	12
+#define	RSN_CSE_BIP_CMAC_256	13
 
-#define	RSN_ASE_NONE		0x00
-#define	RSN_ASE_8021X_UNSPEC	0x01
-#define	RSN_ASE_8021X_PSK	0x02
+/* 802.11-2016 Table 9-133 - AKM suite selectors */
+/* RSN AKM suite element */
+#define	RSN_ASE_NONE		0
+#define	RSN_ASE_8021X_UNSPEC	1
+#define	RSN_ASE_8021X_PSK	2
+#define	RSN_ASE_FT_8021X	3		/* SHA-256 */
+#define	RSN_ASE_FT_PSK		4		/* SHA-256 */
+#define	RSN_ASE_8021X_UNSPEC_SHA256	5
+#define	RSN_ASE_8021X_PSK_SHA256	6
+#define	RSN_ASE_8021X_TDLS	7		/* SHA-256 */
+#define	RSN_ASE_SAE_UNSPEC	8		/* SHA-256 */
+#define	RSN_ASE_FT_SAE		9		/* SHA-256 */
+#define	RSN_ASE_AP_PEERKEY	10		/* SHA-256 */
+#define	RSN_ASE_8021X_SUITE_B_SHA256	11
+#define	RSN_ASE_8021X_SUITE_B_SHA384	12
+#define	RSN_ASE_FT_8021X_SHA384	13
 
-#define	RSN_CAP_PREAUTH		0x01
+/* 802.11-2016 Figure 9-257 - RSN Capabilities (2 byte field) */
+#define	RSN_CAP_PREAUTH		0x0001
+#define	RSN_CAP_NO_PAIRWISE	0x0002
+#define	RSN_CAP_PTKSA_REPLAY_COUNTER	0x000c	/* 2 bit field */
+#define	RSN_CAP_GTKSA_REPLAY_COUNTER	0x0030	/* 2 bit field */
+#define	RSN_CAP_MFP_REQUIRED	0x0040
+#define	RSN_CAP_MFP_CAPABLE	0x0080
+#define	RSN_CAP_JOINT_MULTIBAND_RSNA		0x0100
+#define	RSN_CAP_PEERKEY_ENABLED	0x0200
+#define	RSN_CAP_SPP_AMSDU_CAPABLE	0x0400
+#define	RSN_CAP_SPP_AMSDU_REQUIRED	0x0800
+#define	RSN_CAP_PBAC_CAPABLE	0x1000
+#define	RSN_CAP_EXT_KEYID_CAPABLE	0x0200
+
+/* 802.11-2016 Table 9-134 PTKSA/GTKSA/STKSA replay counters usage */
+#define		RSN_CAP_REPLAY_COUNTER_1_PER	0
+#define		RSN_CAP_REPLAY_COUNTER_2_PER	1
+#define		RSN_CAP_REPLAY_COUNTER_4_PER	2
+#define		RSN_CAP_REPLAY_COUNTER_16_PER	3
 
 #define	WME_OUI			0xf25000
 #define	WME_OUI_TYPE		0x02

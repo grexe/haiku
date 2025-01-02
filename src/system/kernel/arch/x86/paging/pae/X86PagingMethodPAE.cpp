@@ -241,7 +241,7 @@ private:
 		uint32 oldPageTableCount = virtualSize / B_PAGE_SIZE / 1024;
 		for (uint32 i = 0; i < oldPageTableCount; i++) {
 			// allocate a page
-			phys_addr_t physicalTable =_AllocatePage32Bit();
+			phys_addr_t physicalTable = _Allocate32BitPage();
 
 			// put the page into the page dir
 			page_directory_entry* entry = &fPageHolePageDir[
@@ -261,7 +261,7 @@ private:
 		// allocate and map the pages we need
 		for (uint32 i = 0; i < pagesNeeded; i++) {
 			// allocate a page
-			phys_addr_t physicalAddress =_AllocatePage32Bit();
+			phys_addr_t physicalAddress = _Allocate32BitPage();
 
 			// put the page into the page table
 			page_table_entry* entry = fPageHole + virtualBase / B_PAGE_SIZE + i;
@@ -281,21 +281,13 @@ private:
 			= (addr_t)(fAllocatedPages + pagesNeeded * B_PAGE_SIZE);
 	}
 
-	phys_addr_t _AllocatePage()
+	phys_addr_t _Allocate32BitPage()
 	{
 		phys_addr_t physicalAddress
-			= (phys_addr_t)vm_allocate_early_physical_page(fKernelArgs)
+			= (phys_addr_t)vm_allocate_early_physical_page(fKernelArgs, 0xffffffff)
 				* B_PAGE_SIZE;
-		if (physicalAddress == 0)
-			panic("Failed to allocate page for the switch to PAE!");
-		return physicalAddress;
-	}
-
-	phys_addr_t _AllocatePage32Bit()
-	{
-		phys_addr_t physicalAddress = _AllocatePage();
-		if (physicalAddress > 0xffffffff) {
-			panic("Failed to allocate 32 bit addressable page for the switch "
+		if (physicalAddress == 0 || physicalAddress > 0xffffffff) {
+			panic("Failed to allocate 32-bit-addressable page for the switch "
 				"to PAE!");
 			return 0;
 		}
@@ -351,7 +343,7 @@ private:
 // #pragma mark - PhysicalPageSlotPool
 
 
-struct X86PagingMethodPAE::PhysicalPageSlotPool
+struct X86PagingMethodPAE::PhysicalPageSlotPool final
 	: X86LargePhysicalPageMapper::PhysicalPageSlotPool {
 public:
 	virtual						~PhysicalPageSlotPool();
@@ -592,6 +584,16 @@ status_t
 X86PagingMethodPAE::Init(kernel_args* args,
 	VMPhysicalPageMapper** _physicalPageMapper)
 {
+	// Ignore all memory beyond the maximum PAE address.
+	static const phys_addr_t kLimit = 1ULL << 36;
+	for (uint32 i = 0; i < args->num_physical_memory_ranges; i++) {
+		addr_range& range = args->physical_memory_range[i];
+		if (range.start >= kLimit)
+			range.size = 0;
+		else if ((range.start + range.size) > kLimit)
+			range.size = kLimit - range.start;
+	}
+
 	// switch to PAE
 	ToPAESwitcher(args).Switch(fKernelVirtualPageDirPointerTable,
 		fKernelPhysicalPageDirPointerTable, fEarlyPageStructures,
@@ -672,8 +674,7 @@ X86PagingMethodPAE::CreateTranslationMap(bool kernel, VMTranslationMap** _map)
 
 status_t
 X86PagingMethodPAE::MapEarly(kernel_args* args, addr_t virtualAddress,
-	phys_addr_t physicalAddress, uint8 attributes,
-	page_num_t (*get_free_page)(kernel_args*))
+	phys_addr_t physicalAddress, uint8 attributes)
 {
 	// check to see if a page table exists for this range
 	pae_page_directory_entry* pageDirEntry = PageDirEntryForAddress(
@@ -681,7 +682,7 @@ X86PagingMethodPAE::MapEarly(kernel_args* args, addr_t virtualAddress,
 	pae_page_table_entry* pageTable;
 	if ((*pageDirEntry & X86_PAE_PDE_PRESENT) == 0) {
 		// we need to allocate a page table
-		phys_addr_t physicalPageTable = get_free_page(args) * B_PAGE_SIZE;
+		phys_addr_t physicalPageTable = vm_allocate_early_physical_page(args) * B_PAGE_SIZE;
 
 		TRACE("X86PagingMethodPAE::MapEarly(): asked for free page for "
 			"page table: %#" B_PRIxPHYSADDR "\n", physicalPageTable);

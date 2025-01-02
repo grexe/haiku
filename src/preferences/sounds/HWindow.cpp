@@ -42,6 +42,8 @@
 #define B_TRANSLATION_CONTEXT "HWindow"
 
 static const char kSettingsFile[] = "Sounds_Settings";
+extern const char* kPlayLabel;
+extern const char* kStopLabel;
 
 
 HWindow::HWindow(BRect rect, const char* name)
@@ -53,21 +55,34 @@ HWindow::HWindow(BRect rect, const char* name)
 {
 	_InitGUI();
 
-	fFilePanel = new BFilePanel();
-	fFilePanel->SetTarget(this);
-
 	BPath path;
+	// set default path
+	find_directory(B_SYSTEM_SOUNDS_DIRECTORY, &path);
+	get_ref_for_path(path.Path(), &fPathRef);
+
 	if (find_directory(B_USER_SETTINGS_DIRECTORY, &path) == B_OK) {
 		path.Append(kSettingsFile);
 		BFile file(path.Path(), B_READ_ONLY);
 
 		BMessage msg;
-		if (file.InitCheck() == B_OK && msg.Unflatten(&file) == B_OK
-			&& msg.FindRect("frame", &fFrame) == B_OK) {
-			MoveTo(fFrame.LeftTop());
-			ResizeTo(fFrame.Width(), fFrame.Height());
+		if (file.InitCheck() == B_OK && msg.Unflatten(&file) == B_OK) {
+			if (msg.FindRect("frame", &fFrame) == B_OK) {
+				MoveTo(fFrame.LeftTop());
+				ResizeTo(fFrame.Width(), fFrame.Height());
+			}
+
+			entry_ref ref;
+			if (msg.FindRef("last_path", &ref) == B_OK) {
+				BNode node(&ref);
+				if (node.InitCheck() == B_OK && node.IsDirectory())
+					fPathRef = ref;
+			}
 		}
 	}
+
+	fFilePanel = new SoundFilePanel(this);
+	fFilePanel->SetPanelDirectory(&fPathRef);
+	fFilePanel->SetTarget(this);
 
 	MoveOnScreen();
 }
@@ -86,6 +101,7 @@ HWindow::~HWindow()
 
 		if (file.InitCheck() == B_OK) {
 			msg.AddRect("frame", fFrame);
+			msg.AddRef("last_path", &fPathRef);
 			msg.Flatten(&file);
 		}
 	}
@@ -130,6 +146,12 @@ HWindow::MessageReceived(BMessage* message)
 			break;
 		}
 
+		case B_CANCEL:
+		{
+			// reset file panel location
+			fFilePanel->SetPanelDirectory(&fPathRef);
+			break;
+		}
 		case B_SIMPLE_DATA:
 		case B_REFS_RECEIVED:
 		{
@@ -141,26 +163,6 @@ HWindow::MessageReceived(BMessage* message)
 				if (menufield == NULL)
 					return;
 				BMenu* menu = menufield->Menu();
-
-				// check audio file
-				BNode node(&ref);
-				BNodeInfo ninfo(&node);
-				char type[B_MIME_TYPE_LENGTH + 1];
-				ninfo.GetType(type);
-				BMimeType mtype(type);
-				BMimeType superType;
-				mtype.GetSupertype(&superType);
-				if (superType.Type() == NULL
-					|| strcmp(superType.Type(), "audio") != 0) {
-					beep();
-					BAlert* alert = new BAlert("",
-						B_TRANSLATE("This is not an audio file."),
-						B_TRANSLATE("OK"), NULL, NULL,
-						B_WIDTH_AS_USUAL, B_STOP_ALERT);
-					alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
-					alert->Go();
-					break;
-				}
 
 				// add file item
 				BMessage* msg = new BMessage(M_ITEM_MESSAGE);
@@ -175,6 +177,10 @@ HWindow::MessageReceived(BMessage* message)
 				if (menuitem != NULL)
 					menuitem->SetMarked(true);
 
+				// save as last used path and set as file panel location
+				path.GetParent(&path);
+				get_ref_for_path(path.Path(), &fPathRef);
+				fFilePanel->SetPanelDirectory(&fPathRef);
 				fPlayButton->SetEnabled(true);
 			}
 			break;
@@ -307,8 +313,7 @@ HWindow::_InitGUI()
 
 	BSize buttonsSize(be_plain_font->Size() * 2.5, be_plain_font->Size() * 2.5);
 
-	BButton* stopbutton = new BButton("stop", "\xE2\x96\xA0",
-		new BMessage(M_STOP_MESSAGE));
+	BButton* stopbutton = new BButton("stop", kStopLabel, new BMessage(M_STOP_MESSAGE));
 	stopbutton->SetEnabled(false);
 	stopbutton->SetExplicitSize(buttonsSize);
 
@@ -316,8 +321,7 @@ HWindow::_InitGUI()
 	// intercept in DispatchMessage to trigger the buttons enabling or disabling.
 	stopbutton->SetFlags(stopbutton->Flags() | B_PULSE_NEEDED);
 
-	fPlayButton = new BButton("play", "\xE2\x96\xB6",
-		new BMessage(M_PLAY_MESSAGE));
+	fPlayButton = new BButton("play", kPlayLabel, new BMessage(M_PLAY_MESSAGE));
 	fPlayButton->SetEnabled(false);
 	fPlayButton->SetExplicitSize(buttonsSize);
 
@@ -409,6 +413,9 @@ HWindow::_SetupMenuField()
 			err = dir.GetNextEntry(&entry, true);
 			if (entry.InitCheck() != B_NO_ERROR)
 				break;
+
+			if (entry.IsDirectory())
+				continue;
 
 			entry.GetPath(&item_path);
 

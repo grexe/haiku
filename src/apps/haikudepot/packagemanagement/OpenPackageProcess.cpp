@@ -29,7 +29,7 @@
 #include <package/hpkg/PackageReader.h>
 
 #include "Logger.h"
-#include "PackageUtils.h"
+#include "PackageKitUtils.h"
 
 #undef B_TRANSLATION_CONTEXT
 #define B_TRANSLATION_CONTEXT "OpenPackageProcess"
@@ -57,10 +57,8 @@ public:
 	virtual status_t HandleEntry(BPackageEntry* entry)
 	{
 		BString path = MakePath(entry);
-		if (path.FindFirst("data/deskbar/menu") == 0
-				&& entry->SymlinkPath() != NULL) {
-			HDINFO("found deskbar entry: %s -> %s",
-				path.String(), entry->SymlinkPath());
+		if (path.FindFirst("data/deskbar/menu") == 0 && entry->SymlinkPath() != NULL) {
+			HDINFO("found deskbar entry: %s -> %s", path.String(), entry->SymlinkPath());
 			fDeskbarLinks.push_back(DeskbarLink(path, entry->SymlinkPath()));
 		}
 		return B_OK;
@@ -200,7 +198,7 @@ OpenPackageProcess::FindAppToLaunch(const PackageInfoRef& package,
 		return false;
 
 	BPath packagePath;
-	if (PackageUtils::DeriveLocalFilePath(package, packagePath) != B_OK) {
+	if (PackageKitUtils::DeriveLocalFilePath(package, packagePath) != B_OK) {
 		HDDEBUG("unable to derive local file path for package");
 		return false;
 	}

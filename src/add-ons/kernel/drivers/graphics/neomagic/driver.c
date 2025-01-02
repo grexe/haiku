@@ -494,7 +494,7 @@ static status_t map_device(device_info *di)
 		buffer,
 		di->pcii.u.h0.base_registers[frame_buffer],
 		di->pcii.u.h0.base_register_sizes[frame_buffer],
-		B_ANY_KERNEL_BLOCK_ADDRESS | B_MTR_WC,
+		B_ANY_KERNEL_BLOCK_ADDRESS | B_WRITE_COMBINING_MEMORY,
 		B_READ_AREA | B_WRITE_AREA | B_CLONEABLE_AREA,
 		&(si->framebuffer));
 
@@ -641,7 +641,7 @@ nm_interrupt(void *data)
 	int32 handled = B_UNHANDLED_INTERRUPT;
 	device_info *di = (device_info *)data;
 	shared_info *si = di->si;
-	int32 *flags = &(si->flags);
+	int32 *flags = (int32*)&(si->flags);
 	vuint32 *regs, *regs2;
 
 	/* is someone already handling an interrupt for this device? */

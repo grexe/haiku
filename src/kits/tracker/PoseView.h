@@ -101,7 +101,7 @@ public:
 	Model* TargetModel() const;
 
 	virtual bool IsFilePanel() const;
-	bool IsDesktopWindow() const;
+	bool IsDesktop() const;
 	virtual bool IsDesktopView() const;
 
 	// state saving/restoring
@@ -213,11 +213,8 @@ public:
 	int32 CountItems() const;
 	void UpdateCount();
 
-	rgb_color DeskTextColor() const;
-	rgb_color DeskTextBackColor() const;
-
-	rgb_color TextColor(bool selected = false) const;
-	rgb_color BackColor(bool selected = false) const;
+	virtual rgb_color TextColor(bool selected = false) const;
+	virtual rgb_color BackColor(bool selected = false) const;
 
 	bool WidgetTextOutline() const;
 	void SetWidgetTextOutline(bool);
@@ -273,8 +270,13 @@ public:
 	void SetDefaultPrinter();
 
 	void IdentifySelection(bool force = false);
+
+	// unmounting
+	bool CanUnmountSelection();
 	void UnmountSelectedVolumes();
+
 	virtual void OpenParent();
+	virtual bool ParentIsRoot();
 
 	virtual void OpenSelection(BPose* clicked_pose = NULL,
 		int32* index = NULL);
@@ -410,7 +412,9 @@ public:
 	void StopWatchDateFormatChange();
 
 	// type ahead filtering
-	bool IsFiltering() const;
+	inline bool IsFiltering() const { return IsRefFiltering() || IsTypeAheadFiltering(); };
+	inline bool IsRefFiltering() const { return fRefFilter != NULL; };
+	inline bool IsTypeAheadFiltering() const { return fTypeAheadFiltering; };
 
 	void UpdateDateColumns(BMessage*);
 	virtual void AdaptToVolumeChange(BMessage*);
@@ -653,12 +657,14 @@ protected:
 	// typeahead filtering
 	void EnsurePoseUnselected(BPose* pose);
 	void RemoveFilteredPose(BPose* pose, int32 index);
-	void FilterChanged();
+	void TypeAheadFilteringChanged();
 	void UpdateAfterFilterChange();
 	bool FilterPose(BPose* pose);
-	void StartFiltering();
-	void StopFiltering();
-	void ClearFilter();
+	void StartTypeAheadFiltering();
+	void StopTypeAheadFiltering();
+	void ClearTypeAheadFiltering();
+	void RebuildFilteringPoseList();
+
 	PoseList* CurrentPoseList() const;
 
 	// misc
@@ -681,7 +687,6 @@ protected:
 private:
 	void DrawOpenAnimation(BRect);
 	void ApplyBackgroundColor();
-	rgb_color InvertedBackColor() const;
 
 	void MoveSelectionOrEntryToTrash(const entry_ref* ref, bool selectNext);
 
@@ -800,11 +805,11 @@ private:
 	bool fOkToMapIcons : 1;
 	bool fEnsurePosesVisible : 1;
 	bool fShouldAutoScroll : 1;
-	bool fIsDesktopWindow : 1;
+	bool fIsDesktop : 1;
 	bool fIsWatchingDateFormatChange : 1;
 	bool fHasPosesInClipboard : 1;
 	bool fCursorCheck : 1;
-	bool fFiltering : 1;
+	bool fTypeAheadFiltering : 1;
 
 	BObjectList<BString> fFilterStrings;
 	int32 fLastFilterStringCount;
@@ -1017,9 +1022,9 @@ BPoseView::IsFilePanel() const
 
 
 inline bool
-BPoseView::IsDesktopWindow() const
+BPoseView::IsDesktop() const
 {
-	return fIsDesktopWindow;
+	return fIsDesktop;
 }
 
 
@@ -1027,57 +1032,6 @@ inline bool
 BPoseView::IsDesktopView() const
 {
 	return false;
-}
-
-
-inline rgb_color
-BPoseView::DeskTextColor() const
-{
-	// The desktop color is chosen independently for the desktop.
-	// The text color is chosen globally for all directories.
-	// It's fairly easy to get something unreadable (even with the default
-	// settings, it's expected that text will be black on white in Tracker
-	// folders, but white on blue on the desktop).
-	// So here we check if the colors are different enough, and otherwise,
-	// force the text to be either white or black.
-	rgb_color textColor = HighColor();
-	rgb_color viewColor = ViewColor();
-
-	// The colors are different enough, we can use them as is
-	if (rgb_color::Contrast(viewColor, textColor) > 127)
-		return textColor;
-
-	return viewColor.IsLight() ? kBlack : kWhite;
-}
-
-
-inline rgb_color
-BPoseView::DeskTextBackColor() const
-{
-	// returns black or white color depending on the desktop background
-	int32 thresh = 0;
-	rgb_color color = LowColor();
-
-	if (color.red > 150)
-		thresh++;
-
-	if (color.green > 150)
-		thresh++;
-
-	if (color.blue > 150)
-		thresh++;
-
-	if (thresh > 1) {
-		color.red = 255;
-		color.green = 255;
-		color.blue = 255;
-	} else {
-		color.red = 0;
-		color.green = 0;
-		color.blue = 0;
-	}
-
-	return color;
 }
 
 
@@ -1282,7 +1236,7 @@ BPoseView::SetRefFilter(BRefFilter* filter)
 {
 	fRefFilter = filter;
 	if (filter != NULL)
-		FilterChanged();
+		RebuildFilteringPoseList();
 }
 
 
@@ -1331,7 +1285,7 @@ BPoseView::SetHasPosesInClipboard(bool hasPoses)
 inline PoseList*
 BPoseView::CurrentPoseList() const
 {
-	return fFiltering ? fFilteredPoseList : fPoseList;
+	return IsFiltering() ? fFilteredPoseList : fPoseList;
 }
 
 

@@ -12,6 +12,7 @@
 
 #include <AutoLocker.h>
 #include <syscalls.h>
+#include <time_private.h>
 #include <user_mutex_defs.h>
 #include <user_thread.h>
 #include <util/DoublyLinkedList.h>
@@ -66,16 +67,22 @@ struct SharedRWLock {
 
 	status_t ReadLock(uint32 flags, bigtime_t timeout)
 	{
-		return acquire_sem_etc(sem, 1, flags, timeout);
+		status_t status;
+		do {
+			status = acquire_sem_etc(sem, 1, flags, timeout);
+		} while (status == B_INTERRUPTED);
+		return status;
 	}
 
 	status_t WriteLock(uint32 flags, bigtime_t timeout)
 	{
-		status_t error = acquire_sem_etc(sem, MAX_READER_COUNT,
-			flags, timeout);
-		if (error == B_OK)
+		status_t status;
+		do {
+			status = acquire_sem_etc(sem, MAX_READER_COUNT, flags, timeout);
+		} while (status == B_INTERRUPTED);
+		if (status == B_OK)
 			owner = find_thread(NULL);
-		return error;
+		return status;
 	}
 
 	status_t Unlock()
@@ -202,12 +209,15 @@ private:
 		if (writer)
 			writer_count++;
 
-		StructureUnlock();
-		status_t error = _kern_block_thread(flags, timeout);
-		StructureLock();
+		status_t status;
+		do {
+			StructureUnlock();
+			status = _kern_block_thread(flags, timeout);
+			StructureLock();
 
-		if (!waiter.queued)
-			return waiter.status;
+			if (!waiter.queued)
+				return waiter.status;
+		} while (status == B_INTERRUPTED);
 
 		// we're still queued, which means an error (timeout, interrupt)
 		// occurred
@@ -218,7 +228,7 @@ private:
 
 		_Unblock();
 
-		return error;
+		return status;
 	}
 
 	void _Unblock()
@@ -343,10 +353,13 @@ pthread_rwlock_tryrdlock(pthread_rwlock_t* lock)
 
 int
 pthread_rwlock_clockrdlock(pthread_rwlock_t* lock, clockid_t clock_id,
-            const struct timespec *abstime)
+	const struct timespec *abstime)
 {
-	bigtime_t timeout = abstime->tv_sec * 1000000LL
-		+ abstime->tv_nsec / 1000LL;
+	bigtime_t timeout = 0;
+	bool invalidTime = false;
+	if (abstime == NULL || !timespec_to_bigtime(*abstime, timeout))
+		invalidTime = true;
+
 	uint32 flags = 0;
 	if (timeout >= 0) {
 		switch (clock_id) {
@@ -367,7 +380,9 @@ pthread_rwlock_clockrdlock(pthread_rwlock_t* lock, clockid_t clock_id,
 	else
 		error = ((LocalRWLock*)lock)->ReadLock(flags, timeout);
 
-	return error == B_TIMED_OUT ? EBUSY : error;
+	if (error != B_OK && invalidTime)
+		return EINVAL;
+	return (error == B_TIMED_OUT) ? EBUSY : error;
 }
 
 
@@ -403,11 +418,14 @@ pthread_rwlock_trywrlock(pthread_rwlock_t* lock)
 
 
 int
-pthread_rwlock_clockwrlock (pthread_rwlock_t* lock, clockid_t clock_id,
+pthread_rwlock_clockwrlock(pthread_rwlock_t* lock, clockid_t clock_id,
 	const struct timespec *abstime)
 {
-	bigtime_t timeout = abstime->tv_sec * 1000000LL
-		+ abstime->tv_nsec / 1000LL;
+	bigtime_t timeout = 0;
+	bool invalidTime = false;
+	if (abstime == NULL || !timespec_to_bigtime(*abstime, timeout))
+		invalidTime = true;
+
 	uint32 flags = 0;
 	if (timeout >= 0) {
 		switch (clock_id) {
@@ -428,7 +446,9 @@ pthread_rwlock_clockwrlock (pthread_rwlock_t* lock, clockid_t clock_id,
 	else
 		error = ((LocalRWLock*)lock)->WriteLock(flags, timeout);
 
-	return error == B_TIMED_OUT ? EBUSY : error;
+	if (error != B_OK && invalidTime)
+		return EINVAL;
+	return (error == B_TIMED_OUT) ? EBUSY : error;
 }
 
 
@@ -501,4 +521,3 @@ pthread_rwlockattr_setpshared(pthread_rwlockattr_t* _attr, int shared)
 
 	return 0;
 }
-

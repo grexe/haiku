@@ -10,6 +10,7 @@
 #include <new>
 
 #include <AutoDeleter.h>
+#include <StackOrHeapArray.h>
 
 #include <fs/fd.h>
 #include <lock.h>
@@ -301,14 +302,13 @@ unix_add_ancillary_data(net_protocol *self, ancillary_data_container *container,
 		return B_BAD_VALUE;
 
 	int* fds = (int*)CMSG_DATA(header);
-	int count = (header->cmsg_len - CMSG_ALIGN(sizeof(cmsghdr))) / sizeof(int);
+	int count = (header->cmsg_len - CMSG_LEN(0)) / sizeof(int);
 	if (count == 0)
 		return B_BAD_VALUE;
 
-	file_descriptor** descriptors = new(std::nothrow) file_descriptor*[count];
-	if (descriptors == NULL)
+	BStackOrHeapArray<file_descriptor*, 8> descriptors(count);
+	if (!descriptors.IsValid())
 		return ENOBUFS;
-	ArrayDeleter<file_descriptor*> _(descriptors);
 	memset(descriptors, 0, sizeof(file_descriptor*) * count);
 
 	// get the file descriptors
@@ -353,52 +353,65 @@ unix_add_ancillary_data(net_protocol *self, ancillary_data_container *container,
 
 ssize_t
 unix_process_ancillary_data(net_protocol *self,
-	const ancillary_data_header *header, const void *data, void *buffer,
+	const ancillary_data_container *container, void *buffer,
 	size_t bufferSize)
 {
-	TRACE("[%" B_PRId32 "] unix_process_ancillary_data(%p, %p (level: %d, "
-		"type: %d, len: %lu), %p, %p, %lu)\n", find_thread(NULL), self, header,
-		header->level, header->type, header->len, data, buffer, bufferSize);
+	TRACE("[%" B_PRId32 "] unix_process_ancillary_data(%p, %p, %p, %p, %lu)\n",
+		find_thread(NULL), self, container, buffer, bufferSize);
 
-	// we support only SCM_RIGHTS
-	if (header->level != SOL_SOCKET || header->type != SCM_RIGHTS)
-		return B_BAD_VALUE;
+	int totalCount = 0;
 
-	int count = header->len / sizeof(file_descriptor*);
-	file_descriptor** descriptors = (file_descriptor**)data;
+	ancillary_data_header header;
+	void* data = NULL;
+	while ((data = gStackModule->next_ancillary_data(container, data, &header)) != NULL) {
+		// we support only SCM_RIGHTS
+		if (header.level != SOL_SOCKET || header.type != SCM_RIGHTS)
+			return B_BAD_VALUE;
+
+		totalCount += header.len / sizeof(file_descriptor*);
+	}
 
 	// check if there's enough space in the buffer
-	size_t neededBufferSpace = CMSG_SPACE(sizeof(int) * count);
+	size_t neededBufferSpace = CMSG_SPACE(sizeof(int) * totalCount);
 	if (bufferSize < neededBufferSpace)
 		return B_BAD_VALUE;
 
 	// init header
 	cmsghdr* messageHeader = (cmsghdr*)buffer;
-	messageHeader->cmsg_level = header->level;
-	messageHeader->cmsg_type = header->type;
-	messageHeader->cmsg_len = CMSG_LEN(sizeof(int) * count);
+	messageHeader->cmsg_level = SOL_SOCKET;
+	messageHeader->cmsg_type = SCM_RIGHTS;
+	messageHeader->cmsg_len = CMSG_LEN(sizeof(int) * totalCount);
 
 	// create FDs for the current process
 	int* fds = (int*)CMSG_DATA(messageHeader);
 	io_context* ioContext = get_current_io_context(!gStackModule->is_syscall());
 
 	status_t error = B_OK;
-	for (int i = 0; i < count; i++) {
-		// Get an additional reference which will go to the FD table index. The
-		// reference and open reference acquired in unix_add_ancillary_data()
-		// will be released when the container is destroyed.
-		inc_fd_ref_count(descriptors[i]);
-		fds[i] = new_fd(ioContext, descriptors[i]);
+	int i = 0;
+	data = NULL;
+	while ((data = gStackModule->next_ancillary_data(container, data, &header)) != NULL) {
+		int count = header.len / sizeof(file_descriptor*);
+		file_descriptor** descriptors = (file_descriptor**)data;
 
-		if (fds[i] < 0) {
-			error = fds[i];
-			put_fd(descriptors[i]);
+		for (int k = 0; k < count; k++, i++) {
+			// Get an additional reference which will go to the FD table index. The
+			// reference and open reference acquired in unix_add_ancillary_data()
+			// will be released when the container is destroyed.
+			inc_fd_ref_count(descriptors[k]);
+			fds[i] = new_fd(ioContext, descriptors[k]);
 
-			// close FD indices
-			for (int k = i - 1; k >= 0; k--)
-				close_fd_index(ioContext, fds[k]);
-			break;
+			if (fds[i] < 0) {
+				error = fds[i];
+				put_fd(descriptors[k]);
+
+				// close FD indices
+				for (int j = i - 1; j >= 0; j--)
+					close_fd_index(ioContext, fds[j]);
+				break;
+			}
 		}
+		if (error != B_OK)
+			break;
 	}
 
 	return error == B_OK ? neededBufferSpace : error;

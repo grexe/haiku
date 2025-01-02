@@ -12,7 +12,7 @@
 
 # The Haiku (base) version. For development builds the revision will be
 # attached.
-HAIKU_VERSION = r1~beta4 ;
+HAIKU_VERSION = r1~beta5 ;
 
 
 #pragma mark - container settings
@@ -234,21 +234,23 @@ if $(HOST_PLATFORM) = linux || $(HOST_PLATFORM) = freebsd
 }
 
 HOST_CPU ?= $(OSPLAT:L) ;
-
-# Jam doesn't know x86_64, so override HOST_CPU, if 64 bit.
+# Jam doesn't know 32 vs 64 bit, so fill in the gaps based on our
+# host platform 64-bit knowledge.
 if $(HOST_CPU) = x86 && $(HOST_PLATFORM_IS_64_BIT) {
 	HOST_CPU = x86_64 ;
 }
-
+if $(HOST_CPU) = arm && $(HOST_PLATFORM_IS_64_BIT) {
+	HOST_CPU = arm64 ;
+}
+if $(HOST_CPU) = riscv && $(HOST_PLATFORM_IS_64_BIT) {
+	HOST_CPU = riscv64 ;
+}
 HOST_ARCH ?= $(HOST_CPU) ;
 HOST_ARCHS = $(HOST_ARCH) ;
 HOST_KERNEL_ARCH = host ;
 
 # set packaging architecture
 HOST_PACKAGING_ARCH		?= $(HOST_CPU) ;
-if $(HOST_PACKAGING_ARCH) = x86 && $(HOST_CC_IS_LEGACY_GCC) = 1 {
-	HOST_PACKAGING_ARCH = x86_gcc2 ;
-}
 HOST_PACKAGING_ARCHS = $(HOST_PACKAGING_ARCH) ;
 
 # directories
@@ -278,9 +280,7 @@ HOST_C++FLAGS += -Wno-multichar ;
 HOST_PIC_CCFLAGS += -fPIC ;
 HOST_PIC_C++FLAGS += -fPIC ;
 
-if $(HOST_CC_IS_LEGACY_GCC) != 1 {
-	HOST_GCC_BASE_FLAGS += -fno-strict-aliasing -fno-delete-null-pointer-checks ;
-}
+HOST_GCC_BASE_FLAGS += -fno-strict-aliasing -fno-delete-null-pointer-checks ;
 
 HOST_KERNEL_CCFLAGS += $(HOST_GCC_BASE_FLAGS) -finline -fno-builtin
 	-D_KERNEL_MODE ;
@@ -308,9 +308,7 @@ if $(HOST_ARCH) = m68k {
 if $(HOST_PLATFORM) != darwin {
 	# fix for new changes to DSO linking policies
 	HOST_LINKFLAGS += -Xlinker --no-as-needed ;
-	if $(HOST_CC_IS_LEGACY_GCC) != 1 {
-		HOST_LINKFLAGS += -Wl,--copy-dt-needed-entries ;
-	}
+	HOST_LINKFLAGS += -Wl,--copy-dt-needed-entries ;
 }
 
 
@@ -390,13 +388,8 @@ if $(HOST_PLATFORM) != darwin {
 
 if $(HOST_PLATFORM_HAIKU_COMPATIBLE) {
 	# the C++ standard and support libraries
-	if $(HOST_CC_IS_LEGACY_GCC) = 1 {
-		HOST_LIBSTDC++ = stdc++.r4 ;
-		HOST_LIBSUPC++ = ;
-	} else {
-		HOST_LIBSTDC++ = stdc++ ;
-		HOST_LIBSUPC++ = supc++ ;
-	}
+	HOST_LIBSTDC++ = stdc++ ;
+	HOST_LIBSUPC++ = supc++ ;
 
 	HOST_ADD_BUILD_COMPATIBILITY_LIB_DIR
 		= "LIBRARY_PATH=\"$LIBRARY_PATH:$(HOST_BUILD_COMPATIBILITY_LIB_DIR)\"" ;
@@ -423,11 +416,7 @@ if $(HOST_PLATFORM_HAIKU_COMPATIBLE) {
 	HOST_PTHREAD_LINKFLAGS = -pthread ;
 
 	# the C++ support library
-	if $(HOST_CC_IS_LEGACY_GCC) = 1 {
-		HOST_LIBSUPC++ = ;
-	} else {
-		HOST_LIBSUPC++ = supc++ ;
-	}
+	HOST_LIBSUPC++ = supc++ ;
 
 	if $(HOST_PLATFORM) = darwin {
 		# part of the C++ runtime lives in libstdc++ on Darwin
@@ -512,15 +501,20 @@ if $(HOST_PLATFORM) = freebsd {
 if $(HOST_PLATFORM) = darwin {
 	HOST_HDRS += [ FDirName $(HAIKU_TOP) src build libgnuregex ] ;
 
-	# Mac OS X users may be using macports libraries, in which case the headers
+	# macOS users may be using macports libraries, in which case the headers
 	# and the libs are located in /opt/local/.
 	HOST_HDRS += /opt/local/include ;
 	HOST_LINKFLAGS += -L/opt/local/lib ;
 
-	# Mac OS X users may be using homebrew libraries, in which case the headers
-	# and the libs are locted in the /usr/local/.
+	# macOS users may be using homebrew libraries, in which case the headers
+	# and the libs are located in /usr/local/.
 	HOST_HDRS += /usr/local/include ;
 	HOST_LINKFLAGS += -L/usr/local/lib ;
+
+	# macOS users on Apple Silicon will usually have homebrew installed
+	# in /opt/homebrew instead of /usr/local.
+	HOST_HDRS += /opt/homebrew/include ;
+	HOST_LINKFLAGS += -L/opt/homebrew/lib ;
 }
 
 HOST_BE_API_HEADERS =

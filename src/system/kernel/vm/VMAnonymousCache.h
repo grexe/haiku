@@ -31,7 +31,7 @@ extern "C" {
 }
 
 
-class VMAnonymousCache : public VMCache {
+class VMAnonymousCache final : public VMCache {
 public:
 	virtual						~VMAnonymousCache();
 
@@ -47,8 +47,9 @@ public:
 	virtual	status_t			Adopt(VMCache* source, off_t offset,
 									off_t size, off_t newOffset);
 
-	virtual	status_t			Discard(off_t offset, off_t size);
+	virtual	ssize_t				Discard(off_t offset, off_t size);
 
+	virtual	bool				CanOvercommit();
 	virtual	status_t			Commit(off_t size, int priority);
 	virtual	bool				HasPage(off_t offset);
 	virtual	bool				DebugHasPage(off_t offset);
@@ -76,6 +77,8 @@ public:
 
 	virtual	void				Merge(VMCache* source);
 
+	virtual	status_t			AcquireUnreferencedStoreRef();
+
 protected:
 	virtual	void				DeleteObject();
 
@@ -89,8 +92,6 @@ private:
 			swap_addr_t			_SwapBlockGetAddress(off_t pageIndex);
 			status_t			_Commit(off_t size, int priority);
 
-			void				_MergePagesSmallerSource(
-									VMAnonymousCache* source);
 			void				_MergePagesSmallerConsumer(
 									VMAnonymousCache* source);
 			void				_MergeSwapPages(VMAnonymousCache* source);

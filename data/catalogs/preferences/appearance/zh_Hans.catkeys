@@ -1,4 +1,4 @@
-1	english	x-vnd.Haiku-Appearance	663472720
+1	english	x-vnd.Haiku-Appearance	211365410
 Control border	Colors tab		控件边界
 Control mark	Colors tab		控件标记
 Off	AntialiasingSettingsView		关闭
@@ -12,7 +12,7 @@ No effect on running applications	DecorSettingsView		对运行中程序无效果
 Fixed font:	Font view		等宽字体：
 Appearance	System name		外观
 Reduce colored edges filter strength:	AntialiasingSettingsView		减小彩色边缘滤色强度:
-Glyph hinting:	AntialiasingSettingsView		象形文字微调：
+Glyph hinting:	AntialiasingSettingsView		字形微调：
 Default Haiku ControlLook	DecorSettingsView		Haiku 默认控件外观
 Menu item text	Colors tab		菜单项文本
 About decorator	DecorSettingsView		关于主题
@@ -24,7 +24,7 @@ Arrow style	DecorSettingsView		箭头样式
 On	AntialiasingSettingsView		开启
 Decorator:	DecorSettingsView		窗口装饰：
 Menu background	Colors tab		菜单背景
-Revert	APRWindow		取消
+Revert	APRWindow		恢复
 List item text	Colors tab		列表项文本
 OK	DecorSettingsView		确定
 Control text	Colors tab		控件文本
@@ -43,6 +43,7 @@ Selected menu item text	Colors tab		选择菜单文本
 Size:	Font Selection view		大小：
 Panel background	Colors tab		面板背景
 Plain font:	Font view		常规字体：
+Automatically pick secondary colors	Colors tab		自动选取次要颜色
 Window tab text	Colors tab		窗口标签文本
 Navigation pulse	Colors tab		导航引导
 LCD subpixel	AntialiasingSettingsView		LCD 亚像素精度

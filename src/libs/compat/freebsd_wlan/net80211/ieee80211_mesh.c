@@ -1,8 +1,7 @@
 /*- 
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2009 The FreeBSD Foundation 
- * All rights reserved. 
  * 
  * This software was developed by Rui Paulo under sponsorship from the
  * FreeBSD Foundation. 
@@ -28,10 +27,6 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF 
  * SUCH DAMAGE. 
  */ 
-#include <sys/cdefs.h>
-#ifdef __FreeBSD__
-__FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_mesh.c 326272 2017-11-27 15:23:17Z pfg $");
-#endif
 
 /*
  * IEEE 802.11s Mesh Point (MBSS) support.
@@ -59,6 +54,7 @@ __FBSDID("$FreeBSD: releng/12.0/sys/net80211/ieee80211_mesh.c 326272 2017-11-27 
 #include <net/if_var.h>
 #include <net/if_media.h>
 #include <net/if_llc.h>
+#include <net/if_private.h>
 #include <net/ethernet.h>
 
 #include <net80211/ieee80211_var.h>
@@ -962,7 +958,7 @@ mesh_generateid(struct ieee80211vap *vap)
 	uint16_t r;
 
 	do {
-		get_random_bytes(&r, 2);
+		net80211_get_random_bytes(&r, 2);
 		ieee80211_iterate_nodes(&vap->iv_ic->ic_sta, mesh_checkid, &r);
 		maxiter--;
 	} while (r == 0 && maxiter > 0);
@@ -1120,7 +1116,7 @@ ieee80211_mesh_forward_to_gates(struct ieee80211vap *vap,
 		ieee80211_mesh_rt_update(rt_dest, ms->ms_ppath->mpp_inact);
 		MESH_RT_UNLOCK(ms);
 		/* XXX: lock?? */
-		mcopy = m_dup(m, M_NOWAIT);
+		mcopy = m_dup(m, IEEE80211_M_NOWAIT);
 		for (; mcopy != NULL; mcopy = next) {
 			next = mcopy->m_nextpkt;
 			mcopy->m_nextpkt = NULL;
@@ -1176,7 +1172,7 @@ mesh_forward(struct ieee80211vap *vap, struct mbuf *m,
 		vap->iv_stats.is_mesh_fwd_disabled++;
 		return;
 	}
-	mcopy = m_dup(m, M_NOWAIT);
+	mcopy = m_dup(m, IEEE80211_M_NOWAIT);
 	if (mcopy == NULL) {
 		IEEE80211_NOTE_FRAME(vap, IEEE80211_MSG_MESH, wh,
 		    "%s", "frame not fwd'd, cannot dup");
@@ -1229,6 +1225,7 @@ mesh_forward(struct ieee80211vap *vap, struct mbuf *m,
 	M_WME_SETAC(mcopy, WME_AC_BE);
 
 	/* XXX do we know m_nextpkt is NULL? */
+	MPASS((mcopy->m_pkthdr.csum_flags & CSUM_SND_TAG) == 0);
 	mcopy->m_pkthdr.rcvif = (void *) ni;
 
 	/*
@@ -1567,8 +1564,7 @@ mesh_input(struct ieee80211_node *ni, struct mbuf *m,
 	*/
 	wh = mtod(m, struct ieee80211_frame *);
 
-	if ((wh->i_fc[0] & IEEE80211_FC0_VERSION_MASK) !=
-	    IEEE80211_FC0_VERSION_0) {
+	if (!IEEE80211_IS_FC0_CHECK_VER(wh, IEEE80211_FC0_VERSION_0)) {
 		IEEE80211_DISCARD_MAC(vap, IEEE80211_MSG_ANY,
 		    ni->ni_macaddr, NULL, "wrong version %x", wh->i_fc[0]);
 		vap->iv_stats.is_rx_badversion++;
@@ -1641,7 +1637,7 @@ mesh_input(struct ieee80211_node *ni, struct mbuf *m,
 		 */
 		hdrspace = ieee80211_hdrspace(ic, wh);
 		if (!IEEE80211_IS_MULTICAST(wh->i_addr1)) {
-			m = ieee80211_defrag(ni, m, hdrspace);
+			m = ieee80211_defrag(ni, m, hdrspace, 0);
 			if (m == NULL) {
 				/* Fragment dropped or frame not complete yet */
 				goto out;
@@ -1797,7 +1793,7 @@ mesh_input(struct ieee80211_node *ni, struct mbuf *m,
 			    ether_sprintf(wh->i_addr2), rssi);
 		}
 #endif
-		if (wh->i_fc[1] & IEEE80211_FC1_PROTECTED) {
+		if (IEEE80211_IS_PROTECTED(wh)) {
 			IEEE80211_DISCARD(vap, IEEE80211_MSG_INPUT,
 			    wh, NULL, "%s", "WEP set but not permitted");
 			vap->iv_stats.is_rx_mgtdiscard++; /* XXX */
@@ -1881,7 +1877,7 @@ mesh_recv_mgmt(struct ieee80211_node *ni, struct mbuf *m0, int subtype,
 				 * XXX check if the beacon we recv'd gives
 				 * us what we need and suppress the probe req
 				 */
-				ieee80211_probe_curchan(vap, 1);
+				ieee80211_probe_curchan(vap, true);
 				ic->ic_flags_ext &= ~IEEE80211_FEXT_PROBECHAN;
 			}
 			ieee80211_add_scan(vap, rxchan, &scan, wh,
@@ -2194,7 +2190,7 @@ mesh_parse_meshpeering_action(struct ieee80211_node *ni,
 		sendclose = 1;
 		IEEE80211_DISCARD(vap,
 		    IEEE80211_MSG_ACTION | IEEE80211_MSG_MESH,
-		    wh, NULL, "%s", "configuration missmatch");
+		    wh, NULL, "%s", "configuration mismatch");
 	}
 
 	if (sendclose) {
@@ -2668,7 +2664,7 @@ mesh_send_action(struct ieee80211_node *ni,
 		return EIO;		/* XXX */
 	}
 
-	M_PREPEND(m, sizeof(struct ieee80211_frame), M_NOWAIT);
+	M_PREPEND(m, sizeof(struct ieee80211_frame), IEEE80211_M_NOWAIT);
 	if (m == NULL) {
 		ieee80211_free_node(ni);
 		return ENOMEM;
@@ -2959,7 +2955,7 @@ mesh_send_action_meshgate(struct ieee80211_node *ni,
 		 * mesh link metric
 		 *   [1] category
 		 *   [1] action
-		 *   [tlv] mesh gate annoucement
+		 *   [tlv] mesh gate announcement
 		 */
 		*frm++ = category;
 		*frm++ = action;

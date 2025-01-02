@@ -92,7 +92,7 @@ long_mmu_init()
 {
 	uint64* pmlTop;
 	// Allocate the top level PMLTop.
-	pmlTop = (uint64*)mmu_allocate_page(&gKernelArgs.arch_args.phys_pgdir);
+	pmlTop = (uint64*)mmu_allocate_page((addr_t*)&gKernelArgs.arch_args.phys_pgdir);
 	memset(pmlTop, 0, B_PAGE_SIZE);
 	gKernelArgs.arch_args.vir_pgdir = fix_address((uint64)(addr_t)pmlTop);
 
@@ -354,6 +354,8 @@ long_start_kernel()
 	long_gdt_init();
 	debug_cleanup();
 	long_mmu_init();
+	heap_release();
+
 	convert_kernel_args();
 
 	// Save the kernel entry point address.

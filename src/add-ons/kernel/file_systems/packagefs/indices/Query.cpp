@@ -22,6 +22,7 @@ struct Query::QueryPolicy {
 	typedef Query Context;
 	typedef ::Node Entry;
 	typedef ::Node Node;
+	typedef void* NodeHolder;
 
 	struct Index {
 		Query*		query;
@@ -36,6 +37,7 @@ struct Query::QueryPolicy {
 
 	struct IndexIterator : ::IndexIterator {
 		::Index*			index;
+		Entry*				entry;
 
 		IndexIterator(::Index* index)
 			:
@@ -50,7 +52,7 @@ struct Query::QueryPolicy {
 
 	static ino_t EntryGetParentID(Entry* entry)
 	{
-		return entry->Parent()->ID();
+		return entry->GetParentUnchecked()->ID();
 	}
 
 	static Node* EntryGetNode(Entry* entry)
@@ -74,8 +76,7 @@ struct Query::QueryPolicy {
 		return nameLength + 1;
 	}
 
-	static const char* EntryGetNameNoCopy(Entry* entry, void* buffer,
-		size_t bufferSize)
+	static const char* EntryGetNameNoCopy(NodeHolder& holder, Entry* entry)
 	{
 		return entry->Name();
 	}
@@ -93,13 +94,9 @@ struct Query::QueryPolicy {
 		index.index = NULL;
 	}
 
-	static int32 IndexGetWeightedScore(Index& index, int32 score)
+	static int32 IndexGetSize(Index& index)
 	{
-		// should be inversely proportional to the index size; max input score
-		// is 2048
-		static const int32 maxFactor = (1024 * 1024) - 1;
-		return score * (maxFactor /
-			std::min(maxFactor, std::max((int32)1, index.index->CountEntries())));
+		return index.index->CountEntries();
 	}
 
 	static type_code IndexGetType(Index& index)
@@ -142,15 +139,27 @@ struct Query::QueryPolicy {
 		return B_OK;
 	}
 
-	static status_t IndexIteratorGetNextEntry(IndexIterator* indexIterator,
-		void* value, size_t* _valueLength, size_t bufferSize, Entry** _entry)
+	static status_t IndexIteratorFetchNextEntry(IndexIterator* indexIterator,
+		void* value, size_t* _valueLength, size_t bufferSize, size_t* duplicate)
 	{
 		Node* node = indexIterator->Next(value, _valueLength);
 		if (node == NULL)
 			return B_ENTRY_NOT_FOUND;
 
-		*_entry = node;
+		indexIterator->entry = node;
 		return B_OK;
+	}
+
+	static status_t IndexIteratorGetEntry(Context* context, IndexIterator* indexIterator,
+		NodeHolder& holder, Entry** _entry)
+	{
+		*_entry = indexIterator->entry;
+		return B_OK;
+	}
+
+	static void IndexIteratorSkipDuplicates(IndexIterator* indexIterator)
+	{
+		// Nothing to do.
 	}
 
 	static void IndexIteratorSuspend(IndexIterator* indexIterator)
@@ -175,8 +184,8 @@ struct Query::QueryPolicy {
 		return node->ModifiedTime().tv_sec;
 	}
 
-	static status_t NodeGetAttribute(Node* node, const char* attribute,
-		void* buffer, size_t* _size, int32* _type)
+	static status_t NodeGetAttribute(NodeHolder& nodeHolder, Node* node,
+		const char* attribute, void* buffer, size_t* _size, int32* _type)
 	{
 		// TODO: Creating a cookie is quite a bit of overhead.
 		AttributeCookie* cookie;

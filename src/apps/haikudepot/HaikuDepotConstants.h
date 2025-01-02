@@ -39,24 +39,15 @@ enum BitmapSize {
 	BITMAP_SIZE_ANY							= 4
 };
 
-// when somebody rates a package, there is a numerical
-// rating which is expressed in a float 0 --> 5.  This
-// is visualized by a series of colored stars.  These
-// constants are related to the geometry of the layout
-// of the stars.
-
-#define SIZE_RATING_STAR					16.0
-#define WIDTH_RATING_STAR_SPACING			2.0
-#define BOUNDS_RATING						BRect(0, 0, \
-	5 * SIZE_RATING_STAR + 4 * WIDTH_RATING_STAR_SPACING, \
-	SIZE_RATING_STAR)
 
 #define RATING_MISSING						-1.0f
+#define RATING_MISSING_STAR					-1
 #define RATING_MIN							0.0f
 
 
 #define kProgressIndeterminate				-1.0f
 
+#define MAX_IMAGE_SIZE						1000
 
 #define RGB_COLOR_WHITE						(rgb_color) { 255, 255, 255, 255 }
 
@@ -100,6 +91,7 @@ enum {
 	RSRC_INSTALLED							= 530,
 	RSRC_ARROW_LEFT							= 540,
 	RSRC_ARROW_RIGHT						= 550,
+	RSRC_NATIVE								= 560,
 };
 
 
@@ -112,8 +104,6 @@ enum UserUsageConditionsSelectionMode {
 
 
 #define LANGUAGE_DEFAULT_ID "en"
-#define LANGUAGE_DEFAULT Language(LANGUAGE_DEFAULT_ID, "English", true)
-
 
 #define PACKAGE_INFO_MAX_USER_RATINGS 250
 
@@ -128,5 +118,9 @@ enum UserUsageConditionsSelectionMode {
 	// any prominence ordering value greater than this is not prominent.
 #define PROMINANCE_ORDERING_MAX				1000
 	// this is the highest prominence value possible.
+
+#define SINGLE_PACKAGE_DEPOT_NAME "__hd_single_pkg_depot"
+	// used as a fake depot name for the case where the application is looking
+	// at a single package based on a file.
 
 #endif // HAIKU_DEPOT_CONSTANTS_H

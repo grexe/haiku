@@ -31,7 +31,7 @@
 isa_module_info *gIsa = NULL;
 bool gActiveMultiplexingEnabled = false;
 bool gSetupComplete = false;
-sem_id gControllerSem;
+mutex gControllerLock;
 
 static int32 sIgnoreInterrupts = 0;
 
@@ -102,7 +102,7 @@ ps2_flush(void)
 {
 	int i;
 
-	acquire_sem(gControllerSem);
+	mutex_lock(&gControllerLock);
 	atomic_add(&sIgnoreInterrupts, 1);
 
 	for (i = 0; i < 64; i++) {
@@ -117,7 +117,7 @@ ps2_flush(void)
 	}
 
 	atomic_add(&sIgnoreInterrupts, -1);
-	release_sem(gControllerSem);
+	mutex_unlock(&gControllerLock);
 }
 
 
@@ -207,10 +207,59 @@ ps2_setup_active_multiplexing(bool *enabled)
 		goto no_support;
 	}
 
-	INFO("ps2: active multiplexing v%d.%d enabled\n", (in >> 4), in & 0xf);
+	INFO("ps2: active multiplexing v%d.%d detected\n", (in >> 4), in & 0xf);
+
+	// Additional check to make sure multiplexing is actually working:
+	// Send a byte using the local loopback feature. When the byteis read back, it should have the
+	// system/error bit set to 0 if active multiplexing is enabled and working.
+	// The flow is similar to a ps2_command, but we need to check this specific bit in the middle
+	// of the operation (before reading the data byte).
+	mutex_lock(&gControllerLock);
+	atomic_add(&sIgnoreInterrupts, 1);
+
+	res = ps2_wait_write();
+	if (res != B_OK) {
+		INFO("ps2: active multiplexing command write check fail: %s\n", strerror(res));
+		goto no_support_unlock;
+	}
+	ps2_write_ctrl(PS2_CTRL_AUX_LOOPBACK);
+
+	res = ps2_wait_write();
+	if (res != B_OK) {
+		INFO("ps2: active multiplexing data write check fail: %s\n", strerror(res));
+		goto no_support_unlock;
+	}
+
+	ps2_write_data(0xf0);
+
+	res = ps2_wait_read();
+
+	if (res != B_OK) {
+		INFO("ps2: active multiplexing data read check fail: %s\n", strerror(res));
+		goto no_support_unlock;
+	}
+
+	res = ps2_read_ctrl();
+	in = ps2_read_data();
+
+	if (in != 0xf0) {
+		INFO("ps2: active multiplexing loopback check fail: %s\n", strerror(res));
+		goto no_support_unlock;
+	}
+
+	if ((res & 0x25) == 0x25) {
+		INFO("ps2: active multiplexing error bit is stuck\n");
+		goto no_support_unlock;
+	}
+
+	atomic_add(&sIgnoreInterrupts, -1);
+	mutex_unlock(&gControllerLock);
 	*enabled = true;
 	goto done;
 
+no_support_unlock:
+	atomic_add(&sIgnoreInterrupts, -1);
+	mutex_unlock(&gControllerLock);
 no_support:
 	TRACE("ps2: active multiplexing not supported\n");
 	*enabled = false;
@@ -242,7 +291,7 @@ ps2_command(uint8 cmd, const uint8 *out, int outCount, uint8 *in, int inCount)
 	status_t res;
 	int i;
 
-	acquire_sem(gControllerSem);
+	mutex_lock(&gControllerLock);
 	atomic_add(&sIgnoreInterrupts, 1);
 
 #ifdef TRACE_PS2_COMMON
@@ -278,7 +327,7 @@ ps2_command(uint8 cmd, const uint8 *out, int outCount, uint8 *in, int inCount)
 #endif
 
 	atomic_add(&sIgnoreInterrupts, -1);
-	release_sem(gControllerSem);
+	mutex_unlock(&gControllerLock);
 
 	return res;
 }
@@ -355,7 +404,7 @@ ps2_init(void)
 	if (status < B_OK)
 		return status;
 
-	gControllerSem = create_sem(1, "ps/2 keyb ctrl");
+	mutex_init(&gControllerLock, "ps/2 keyb ctrl");
 
 	ps2_flush();
 
@@ -439,7 +488,7 @@ err3:
 err2:
 	ps2_dev_exit();
 err1:
-	delete_sem(gControllerSem);
+	mutex_destroy(&gControllerLock);
 	put_module(B_ISA_MODULE_NAME);
 	TRACE("ps2: init failed!\n");
 	return B_ERROR;
@@ -454,6 +503,6 @@ ps2_uninit(void)
 	remove_io_interrupt_handler(INT_PS2_KEYBOARD, &ps2_interrupt, NULL);
 	ps2_service_exit();
 	ps2_dev_exit();
-	delete_sem(gControllerSem);
+	mutex_destroy(&gControllerLock);
 	put_module(B_ISA_MODULE_NAME);
 }

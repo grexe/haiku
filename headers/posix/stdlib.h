@@ -31,14 +31,6 @@ struct random_data  {
     int *end_ptr;
 };
 
-struct drand48_data  {
-    unsigned short int x[3];
-    unsigned short int a[3];
-    unsigned short int c;
-    unsigned short int old_x[3];
-    int init;
-};
-
 
 #ifdef  __cplusplus
 extern "C" {
@@ -51,6 +43,7 @@ extern void		*malloc(size_t size);
 extern int		posix_memalign(void **_pointer, size_t alignment, size_t size);
 extern void 	*aligned_alloc(size_t alignment, size_t size) _ALIGNED_BY_ARG(1);
 extern void		*realloc(void *oldPointer, size_t newSize);
+extern void		*reallocarray(void *ptr, size_t nelem, size_t elsize);
 
 /* process termination */
 extern void		abort(void) __attribute__((noreturn));
@@ -67,6 +60,7 @@ extern int		system(const char *command);
 extern char		*mktemp(char *name);
 extern char		*mkdtemp(char *templat);
 extern int		mkstemp(char *templat);
+extern int		mkostemp(char *templat, int oflags);
 
 extern char		*ecvt(double value, int digits, int *_decimalPoint, int *_sign);
 extern char		*fcvt(double value, int precision, int *_decimalPoint,
@@ -124,21 +118,6 @@ extern void		srand48(long int seed);
 extern unsigned short *seed48(unsigned short int seed16v[3]);
 extern void		lcong48(unsigned short int param[7]);
 
-extern int		drand48_r(struct drand48_data *data, double *result);
-extern int		erand48_r(unsigned short int xsubi[3],
-					struct drand48_data *data, double *result);
-extern int		lrand48_r(struct drand48_data *data, long int *result);
-extern int		nrand48_r(unsigned short int xsubi[3],
-					struct drand48_data *data, long int *result);
-extern int		mrand48_r(struct drand48_data *data, long int *result);
-extern int		jrand48_r(unsigned short int xsubi[3],
-					struct drand48_data *data, long int *result);
-extern int		srand48_r(long int seed, struct drand48_data *data);
-extern int		seed48_r(unsigned short int seed16v[3],
-					struct drand48_data *data);
-extern int		lcong48_r(unsigned short int param[7],
-					struct drand48_data *data);
-
 /* search and sort functions */
 typedef int (*_compare_function)(const void *, const void *);
 
@@ -182,6 +161,7 @@ extern int		getsubopt(char **optionp, char * const *keylistp,
 extern int		posix_openpt(int openFlags);
 extern int		grantpt(int masterFD);
 extern char*	ptsname(int masterFD);
+extern int		ptsname_r(int masterFD, char *path, size_t maxSize);
 extern int		unlockpt(int masterFD);
 
 /* internal accessor to value for MB_CUR_MAX */

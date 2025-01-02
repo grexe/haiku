@@ -52,8 +52,12 @@ pthread_cancel(pthread_t thread)
 
 	// If cancellation is enabled, notify the thread. This will call the
 	// asynchronous_cancel_thread() handler.
-	if ((oldFlags & THREAD_CANCEL_ENABLED) != 0)
-		return _kern_cancel_thread(thread->id, &asynchronous_cancel_thread);
+	if ((oldFlags & THREAD_CANCEL_ENABLED) != 0) {
+		int result = _kern_cancel_thread(thread->id, &asynchronous_cancel_thread);
+		if (result == B_BAD_THREAD_ID)
+			return ESRCH;
+		return result;
+	}
 
 	return 0;
 }
@@ -126,5 +130,5 @@ pthread_testcancel(void)
 	static const int32 kFlags = THREAD_CANCELED | THREAD_CANCEL_ENABLED;
 
 	if ((~atomic_get(&thread->flags) & kFlags) == 0)
-		pthread_exit(NULL);
+		pthread_exit(PTHREAD_CANCELED);
 }

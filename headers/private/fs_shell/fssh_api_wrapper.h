@@ -854,6 +854,7 @@
 #define block_cache_get					fssh_block_cache_get
 #define block_cache_set_dirty			fssh_block_cache_set_dirty
 #define block_cache_put					fssh_block_cache_put
+#define block_cache_prefetch			fssh_block_cache_prefetch
 
 /* file cache */
 #define file_cache_create				fssh_file_cache_create
@@ -1004,6 +1005,8 @@
 #define debugger_command_hook	fssh_debugger_command_hook
 #define add_debugger_command	fssh_add_debugger_command
 #define remove_debugger_command	fssh_remove_debugger_command
+
+#define ASSERT_ALWAYS	ASSERT
 
 
 ////////////////////////////////////////////////////////////////////////////////

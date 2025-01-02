@@ -381,7 +381,9 @@ TabletDevice::_ControlThread()
 					&& message->AddFloat("be:wheel_delta_x",
 						movements.wheel_xdelta) == B_OK
 					&& message->AddFloat("be:wheel_delta_y",
-						movements.wheel_ydelta) == B_OK)
+						movements.wheel_ydelta) == B_OK
+					&& message->AddInt32("be:device_subtype",
+						B_TABLET_POINTING_DEVICE) == B_OK)
 					fTarget.EnqueueMessage(message);
 				else
 					delete message;
@@ -415,7 +417,7 @@ TabletDevice::_UpdateSettings()
 {
 	TD_CALLED();
 
-	if (get_click_speed(&fSettings.click_speed) != B_OK)
+	if (get_click_speed(fDeviceRef.name, &fSettings.click_speed) != B_OK)
 		LOG_ERR("error when get_click_speed\n");
 	else
 		ioctl(fDevice, MS_SET_CLICKSPEED, &fSettings.click_speed, sizeof(bigtime_t));
@@ -433,7 +435,9 @@ TabletDevice::_BuildMouseMessage(uint32 what, uint64 when, uint32 buttons,
 	if (message->AddInt64("when", when) < B_OK
 		|| message->AddInt32("buttons", buttons) < B_OK
 		|| message->AddFloat("x", xPosition) < B_OK
-		|| message->AddFloat("y", yPosition) < B_OK) {
+		|| message->AddFloat("y", yPosition) < B_OK
+		|| message->AddInt32("be:device_subtype",
+			B_TABLET_POINTING_DEVICE) < B_OK) {
 		delete message;
 		return NULL;
 	}

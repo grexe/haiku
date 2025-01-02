@@ -1,4 +1,4 @@
-1	thai	x-vnd.Haiku-libtracker	4159497115
+1	thai	x-vnd.Haiku-libtracker	3995797374
 Created	ContainerWindow		สร้างแล้ว
 Icon	AttributesView		ไอคอน
 Open and make preferred	OpenWithWindow		เปิดและทำให้เป็นที่ต้องการ
@@ -72,7 +72,6 @@ Moving: 	StatusWindow		กำลังย้าย:
 Select	SelectionWindow		เลือก
 Select	InfoWindow		เลือก
 OK	OpenWithWindow		ตกลง
-Include trash	FindPanel		รวมขยะ
 Clean up	ContainerWindow		ลบ
 Modified	FindPanel		แก้ไข
 Select all	QueryContainerWindow		เลือกทั้งหมด
@@ -97,7 +96,6 @@ Window	ContainerWindow		หน้าต่าง
 Remove	FindPanel		ลบ
 Company	Person Query Columns		บริษัท
 Recent documents	FavoritesMenu		เอกสารล่าสุด
-Save as Query template:	FindPanel		บันทึกเป็นแม่แบบ Query:
 Edit templates…	TemplatesMenu		แก้ไขเทมเพลต
 {0, plural, one{# byte} other{# bytes}}	FSUtils		{0, plural, one{# byte} อื่นๆ{# bytes}}
 8-bit integer	AttributesView		8-bit integer
@@ -113,7 +111,6 @@ List folders first	SettingsView		รายการโฟลเดอร์ก�
 Find	FSUtils		ค้นหา
 An item named \"%name\" already exists in this folder. Would you like to replace it with the symbolic link you are creating?	FSUtils		มีรายการชื่อ \"%name\" อยู่ในโฟลเดอร์นี้แล้ว คุณต้องการแทนที่ด้วยลิงก์สัญลักษณ์ที่คุณกำลังสร้างหรือไม่?
 List view	ContainerWindow		รายการดู
-Temporary	FindPanel		ชั่วคราว
 Modified	QueryPoseView		แก้ไข
 Create relative link	ContainerWindow		สร้างลิงค์ที่เกี่ยวข้อง
 Owner	FilePermissionsView		เจ้าของ
@@ -126,7 +123,6 @@ Too many parenthesis.	libtracker		วงเล็บมากเกินไป
 Increase size	ContainerWindow		เพิ่มขนาด
 \nShould this be fixed?	FSUtils		\nสิ่งนี้ควรได้รับการแก้ไขหรือไม่
 URL	Bookmark Query Columns		URL
-Move	PoseView		ย้าย
 Floating point number	AttributesView		เลขทศนิยม
 Cancel	ContainerWindow		ยกเลิก
 Attributes	ContainerWindow		คุณลักษณะ
@@ -262,9 +258,9 @@ no supporting apps	OpenWithWindow		ไม่มีแอพที่รองร
 32-bit unsigned integer	AttributesView		32-bit unsigned integer
 Preparing to empty Trash…	StatusWindow		กำลังเตรียมที่จะล้างถังขยะ
 Deleting: 	StatusWindow		กำลังลบ:
+label too long	PoseView		ป้ายกำกับยาวเกินไป
 the MIME settings	FSUtils		ตั้งค่า MIME
 You can't move or copy the trash.	FSUtils		คุณไม่สามารถย้ายหรือคัดลอกถังขยะ
-label too long	PoseView		ป้ายกำกับยาวเกินไป
 Error creating link to \"%name\".	FSUtils		เกิดข้อผิดพลาดในการสร้างลิงก์ไปยัง \"%name\"
 Unknown	FilePermissionsView		ไม่รู้จัก
 Paste links	ContainerWindow		วางลิงค์
@@ -311,8 +307,8 @@ of %items	StatusWindow		ของ %items
 less than	FindPanel		น้อยกว่า
 Error copying file \"%name\":\n\t%error\n\nWould you like to continue?	FSUtils		เกิดข้อผิดพลาดในการคัดลอกไฟล์ \"%name\":\n\t%error\n\nคุณต้องการที่จะดำเนินการต่อไป?
 Creating links: 	StatusWindow		สร้างลิงค์:
-Could not open \"%document\" with application \"%app\" (%error). 	FSUtils		ไม่สามารถเปิด \"%document\" ด้วยแอปพลิเคชัน \"%app\" (%error)
 Create %s clipping	PoseView		สร้าง %s การตัด
+Could not open \"%document\" with application \"%app\" (%error). 	FSUtils		ไม่สามารถเปิด \"%document\" ด้วยแอปพลิเคชัน \"%app\" (%error)
 Error moving \"%name\"	FSUtils		เกิดข้อผิดพลาดในการย้าย \"%name\"
 To: %dir	StatusWindow		ไปที่: %dir
 Paste layout	ContainerWindow		วางเลย์เอาต์
@@ -332,7 +328,6 @@ after	FindPanel		หลังจาก
 Version	OpenWithWindow		เวอร์ชั่น
 Some of the selected items cannot be moved to the Trash. Would you like to delete them instead? (This operation cannot be reverted.)	PoseView		รายการที่เลือกบางรายการไม่สามารถย้ายไปที่ถังขยะได้ คุณต้องการลบพวกเขาแทนหรือไม่? (การดำเนินการนี้ไม่สามารถย้อนกลับได้)
 Add printer…	ContainerWindow		เพิ่มเครื่องพิมพ์
-On	FindPanel		เปิด
 Permissions	ContainerWindow		อนุญาต
 Size:	InfoWindow		ขนาด:
 The selected item cannot be moved to the Trash. Would you like to delete it instead? (This operation cannot be reverted.)	PoseView		รายการที่เลือกไม่สามารถย้ายไปที่ถังขยะ คุณต้องการลบมันแทนหรือไม่? (การดำเนินการนี้ไม่สามารถย้อนกลับได้)
@@ -341,7 +336,6 @@ Sorry, the 'Character' attribute cannot store a multi-byte glyph.	WidgetAttribut
 Open parent	VirtualDirectoryWindow		เปิดพาเรนต์
 And	FindPanel		และ
 Palette-indexed picture	AttributesView		รูปภาพที่จัดทำดัชนีด้วยจานสี
-multiple disks	FindPanel		หลายดิสก์
 Drawing pattern	AttributesView		รูปแบบการวาด
 File offset	AttributesView		ไฟล์ออฟเซ็ต
 Name = %name	FindPanel	FindResultTitle	ชื่อ = %name
@@ -357,7 +351,6 @@ Force identify	ContainerWindow		บังคับแสดง
 no items	CountView		ไม่มีรายการ
 Time	AttributesView		เวลา
 Disks	DirMenu		ดิสก์
-Query name:	FindPanel		ชื่อ Query:
 Open parent	ContainerWindow		เปิด parent
 Find…	ContainerWindow		ค้นหา
 moving	FSUtils		กำลังย้าย
@@ -462,7 +455,6 @@ You must drop items on one of the disk icons in the \"Disks\" window.	PoseView		
 Version:	InfoWindow		เวอร์ชั่น:
 OK	PoseView		ตกลง
 Add-ons	DeskWindow		เพิ่มเติม
-Are you sure you want to move or copy the selected item(s) to this folder?	PoseView		คุณแน่ใจหรือไม่ว่าต้องการย้ายหรือคัดลอกรายการที่เลือกไปยังโฟลเดอร์นี้?
 Find	FindPanel		ค้นหา
 Empty folder	NavMenu		โฟลเดอร์ว่างเปล่า
 Defaults	TrackerSettingsWindow		ค่าเริ่มต้น
@@ -471,8 +463,8 @@ True-color picture	AttributesView		ภาพสีจริง
 Add-ons	FilePanelPriv		เพิ่มเติม
 Alignment	AttributesView		การวางแนว
 Move to Trash	FSUtils		ย้ายไปที่ถังขยะ
-Handles %type	OpenWithWindow		จัดการ %type
 Cancel	PoseView		ยกเลิก
+Handles %type	OpenWithWindow		จัดการ %type
 Delete	PoseView		ลบ
 Media parameter	AttributesView		พารามิเตอร์สื่อ
 If you alter the home folder, %osName may not behave properly!\n\nAre you sure you want to do this?\n\nTo alter the home folder anyway, hold down the Shift key and click \"I know what I'm doing\".	FSUtils		หากคุณเปลี่ยนโฟลเดอร์หลัก %osName อาจทำงานไม่ถูกต้อง!\n\nคุณแน่ใจหรือว่าต้องการทำสิ่งนี้\n\nหากต้องการแก้ไขโฟลเดอร์หลักให้กดแป้น Shift ค้างไว้แล้วคลิก \"ฉันรู้ว่าฉันกำลังทำอะไร\"

@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2009 Sam Leffler, Errno Consulting
@@ -24,8 +24,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $FreeBSD: releng/12.0/sys/net80211/ieee80211_var.h 326272 2017-11-27 15:23:17Z pfg $
  */
 #ifndef _NET80211_IEEE80211_VAR_H_
 #define _NET80211_IEEE80211_VAR_H_
@@ -124,7 +122,7 @@ typedef void (*ieee80211vap_attach)(struct ieee80211vap *);
 
 struct ieee80211_appie {
 	uint16_t		ie_len;		/* size of ie_data */
-	uint8_t			ie_data[0];	/* user-specified IE's */
+	uint8_t			ie_data[];	/* user-specified IE's */
 };
 
 struct ieee80211_tdma_param;
@@ -167,8 +165,12 @@ struct ieee80211com {
 	uint32_t		ic_caps;	/* capabilities */
 	uint32_t		ic_htcaps;	/* HT capabilities */
 	uint32_t		ic_htextcaps;	/* HT extended capabilities */
-	uint32_t		ic_cryptocaps;	/* crypto capabilities */
+				/* driver-supported software crypto caps */
+	uint32_t		ic_sw_cryptocaps;
+	uint32_t		ic_cryptocaps;	/* hardware crypto caps */
 						/* set of mode capabilities */
+				/* driver/net80211 sw KEYMGMT capabilities */
+	uint32_t		ic_sw_keymgmtcaps;
 	uint8_t			ic_modecaps[IEEE80211_MODE_BYTES];
 	uint8_t			ic_promisc;	/* vap's needing promisc mode */
 	uint8_t			ic_allmulti;	/* vap's needing all multicast*/
@@ -244,10 +246,9 @@ struct ieee80211com {
 	uint8_t			ic_txstream;    /* # TX streams */
 
 	/* VHT information */
-	uint32_t		ic_vhtcaps;	/* VHT capabilities */
+	uint32_t		ic_vht_flags;	/* VHT state flags */
+	struct ieee80211_vht_cap ic_vht_cap;	/* VHT capabilities + MCS info */
 	uint32_t		ic_vhtextcaps;	/* VHT extended capabilities (TODO) */
-	struct ieee80211_vht_mcs_info	ic_vht_mcsinfo; /* Support TX/RX VHT MCS */
-	uint32_t		ic_flags_vht;	/* VHT state flags */
 	uint32_t		ic_vht_spare[3];
 
 	/* optional state for Atheros SuperG protocol extensions */
@@ -415,9 +416,16 @@ struct ieee80211vap {
 	uint32_t		iv_com_state;	/* com usage / detached flag */
 	enum ieee80211_opmode	iv_opmode;	/* operation mode */
 	enum ieee80211_state	iv_state;	/* state machine state */
-	enum ieee80211_state	iv_nstate;	/* pending state */
-	int			iv_nstate_arg;	/* pending state arg */
-	struct task		iv_nstate_task;	/* deferred state processing */
+
+	/* Deferred state processing. */
+	enum ieee80211_state	iv_nstate;		/* next pending state (historic) */
+#define	NET80211_IV_NSTATE_NUM	8
+	int			iv_nstate_b;		/* First filled slot. */
+	int			iv_nstate_n;		/* # of filled slots. */
+	enum ieee80211_state	iv_nstates[NET80211_IV_NSTATE_NUM];	/* queued pending state(s) */
+	int			iv_nstate_args[NET80211_IV_NSTATE_NUM];	/* queued pending state(s) arg */
+	struct task		iv_nstate_task[NET80211_IV_NSTATE_NUM];
+
 	struct task		iv_swbmiss_task;/* deferred iv_bmiss call */
 	struct callout		iv_mgtsend;	/* mgmt frame response timer */
 						/* inactivity timer settings */
@@ -427,10 +435,9 @@ struct ieee80211vap {
 	int			iv_inact_probe;	/* inactive probe time */
 
 	/* VHT flags */
-	uint32_t		iv_flags_vht;	/* VHT state flags */
-	uint32_t		iv_vhtcaps;	/* VHT capabilities */
+	uint32_t		iv_vht_flags;	/* VHT state flags */
+	struct ieee80211_vht_cap iv_vht_cap;	/* VHT capabilities + MCS info */
 	uint32_t		iv_vhtextcaps;	/* VHT extended capabilities (TODO) */
-	struct ieee80211_vht_mcs_info	iv_vht_mcsinfo;
 	uint32_t		iv_vht_spare[4];
 
 	int			iv_des_nssid;	/* # desired ssids */
@@ -508,7 +515,7 @@ struct ieee80211vap {
 	int			(*iv_key_alloc)(struct ieee80211vap *,
 				    struct ieee80211_key *,
 				    ieee80211_keyix *, ieee80211_keyix *);
-	int			(*iv_key_delete)(struct ieee80211vap *,
+	int			(*iv_key_delete)(struct ieee80211vap *, 
 				    const struct ieee80211_key *);
 	int			(*iv_key_set)(struct ieee80211vap *,
 				    const struct ieee80211_key *);
@@ -567,6 +574,9 @@ struct ieee80211vap {
 	/* state machine processing */
 	int			(*iv_newstate)(struct ieee80211vap *,
 				    enum ieee80211_state, int);
+	struct ieee80211_node *	(*iv_update_bss)(struct ieee80211vap *,
+				    struct ieee80211_node *);
+
 	/* 802.3 output method for raw frame xmit */
 	int			(*iv_output)(struct ifnet *, struct mbuf *,
 				    const struct sockaddr *, struct route *);
@@ -607,7 +617,7 @@ struct ieee80211vap {
 	struct ieee80211_rx_histogram	*rx_histogram;
 	struct ieee80211_tx_histogram	*tx_histogram;
 
-	uint64_t		iv_spare[6];
+	uint64_t		iv_spare[36];
 };
 MALLOC_DECLARE(M_80211_VAP);
 
@@ -694,7 +704,8 @@ MALLOC_DECLARE(M_80211_VAP);
 	"\20\2INACT\3SCANWAIT\4BGSCAN\5WPS\6TSN\7SCANREQ\10RESUME" \
 	"\0114ADDR\12NONEPR_PR\13SWBMISS\14DFS\15DOTD\16STATEWAIT\17REINIT" \
 	"\20BPF\21WDSLEGACY\22PROBECHAN\23UNIQMAC\24SCAN_OFFLOAD\25SEQNO_OFFLOAD" \
-	"\26VHT\27QUIET_IE"
+	    "\26FRAG_OFFLOAD\27VHT" \
+	"\30QUIET_IE\31UAPSD"
 
 /* ic_flags_ht/iv_flags_ht */
 #define	IEEE80211_FHT_NONHT_PR	 0x00000001	/* STATUS: non-HT sta present */
@@ -717,7 +728,7 @@ MALLOC_DECLARE(M_80211_VAP);
 
 #define	IEEE80211_FHT_BITS \
 	"\20\1NONHT_PR" \
-	"\23GF\24HT\25AMPDU_TX\26AMPDU_TX" \
+	"\21LDPC_TX\22LDPC_RX\23GF\24HT\25AMPDU_TX\26AMPDU_RX" \
 	"\27AMSDU_TX\30AMSDU_RX\31USEHT40\32PUREN\33SHORTGI20\34SHORTGI40" \
 	"\35HTCOMPAT\36RIFS\37STBC_TX\40STBC_RX"
 
@@ -728,12 +739,20 @@ MALLOC_DECLARE(M_80211_VAP);
 #define	IEEE80211_FVHT_USEVHT80	0x000000004	/* CONF: Use VHT80 */
 #define	IEEE80211_FVHT_USEVHT160	0x000000008	/* CONF: Use VHT160 */
 #define	IEEE80211_FVHT_USEVHT80P80	0x000000010	/* CONF: Use VHT 80+80 */
-#define	IEEE80211_FVHT_MASK						\
+#define	IEEE80211_FVHT_STBC_TX	0x00000020	/* CONF: STBC tx enabled */
+#define	IEEE80211_FVHT_STBC_RX	0x00000040	/* CONF: STBC rx enabled */
+
+#define	IEEE80211_FVHT_CHANWIDTH_MASK					\
 	(IEEE80211_FVHT_VHT | IEEE80211_FVHT_USEVHT40 |			\
 	IEEE80211_FVHT_USEVHT80 | IEEE80211_FVHT_USEVHT160 |		\
 	IEEE80211_FVHT_USEVHT80P80)
+
+#define	IEEE80211_FVHT_MASK						\
+	(IEEE80211_FVHT_CHANWIDTH_MASK |				\
+	IEEE80211_FVHT_STBC_TX | IEEE80211_FVHT_STBC_RX)
+
 #define	IEEE80211_VFHT_BITS \
-	"\20\1VHT\2VHT40\3VHT80\4VHT160\5VHT80P80"
+	"\20\1VHT\2VHT40\3VHT80\4VHT160\5VHT80P80\6STBC_TX\7STBC_RX"
 
 #define	IEEE80211_COM_DETACHED	0x00000001	/* ieee80211_ifdetach called */
 #define	IEEE80211_COM_REF_ADD	0x00000002	/* add / remove reference */
@@ -744,6 +763,12 @@ MALLOC_DECLARE(M_80211_VAP);
 int	ic_printf(struct ieee80211com *, const char *, ...) __printflike(2, 3);
 void	ieee80211_ifattach(struct ieee80211com *);
 void	ieee80211_ifdetach(struct ieee80211com *);
+void	ieee80211_set_software_ciphers(struct ieee80211com *,
+	    uint32_t cipher_suite);
+void	ieee80211_set_hardware_ciphers(struct ieee80211com *,
+	    uint32_t cipher_suite);
+void	ieee80211_set_driver_keymgmt_suites(struct ieee80211com *ic,
+	    uint32_t keymgmt_set);
 int	ieee80211_vap_setup(struct ieee80211com *, struct ieee80211vap *,
 		const char name[IFNAMSIZ], int unit,
 		enum ieee80211_opmode opmode, int flags,
@@ -809,6 +834,11 @@ char	ieee80211_channel_type_char(const struct ieee80211_channel *c);
 #define	ieee80211_get_home_channel(_ic)		((_ic)->ic_bsschan)
 #define	ieee80211_get_vap_desired_channel(_iv)	((_iv)->iv_des_chan)
 
+bool	ieee80211_is_key_global(const struct ieee80211vap *vap,
+	    const struct ieee80211_key *key);
+bool	ieee80211_is_key_unicast(const struct ieee80211vap *vap,
+	    const struct ieee80211_key *key);
+
 void	ieee80211_radiotap_attach(struct ieee80211com *,
 	    struct ieee80211_radiotap_header *th, int tlen,
 		uint32_t tx_radiotap,
@@ -858,7 +888,7 @@ ieee80211_draintask(struct ieee80211com *ic, struct task *task)
 	taskqueue_drain(ic->ic_tq, task);
 }
 
-/*
+/* 
  * Key update synchronization methods.  XXX should not be visible.
  */
 static __inline void
@@ -932,10 +962,10 @@ static __inline int
 ieee80211_vhtchanflags(const struct ieee80211_channel *c)
 {
 
-	if (IEEE80211_IS_CHAN_VHT80P80(c))
-		return IEEE80211_FVHT_USEVHT80P80;
 	if (IEEE80211_IS_CHAN_VHT160(c))
 		return IEEE80211_FVHT_USEVHT160;
+	if (IEEE80211_IS_CHAN_VHT80P80(c))
+		return IEEE80211_FVHT_USEVHT80P80;
 	if (IEEE80211_IS_CHAN_VHT80(c))
 		return IEEE80211_FVHT_USEVHT80;
 	if (IEEE80211_IS_CHAN_VHT40(c))
@@ -1069,15 +1099,18 @@ void	ieee80211_note_frame(const struct ieee80211vap *,
  */
 #define	IEEE80211_DISCARD(_vap, _m, _wh, _type, _fmt, ...) do {		\
 	if ((_vap)->iv_debug & (_m))					\
-		ieee80211_discard_frame(_vap, _wh, _type, _fmt, __VA_ARGS__);\
+		ieee80211_discard_frame(_vap, _wh, _type,		\
+		   "%s:%d: " _fmt, __func__, __LINE__, __VA_ARGS__);	\
 } while (0)
 #define	IEEE80211_DISCARD_IE(_vap, _m, _wh, _type, _fmt, ...) do {	\
 	if ((_vap)->iv_debug & (_m))					\
-		ieee80211_discard_ie(_vap, _wh, _type, _fmt, __VA_ARGS__);\
+		ieee80211_discard_ie(_vap, _wh, _type,			\
+		    "%s:%d: " _fmt, __func__, __LINE__, __VA_ARGS__);	\
 } while (0)
 #define	IEEE80211_DISCARD_MAC(_vap, _m, _mac, _type, _fmt, ...) do {	\
 	if ((_vap)->iv_debug & (_m))					\
-		ieee80211_discard_mac(_vap, _mac, _type, _fmt, __VA_ARGS__);\
+		ieee80211_discard_mac(_vap, _mac, _type,		\
+		    "%s:%d: " _fmt, __func__, __LINE__, __VA_ARGS__);	\
 } while (0)
 
 void ieee80211_discard_frame(const struct ieee80211vap *,

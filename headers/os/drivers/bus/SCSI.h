@@ -94,19 +94,18 @@
 
 
 #include <KernelExport.h>
+
+#ifdef _KERNEL_MODE
+#include <condition_variable.h>
 #include <device_manager.h>
+#endif
 
 
-#define SCSI_MAX_CDB_SIZE 16	// max size of cdb
-#define SCSI_MAX_SENSE_SIZE	64	// max size of sense data
-#define SCSI_SIM_PRIV	1536	// SIM private data; this may be a bit much but
-								// we currently need that for the compatibility layer
-
-// bus/device handle
 typedef struct scsi_bus_info *scsi_bus;
 typedef struct scsi_device_info *scsi_device;
 
 
+#if defined(__cplusplus) && defined(_KERNEL_MODE)
 // structure of one scsi i/o CCB (command control block)
 typedef struct scsi_ccb {
 	struct scsi_ccb *next, *prev;	// internal
@@ -119,11 +118,10 @@ typedef struct scsi_ccb {
 	uchar		target_lun;			// Target LUN number
 	uint32		flags;				// Flags for operation of the subsystem
 
-	// released once after asynchronous execution of request;
-	// initialised by alloc_ccb, can be replaced for action but
-	// must be restored before returning via free_ccb
-	sem_id		completion_sem;
+	// notified after asynchronous execution of request
+	ConditionVariable completion_cond;
 
+#define SCSI_MAX_CDB_SIZE 16
 	uint8		cdb[SCSI_MAX_CDB_SIZE];  // command data block
 	uchar		cdb_length;			// length of command in bytes
 	int64		sort;				// value of command to sort on (<0 means n/a)
@@ -136,6 +134,7 @@ typedef struct scsi_ccb {
 	int32		data_resid;			// data transfer residual length: 2's comp
 	void		*io_operation;
 
+#define SCSI_MAX_SENSE_SIZE	64
 	uchar		sense[SCSI_MAX_SENSE_SIZE]; // autosense data
 	uchar		sense_resid;		// autosense resid length: 2's comp
 
@@ -155,11 +154,10 @@ typedef struct scsi_ccb {
 	const physical_entry *orig_sg_list;
 	uint16		orig_sg_count;
 	uint32		orig_data_length;
-
-	// private SIM data
-	uchar		sim_state;			// set to zero when request is submitted first time
-	uchar		sim_priv[SCSI_SIM_PRIV];	/* SIM private data area */
 } scsi_ccb;
+#else
+typedef struct scsi_ccb scsi_ccb;
+#endif
 
 
 // Defines for the subsystem status field
@@ -253,7 +251,6 @@ typedef struct {
 	uchar		version_num;			/* Version number for the SIM/HBA */
 	uchar		hba_inquiry;			/* Mimic of INQ byte 7 for the HBA */
 	uchar		hba_misc;				/* Misc HBA feature flags */
-	uint32		sim_priv;				/* Size of SIM private data area */
 	uchar		vuhba_flags[SCSI_VUHBA];/* Vendor unique capabilities */
 	uchar		initiator_id;			/* ID of the HBA on the SCSI bus */
 	uint32		hba_queue_size;			// size of adapters command queue
@@ -298,15 +295,11 @@ typedef struct {
 typedef struct scsi_device_interface {
 	driver_module_info info;
 
-	// get CCB
-	// warning: if pool of CCBs is exhausted, this call is delayed until a
-	// CCB is freed, so don't try to allocate more then one CCB at once!
 	scsi_ccb *(*alloc_ccb)(scsi_device device);
-	// free CCB
 	void (*free_ccb)(scsi_ccb *ccb);
 
 	// execute command asynchronously
-	// when it's finished, the semaphore of the ccb is released
+	// when it's finished, the condvar of the ccb is released
 	// you must provide a S/G list if data_len != 0
 	void (*async_io)(scsi_ccb *ccb);
 	// execute command synchronously

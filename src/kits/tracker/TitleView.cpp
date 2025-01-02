@@ -307,7 +307,6 @@ BTitleView::MouseDown(BPoint where)
 
 	if (SecondaryMouseButtonDown(modifiers(), buttons)) {
 		BPopUpMenu* menu = new BPopUpMenu("Attributes", false, false);
-		menu->SetFont(be_plain_font);
 		window->NewAttributesMenu(menu);
 		window->AddMimeTypesToMenu(menu);
 		window->MarkAttributesMenu(menu);
@@ -672,7 +671,7 @@ void
 ColumnResizeState::DrawLine()
 {
 	BPoseView* poseView = fTitleView->PoseView();
-	ASSERT(!poseView->IsDesktopWindow());
+	ASSERT(!poseView->IsDesktopView());
 
 	BRect poseViewBounds(poseView->Bounds());
 	// remember the line location

@@ -295,6 +295,7 @@ BackgroundsView::AllAttached()
 	if (fSettings.FindPoint("pos", &point) == B_OK) {
 		fFoundPositionSetting = true;
 		Window()->MoveTo(point);
+		Window()->MoveOnScreen(B_MOVE_IF_PARTIALLY_OFFSCREEN);
 	}
 
 	fApply->SetEnabled(false);
@@ -306,7 +307,7 @@ void
 BackgroundsView::MessageReceived(BMessage* message)
 {
 	// Color drop
-	if (message->WasDropped()) {
+	if (message->WasDropped() && fPicker->IsEnabled()) {
 		rgb_color *clr;
 		ssize_t out_size;
 		if (message->FindData("RGBColor", B_RGB_COLOR_TYPE,

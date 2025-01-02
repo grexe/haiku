@@ -118,25 +118,23 @@ MouseInputDevice::InitFromSettings(void* cookie, uint32 opcode)
 {
 	CALLED();
 	mouse_device* device = (mouse_device*) cookie;
+	const char* name = device->device_ref.name;
 
 	// retrieve current values.
 	// TODO: shouldn't we use sane values if we get errors here?
 
-	if (get_mouse_map(&device->settings.map) != B_OK)
+	if (get_mouse_map(name, &device->settings.map) != B_OK)
 		LOG_ERR("error when get_mouse_map\n");
 
-	if (get_click_speed(&device->settings.click_speed) != B_OK)
+	if (get_click_speed(name, &device->settings.click_speed) != B_OK)
 		LOG_ERR("error when get_click_speed\n");
 
-	if (get_mouse_speed(&device->settings.accel.speed) != B_OK)
+	if (get_mouse_speed(name, &device->settings.accel.speed) != B_OK)
 		LOG_ERR("error when get_mouse_speed\n");
-	else
-	{
-		if (get_mouse_acceleration(&device->settings.accel.accel_factor) != B_OK)
-			LOG_ERR("error when get_mouse_acceleration\n");
-	}
+	else if (get_mouse_acceleration(name, &device->settings.accel.accel_factor) != B_OK)
+		LOG_ERR("error when get_mouse_acceleration\n");
 
-	if (get_mouse_type(&device->settings.type) != B_OK)
+	if (get_mouse_type(name, &device->settings.type) != B_OK)
 		LOG_ERR("error when get_mouse_type\n");
 
 	return B_OK;
@@ -278,6 +276,7 @@ MouseInputDevice::DeviceWatcher(void* arg)
 			message = new BMessage(B_MOUSE_UP);
 
 			message->AddInt64("when", movements.timestamp);
+			message->AddInt32("be:device_subtype", B_MOUSE_POINTING_DEVICE);
 			message->AddInt32("buttons", movements.buttons);
 
 			if ((buttons & movements.buttons) > 0) {
@@ -335,6 +334,7 @@ MouseInputDevice::DeviceWatcher(void* arg)
 			message = new BMessage(B_MOUSE_MOVED);
 			if (message) {
 				message->AddInt64("when", movements.timestamp);
+				message->AddInt32("be:device_subtype", B_MOUSE_POINTING_DEVICE);
 				message->AddInt32("buttons", movements.buttons);
 				message->AddInt32("x", xdelta);
 				message->AddInt32("y", ydelta);
@@ -347,6 +347,7 @@ MouseInputDevice::DeviceWatcher(void* arg)
 			message = new BMessage(B_MOUSE_WHEEL_CHANGED);
 			if (message) {
 				message->AddInt64("when", movements.timestamp);
+				message->AddInt32("be:device_subtype", B_MOUSE_POINTING_DEVICE);
 				message->AddFloat("be:wheel_delta_x", movements.wheel_xdelta);
 				message->AddFloat("be:wheel_delta_y", movements.wheel_ydelta);
 

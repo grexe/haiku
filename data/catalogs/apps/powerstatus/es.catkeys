@@ -1,4 +1,4 @@
-1	spanish; castilian	x-vnd.Haiku-PowerStatus	4080343264
+1	spanish; castilian	x-vnd.Haiku-PowerStatus	1104524835
 Run in window	PowerStatus		Ejecutar en ventana
 Extended battery info	PowerStatus		Información sobre la batería más extenso
 Show status icon	PowerStatus		Mostrar icono de estado
@@ -16,17 +16,17 @@ Battery low	PowerStatus		Batería baja
 Model number: 	PowerStatus		Número del modelo:
 Battery unused	PowerStatus		Batería no es utilizado
 Type: 	PowerStatus		Tipo:
-Damaged battery	PowerStatus		Batería dañada
 You can run PowerStatus in a window or install it in the Deskbar.	PowerStatus		Puede ejecutar Estado de Energía en una ventana o puede instalarlo en barra de escritorio.
+Damaged or missing battery	PowerStatus		Batería dañada o ausente
  mAh	PowerStatus		 mAh
 Battery discharging	PowerStatus		Batería está descargando
 Design voltage: 	PowerStatus		Voltaje de diseño:
 discharging	PowerStatus		descargando
 rechargeable	PowerStatus		recargable
-Battery info…	PowerStatus		Info de batería...
+Battery info…	PowerStatus		Información de batería…
 Show time	PowerStatus		Mostrar hora
  mA	PowerStatus		 mA
-About…	PowerStatus		Sobre...
+About…	PowerStatus		Acerca de…
 Serial number: 	PowerStatus		Número en serie:
 Battery critical	PowerStatus		Batería críticamente baja
 Capacity: 	PowerStatus		Capacidad:

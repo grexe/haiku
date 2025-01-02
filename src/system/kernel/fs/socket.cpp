@@ -40,6 +40,8 @@
 			return getError;							\
 	} while (false)
 
+#define FD_SOCKET(descriptor) ((net_socket*)descriptor->cookie)
+
 
 static net_stack_interface_module_info* sStackInterface = NULL;
 static int32 sStackInterfaceConsumers = 0;
@@ -81,7 +83,8 @@ put_stack_interface_module()
 	if (atomic_add(&sStackInterfaceConsumers, -1) != 1)
 		return;
 
-#if 0 /* Just leave the stack loaded, for now. */
+	// Keep the stack loaded on non-KDEBUG kernels.
+#if KDEBUG
 	WriteLocker _(sLock);
 	if (atomic_get(&sStackInterfaceConsumers) > 0)
 		return;
@@ -163,11 +166,14 @@ prepare_userland_msghdr(const msghdr* userMessage, msghdr& message,
 	if (message.msg_iovlen < 0 || message.msg_iovlen > IOV_MAX)
 		return EMSGSIZE;
 	if (userVecs != NULL && message.msg_iovlen > 0) {
-		iovec* vecs;
+		iovec* vecs = (iovec*)malloc(sizeof(iovec) * message.msg_iovlen);
+		if (vecs == NULL)
+			return B_NO_MEMORY;
+		vecsDeleter.SetTo(vecs);
+
 		status_t error = get_iovecs_from_user(message.msg_iov, message.msg_iovlen, vecs);
 		if (error != B_OK)
 			return error;
-		vecsDeleter.SetTo(vecs);
 		message.msg_iov = vecs;
 	} else {
 		message.msg_iov = NULL;
@@ -189,25 +195,6 @@ prepare_userland_msghdr(const msghdr* userMessage, msghdr& message,
 }
 
 
-static status_t
-get_socket_descriptor(int fd, bool kernel, file_descriptor*& descriptor)
-{
-	if (fd < 0)
-		return EBADF;
-
-	descriptor = get_fd(get_current_io_context(kernel), fd);
-	if (descriptor == NULL)
-		return EBADF;
-
-	if (descriptor->type != FDTYPE_SOCKET) {
-		put_fd(descriptor);
-		return ENOTSOCK;
-	}
-
-	return B_OK;
-}
-
-
 // #pragma mark - socket file descriptor
 
 
@@ -215,7 +202,7 @@ static status_t
 socket_read(struct file_descriptor *descriptor, off_t pos, void *buffer,
 	size_t *_length)
 {
-	ssize_t bytesRead = sStackInterface->recv(descriptor->u.socket, buffer,
+	ssize_t bytesRead = sStackInterface->recv(FD_SOCKET(descriptor), buffer,
 		*_length, 0);
 	*_length = bytesRead >= 0 ? bytesRead : 0;
 	return bytesRead >= 0 ? B_OK : bytesRead;
@@ -226,10 +213,32 @@ static status_t
 socket_write(struct file_descriptor *descriptor, off_t pos, const void *buffer,
 	size_t *_length)
 {
-	ssize_t bytesWritten = sStackInterface->send(descriptor->u.socket, buffer,
+	ssize_t bytesWritten = sStackInterface->send(FD_SOCKET(descriptor), buffer,
 		*_length, 0);
 	*_length = bytesWritten >= 0 ? bytesWritten : 0;
 	return bytesWritten >= 0 ? B_OK : bytesWritten;
+}
+
+
+static ssize_t
+socket_readv(struct file_descriptor *descriptor, off_t pos,
+	const struct iovec *vecs, int count)
+{
+	struct msghdr message = {};
+	message.msg_iov = (struct iovec*)vecs;
+	message.msg_iovlen = count;
+	return sStackInterface->recvmsg(FD_SOCKET(descriptor), &message, 0);
+}
+
+
+static ssize_t
+socket_writev(struct file_descriptor *descriptor, off_t pos,
+	const struct iovec *vecs, int count)
+{
+	struct msghdr message = {};
+	message.msg_iov = (struct iovec*)vecs;
+	message.msg_iovlen = count;
+	return sStackInterface->sendmsg(FD_SOCKET(descriptor), &message, 0);
 }
 
 
@@ -237,7 +246,7 @@ static status_t
 socket_ioctl(struct file_descriptor *descriptor, ulong op, void *buffer,
 	size_t length)
 {
-	return sStackInterface->ioctl(descriptor->u.socket, op, buffer, length);
+	return sStackInterface->ioctl(FD_SOCKET(descriptor), op, buffer, length);
 }
 
 
@@ -248,7 +257,7 @@ socket_set_flags(struct file_descriptor *descriptor, int flags)
 	uint32 op = (flags & O_NONBLOCK) != 0
 		? B_SET_NONBLOCKING_IO : B_SET_BLOCKING_IO;
 
-	return sStackInterface->ioctl(descriptor->u.socket, op, NULL, 0);
+	return sStackInterface->ioctl(FD_SOCKET(descriptor), op, NULL, 0);
 }
 
 
@@ -256,7 +265,7 @@ static status_t
 socket_select(struct file_descriptor *descriptor, uint8 event,
 	struct selectsync *sync)
 {
-	return sStackInterface->select(descriptor->u.socket, event, sync);
+	return sStackInterface->select(FD_SOCKET(descriptor), event, sync);
 }
 
 
@@ -264,7 +273,7 @@ static status_t
 socket_deselect(struct file_descriptor *descriptor, uint8 event,
 	struct selectsync *sync)
 {
-	return sStackInterface->deselect(descriptor->u.socket, event, sync);
+	return sStackInterface->deselect(FD_SOCKET(descriptor), event, sync);
 }
 
 
@@ -272,7 +281,7 @@ static status_t
 socket_read_stat(struct file_descriptor *descriptor, struct stat *st)
 {
 	st->st_dev = 0;
-	st->st_ino = (addr_t)descriptor->u.socket;
+	st->st_ino = (addr_t)descriptor->cookie;
 	st->st_mode = S_IFSOCK | 0666;
 	st->st_nlink = 1;
 	st->st_uid = 0;
@@ -298,21 +307,25 @@ socket_read_stat(struct file_descriptor *descriptor, struct stat *st)
 static status_t
 socket_close(struct file_descriptor *descriptor)
 {
-	return sStackInterface->close(descriptor->u.socket);
+	return sStackInterface->close(FD_SOCKET(descriptor));
 }
 
 
 static void
 socket_free(struct file_descriptor *descriptor)
 {
-	sStackInterface->free(descriptor->u.socket);
+	sStackInterface->free(FD_SOCKET(descriptor));
 	put_stack_interface_module();
 }
 
 
 static struct fd_ops sSocketFDOps = {
+	&socket_close,
+	&socket_free,
 	&socket_read,
 	&socket_write,
+	&socket_readv,
+	&socket_writev,
 	NULL,	// fd_seek
 	&socket_ioctl,
 	&socket_set_flags,
@@ -322,13 +335,30 @@ static struct fd_ops sSocketFDOps = {
 	NULL,	// fd_rewind_dir
 	&socket_read_stat,
 	NULL,	// fd_write_stat
-	&socket_close,
-	&socket_free
 };
 
 
+static status_t
+get_socket_descriptor(int fd, bool kernel, file_descriptor*& descriptor)
+{
+	if (fd < 0)
+		return EBADF;
+
+	descriptor = get_fd(get_current_io_context(kernel), fd);
+	if (descriptor == NULL)
+		return EBADF;
+
+	if (descriptor->ops != &sSocketFDOps) {
+		put_fd(descriptor);
+		return ENOTSOCK;
+	}
+
+	return B_OK;
+}
+
+
 static int
-create_socket_fd(net_socket* socket, bool kernel)
+create_socket_fd(net_socket* socket, int flags, bool kernel)
 {
 	// Get the socket's non-blocking flag, so we can set the respective
 	// open mode flag.
@@ -338,6 +368,11 @@ create_socket_fd(net_socket* socket, bool kernel)
 		SO_NONBLOCK, &nonBlock, &nonBlockLen);
 	if (error != B_OK)
 		return error;
+	int oflags = 0;
+	if ((flags & SOCK_CLOEXEC) != 0)
+		oflags |= O_CLOEXEC;
+	if ((flags & SOCK_NONBLOCK) != 0 || nonBlock)
+		oflags |= O_NONBLOCK;
 
 	// allocate a file descriptor
 	file_descriptor* descriptor = alloc_fd();
@@ -345,17 +380,21 @@ create_socket_fd(net_socket* socket, bool kernel)
 		return B_NO_MEMORY;
 
 	// init it
-	descriptor->type = FDTYPE_SOCKET;
 	descriptor->ops = &sSocketFDOps;
-	descriptor->u.socket = socket;
-	descriptor->open_mode = O_RDWR | (nonBlock ? O_NONBLOCK : 0);
+	descriptor->cookie = socket;
+	descriptor->open_mode = O_RDWR | oflags;
 
 	// publish it
-	int fd = new_fd(get_current_io_context(kernel), descriptor);
+	io_context* context = get_current_io_context(kernel);
+	int fd = new_fd(context, descriptor);
 	if (fd < 0) {
 		descriptor->ops = NULL;
 		put_fd(descriptor);
 	}
+
+	rw_lock_write_lock(&context->lock);
+	fd_set_close_on_exec(context, fd, (oflags & O_CLOEXEC) != 0);
+	rw_lock_write_unlock(&context->lock);
 
 	return fd;
 }
@@ -370,6 +409,9 @@ common_socket(int family, int type, int protocol, bool kernel)
 	if (!get_stack_interface_module())
 		return B_UNSUPPORTED;
 
+	int sflags = type & (SOCK_CLOEXEC | SOCK_NONBLOCK);
+	type &= ~(SOCK_CLOEXEC | SOCK_NONBLOCK);
+
 	// create the socket
 	net_socket* socket;
 	status_t error = sStackInterface->open(family, type, protocol, &socket);
@@ -379,7 +421,7 @@ common_socket(int family, int type, int protocol, bool kernel)
 	}
 
 	// allocate the FD
-	int fd = create_socket_fd(socket, kernel);
+	int fd = create_socket_fd(socket, sflags, kernel);
 	if (fd < 0) {
 		sStackInterface->close(socket);
 		sStackInterface->free(socket);
@@ -398,7 +440,7 @@ common_bind(int fd, const struct sockaddr *address, socklen_t addressLength,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->bind(descriptor->u.socket, address, addressLength);
+	return sStackInterface->bind(FD_SOCKET(descriptor), address, addressLength);
 }
 
 
@@ -409,7 +451,7 @@ common_shutdown(int fd, int how, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->shutdown(descriptor->u.socket, how);
+	return sStackInterface->shutdown(FD_SOCKET(descriptor), how);
 }
 
 
@@ -421,7 +463,7 @@ common_connect(int fd, const struct sockaddr *address,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->connect(descriptor->u.socket, address,
+	return sStackInterface->connect(FD_SOCKET(descriptor), address,
 		addressLength);
 }
 
@@ -433,26 +475,29 @@ common_listen(int fd, int backlog, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->listen(descriptor->u.socket, backlog);
+	return sStackInterface->listen(FD_SOCKET(descriptor), backlog);
 }
 
 
 static int
-common_accept(int fd, struct sockaddr *address, socklen_t *_addressLength,
+common_accept(int fd, struct sockaddr *address, socklen_t *_addressLength, int flags,
 	bool kernel)
 {
 	file_descriptor* descriptor;
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
+	if ((flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) != 0)
+		RETURN_AND_SET_ERRNO(B_BAD_VALUE);
+
 	net_socket* acceptedSocket;
-	status_t error = sStackInterface->accept(descriptor->u.socket, address,
+	status_t error = sStackInterface->accept(FD_SOCKET(descriptor), address,
 		_addressLength, &acceptedSocket);
 	if (error != B_OK)
 		return error;
 
 	// allocate the FD
-	int acceptedFD = create_socket_fd(acceptedSocket, kernel);
+	int acceptedFD = create_socket_fd(acceptedSocket, flags, kernel);
 	if (acceptedFD < 0) {
 		sStackInterface->close(acceptedSocket);
 		sStackInterface->free(acceptedSocket);
@@ -472,7 +517,7 @@ common_recv(int fd, void *data, size_t length, int flags, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->recv(descriptor->u.socket, data, length, flags);
+	return sStackInterface->recv(FD_SOCKET(descriptor), data, length, flags);
 }
 
 
@@ -484,7 +529,7 @@ common_recvfrom(int fd, void *data, size_t length, int flags,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->recvfrom(descriptor->u.socket, data, length,
+	return sStackInterface->recvfrom(FD_SOCKET(descriptor), data, length,
 		flags, address, _addressLength);
 }
 
@@ -496,7 +541,7 @@ common_recvmsg(int fd, struct msghdr *message, int flags, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->recvmsg(descriptor->u.socket, message, flags);
+	return sStackInterface->recvmsg(FD_SOCKET(descriptor), message, flags);
 }
 
 
@@ -507,7 +552,7 @@ common_send(int fd, const void *data, size_t length, int flags, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->send(descriptor->u.socket, data, length, flags);
+	return sStackInterface->send(FD_SOCKET(descriptor), data, length, flags);
 }
 
 
@@ -519,7 +564,7 @@ common_sendto(int fd, const void *data, size_t length, int flags,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->sendto(descriptor->u.socket, data, length, flags,
+	return sStackInterface->sendto(FD_SOCKET(descriptor), data, length, flags,
 		address, addressLength);
 }
 
@@ -531,7 +576,7 @@ common_sendmsg(int fd, const struct msghdr *message, int flags, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->sendmsg(descriptor->u.socket, message, flags);
+	return sStackInterface->sendmsg(FD_SOCKET(descriptor), message, flags);
 }
 
 
@@ -543,7 +588,7 @@ common_getsockopt(int fd, int level, int option, void *value,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->getsockopt(descriptor->u.socket, level, option,
+	return sStackInterface->getsockopt(FD_SOCKET(descriptor), level, option,
 		value, _length);
 }
 
@@ -556,7 +601,7 @@ common_setsockopt(int fd, int level, int option, const void *value,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->setsockopt(descriptor->u.socket, level, option,
+	return sStackInterface->setsockopt(FD_SOCKET(descriptor), level, option,
 		value, length);
 }
 
@@ -569,7 +614,7 @@ common_getpeername(int fd, struct sockaddr *address,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->getpeername(descriptor->u.socket, address,
+	return sStackInterface->getpeername(FD_SOCKET(descriptor), address,
 		_addressLength);
 }
 
@@ -582,7 +627,7 @@ common_getsockname(int fd, struct sockaddr *address,
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->getsockname(descriptor->u.socket, address,
+	return sStackInterface->getsockname(FD_SOCKET(descriptor), address,
 		_addressLength);
 }
 
@@ -594,7 +639,7 @@ common_sockatmark(int fd, bool kernel)
 	GET_SOCKET_FD_OR_RETURN(fd, kernel, descriptor);
 	FileDescriptorPutter _(descriptor);
 
-	return sStackInterface->sockatmark(descriptor->u.socket);
+	return sStackInterface->sockatmark(FD_SOCKET(descriptor));
 }
 
 
@@ -603,6 +648,9 @@ common_socketpair(int family, int type, int protocol, int fds[2], bool kernel)
 {
 	if (!get_stack_interface_module())
 		return B_UNSUPPORTED;
+
+	int sflags = type & (SOCK_CLOEXEC | SOCK_NONBLOCK);
+	type &= ~(SOCK_CLOEXEC | SOCK_NONBLOCK);
 
 	net_socket* sockets[2];
 	status_t error = sStackInterface->socketpair(family, type, protocol,
@@ -614,7 +662,7 @@ common_socketpair(int family, int type, int protocol, int fds[2], bool kernel)
 
 	// allocate the FDs
 	for (int i = 0; i < 2; i++) {
-		fds[i] = create_socket_fd(sockets[i], kernel);
+		fds[i] = create_socket_fd(sockets[i], sflags, kernel);
 		if (fds[i] < 0) {
 			sStackInterface->close(sockets[i]);
 			sStackInterface->free(sockets[i]);
@@ -690,7 +738,15 @@ int
 accept(int socket, struct sockaddr *address, socklen_t *_addressLength)
 {
 	SyscallFlagUnsetter _;
-	RETURN_AND_SET_ERRNO(common_accept(socket, address, _addressLength, true));
+	RETURN_AND_SET_ERRNO(common_accept(socket, address, _addressLength, 0, true));
+}
+
+
+int
+accept4(int socket, struct sockaddr *address, socklen_t *_addressLength, int flags)
+{
+	SyscallFlagUnsetter _;
+	RETURN_AND_SET_ERRNO(common_accept(socket, address, _addressLength, flags, true));
 }
 
 
@@ -878,7 +934,7 @@ _user_listen(int socket, int backlog)
 
 int
 _user_accept(int socket, struct sockaddr *userAddress,
-	socklen_t *_addressLength)
+	socklen_t *_addressLength, int flags)
 {
 	// check parameters
 	socklen_t addressLength = 0;
@@ -893,7 +949,7 @@ _user_accept(int socket, struct sockaddr *userAddress,
 	char address[MAX_SOCKET_ADDRESS_LENGTH];
 	socklen_t userAddressBufferSize = addressLength;
 	result = common_accept(socket,
-		userAddress != NULL ? (sockaddr*)address : NULL, &addressLength, false);
+		userAddress != NULL ? (sockaddr*)address : NULL, &addressLength, flags, false);
 
 	// copy address size and address back to userland
 	if (copy_address_to_userland(address, addressLength, userAddress,

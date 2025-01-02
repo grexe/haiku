@@ -15,7 +15,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
  * $OpenBSD: if_urtwnreg.h,v 1.3 2010/11/16 18:02:59 damien Exp $
- * $FreeBSD$
  */
 
 #ifndef IF_RTWNVAR_H
@@ -33,7 +32,7 @@
 #define RTWN_MACID_VALID 	0x8000
 #define RTWN_MACID_LIMIT	128
 
-#define RTWN_TX_TIMEOUT		5000	/* ms */
+#define RTWN_TX_TIMEOUT		1000	/* ms */
 #define RTWN_MAX_EPOUT		4
 #define RTWN_PORT_COUNT		2
 
@@ -172,9 +171,8 @@ struct rtwn_softc {
 	struct mbufq		sc_snd;
 	device_t		sc_dev;
 
-#if 1
 	int			sc_ht40;
-#endif
+	int			sc_ena_tsf64;
 	uint32_t		sc_debug;
 	int			sc_hwcrypto;
 	int			sc_ratectl_sysctl;

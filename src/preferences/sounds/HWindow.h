@@ -11,9 +11,12 @@
 #define __HWINDOW_H__
 
 
-#include <Window.h>
-#include <FilePanel.h>
+#include "SoundFilePanel.h"
+
+
 #include <FileGameSound.h>
+#include <FilePanel.h>
+#include <Window.h>
 
 
 class HEventList;
@@ -51,10 +54,11 @@ private:
 
 private:
 			HEventList*			fEventList;
-			BFilePanel*			fFilePanel;
+			SoundFilePanel*		fFilePanel;
 			BButton*			fPlayButton;
 			BFileGameSound*		fPlayer;
 			BRect				fFrame;
+			entry_ref			fPathRef;
 };
 
 

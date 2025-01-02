@@ -17,15 +17,16 @@
 #include <StopWatch.h>
 #include <Url.h>
 
-#include "Logger.h"
-#include "ServerSettings.h"
-#include "StorageUtils.h"
 #include "DumpExportPkg.h"
 #include "DumpExportPkgCategory.h"
 #include "DumpExportPkgJsonListener.h"
 #include "DumpExportPkgScreenshot.h"
 #include "DumpExportPkgVersion.h"
 #include "HaikuDepotConstants.h"
+#include "Logger.h"
+#include "PackageUtils.h"
+#include "ServerSettings.h"
+#include "StorageUtils.h"
 
 
 #undef B_TRANSLATION_CONTEXT
@@ -50,7 +51,7 @@ public:
 			uint32				Count();
 
 private:
-			int32				IndexOfPackageByName(const BString& name) const;
+	static	ScreenshotInfoRef	_CreateScreenshot(DumpExportPkgScreenshot* screenshot);
 
 private:
 			BString				fDepotName;
@@ -93,6 +94,14 @@ PackageFillingPkgListener::ConsumePackage(const PackageInfoRef& package,
 
 	package->StartCollatingChanges();
 
+	PackageClassificationInfoRef packageClassificationInfo(new PackageClassificationInfo(), true);
+
+	PackageLocalizedTextRef localizedText = PackageUtils::NewLocalizedText(package);
+	PackageLocalInfoRef localInfo = PackageUtils::NewLocalInfo(package);
+	PackageCoreInfoRef coreInfo = PackageUtils::NewCoreInfo(package);
+
+	localizedText->SetHasChangelog(pkg->HasChangelog());
+
 	if (0 != pkg->CountPkgVersions()) {
 
 			// this makes the assumption that the only version will be the
@@ -101,19 +110,27 @@ PackageFillingPkgListener::ConsumePackage(const PackageInfoRef& package,
 		DumpExportPkgVersion* pkgVersion = pkg->PkgVersionsItemAt(0);
 
 		if (!pkgVersion->TitleIsNull())
-			package->SetTitle(*(pkgVersion->Title()));
+			localizedText->SetTitle(*(pkgVersion->Title()));
 
 		if (!pkgVersion->SummaryIsNull())
-			package->SetShortDescription(*(pkgVersion->Summary()));
+			localizedText->SetSummary(*(pkgVersion->Summary()));
 
 		if (!pkgVersion->DescriptionIsNull())
-			package->SetFullDescription(*(pkgVersion->Description()));
+			localizedText->SetDescription(*(pkgVersion->Description()));
 
 		if (!pkgVersion->PayloadLengthIsNull())
-			package->SetSize(static_cast<off_t>(pkgVersion->PayloadLength()));
+			localInfo->SetSize(static_cast<off_t>(pkgVersion->PayloadLength()));
 
-		if (!pkgVersion->CreateTimestampIsNull())
-			package->SetVersionCreateTimestamp(pkgVersion->CreateTimestamp());
+		if (!pkgVersion->CreateTimestampIsNull()) {
+			PackageVersionRef version = coreInfo->Version();
+
+			if (!version.IsSet()) {
+				version = PackageVersionRef(new PackageVersion(), true);
+				coreInfo->SetVersion(version);
+			}
+
+			version->SetCreateTimestamp(pkgVersion->CreateTimestamp());
+		}
 	}
 
 	int32 countPkgCategories = pkg->CountPkgCategories();
@@ -126,42 +143,58 @@ PackageFillingPkgListener::ConsumePackage(const PackageInfoRef& package,
 			HDERROR("unable to find the category for [%s]",
 				categoryCode->String());
 		} else
-			package->AddCategory(category);
+			packageClassificationInfo->AddCategory(category);
 	}
 
-	RatingSummary summary;
-	summary.averageRating = RATING_MISSING;
-
-	if (!pkg->DerivedRatingIsNull())
-		summary.averageRating = pkg->DerivedRating();
-
-	package->SetRatingSummary(summary);
-
-	package->SetHasChangelog(pkg->HasChangelog());
+	if (!pkg->DerivedRatingIsNull()) {
+		UserRatingInfoRef userRatingInfo(new UserRatingInfo(), true);
+		UserRatingSummaryRef userRatingSummary(new UserRatingSummary(), true);
+		// TODO; unify the naming here!
+		userRatingSummary->SetAverageRating(pkg->DerivedRating());
+		userRatingSummary->SetRatingCount(pkg->DerivedRatingSampleSize());
+		userRatingInfo->SetSummary(userRatingSummary);
+		package->SetUserRatingInfo(userRatingInfo);
+	}
 
 	if (!pkg->ProminenceOrderingIsNull())
-		package->SetProminence(pkg->ProminenceOrdering());
+		packageClassificationInfo->SetProminence(static_cast<uint32>(pkg->ProminenceOrdering()));
+
+	if (!pkg->IsNativeDesktopIsNull())
+		packageClassificationInfo->SetIsNativeDesktop(pkg->IsNativeDesktop());
 
 	int32 countPkgScreenshots = pkg->CountPkgScreenshots();
+	PackageScreenshotInfoRef screenshotInfo(new PackageScreenshotInfo(), true);
 
 	for (i = 0; i < countPkgScreenshots; i++) {
 		DumpExportPkgScreenshot* screenshot = pkg->PkgScreenshotsItemAt(i);
-		package->AddScreenshotInfo(ScreenshotInfoRef(new ScreenshotInfo(
-			*(screenshot->Code()),
-			static_cast<int32>(screenshot->Width()),
-			static_cast<int32>(screenshot->Height()),
-			static_cast<int32>(screenshot->Length())
-		), true));
+		screenshotInfo->AddScreenshot(_CreateScreenshot(screenshot));
 	}
+
+	package->SetScreenshotInfo(screenshotInfo);
+	package->SetLocalizedText(localizedText);
+	package->SetLocalInfo(localInfo);
+	package->SetCoreInfo(coreInfo);
 
 	HDTRACE("did populate data for [%s] (%s)", pkg->Name()->String(),
 			fDepotName.String());
 
 	fCount++;
 
+	package->SetPackageClassificationInfo(packageClassificationInfo);
+
 	package->EndCollatingChanges();
 
 	return !fStoppable->WasStopped();
+}
+
+
+/*static*/ ScreenshotInfoRef
+PackageFillingPkgListener::_CreateScreenshot(DumpExportPkgScreenshot* screenshot)
+{
+	return ScreenshotInfoRef(
+		new ScreenshotInfo(*(screenshot->Code()), static_cast<int32>(screenshot->Width()),
+			static_cast<int32>(screenshot->Height()), static_cast<int32>(screenshot->Length())),
+		true);
 }
 
 
@@ -242,9 +275,8 @@ BString
 ServerPkgDataUpdateProcess::UrlPathComponent()
 {
 	BString urlPath;
-	urlPath.SetToFormat("/__pkg/all-%s-%s.json.gz",
-		_DeriveWebAppRepositorySourceCode().String(),
-		fModel->Language()->PreferredLanguage()->ID());
+	urlPath.SetToFormat("/__pkg/all-%s-%s.json.gz", _DeriveWebAppRepositorySourceCode().String(),
+		fModel->PreferredLanguage()->ID());
 	return urlPath;
 }
 
@@ -256,7 +288,8 @@ ServerPkgDataUpdateProcess::GetLocalPath(BPath& path) const
 
 	if (!webAppRepositorySourceCode.IsEmpty()) {
 		AutoLocker<BLocker> locker(fModel->Lock());
-		return fModel->DumpExportPkgDataPath(path, webAppRepositorySourceCode);
+		return StorageUtils::DumpExportPkgDataPath(path, webAppRepositorySourceCode,
+			fModel->PreferredLanguage());
 	}
 
 	return B_ERROR;

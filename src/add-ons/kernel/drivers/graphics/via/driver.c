@@ -479,7 +479,7 @@ static status_t map_device(device_info *di)
 		/* WARNING: Nvidia needs to map framebuffer as viewed from PCI space! */
 		di->pcii.u.h0.base_registers_pci[frame_buffer],
 		di->pcii.u.h0.base_register_sizes[frame_buffer],
-		B_ANY_KERNEL_BLOCK_ADDRESS | B_MTR_WC,
+		B_ANY_KERNEL_BLOCK_ADDRESS | B_WRITE_COMBINING_MEMORY,
 		B_READ_AREA | B_WRITE_AREA | B_CLONEABLE_AREA,
 		&(si->framebuffer));
 
@@ -504,7 +504,7 @@ static status_t map_device(device_info *di)
 	}
 //fixme: retest for card coldstart and PCI/virt_mem mapping!!
 	/* remember the DMA address of the frame buffer for BDirectWindow?? purposes */
-	si->framebuffer_pci = (void *) di->pcii.u.h0.base_registers_pci[frame_buffer];
+	si->framebuffer_pci = (void *)(addr_t) di->pcii.u.h0.base_registers_pci[frame_buffer];
 
 	// remember settings for use here and in accelerant
 	si->settings = current_settings;
@@ -602,7 +602,7 @@ eng_interrupt(void *data)
 	int32 handled = B_UNHANDLED_INTERRUPT;
 	device_info *di = (device_info *)data;
 	shared_info *si = di->si;
-	int32 *flags = &(si->flags);
+	int32 *flags = (int32*)&(si->flags);
 	vuint32 *regs;
 
 	/* is someone already handling an interrupt for this device? */

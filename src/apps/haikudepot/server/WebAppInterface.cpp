@@ -24,8 +24,9 @@
 #include "HaikuDepotConstants.h"
 #include "JwtTokenHelper.h"
 #include "Logger.h"
-#include "ServerSettings.h"
+#include "PackageUtils.h"
 #include "ServerHelper.h"
+#include "ServerSettings.h"
 
 
 using namespace BPrivate::Network;
@@ -149,9 +150,34 @@ WebAppInterface::GetChangelog(const BString& packageName, BMessage& message)
 	requestEnvelopeWriter.WriteString(packageName.String());
 	requestEnvelopeWriter.WriteObjectEnd();
 
-	return _SendJsonRequest("pkg/get-pkg-changelog",
-		requestEnvelopeData, _LengthAndSeekToZero(requestEnvelopeData),
-		0, message);
+	return _SendJsonRequest("pkg/get-pkg-changelog", requestEnvelopeData,
+		_LengthAndSeekToZero(requestEnvelopeData), 0, message);
+}
+
+
+/*!	The summary is provided for by an algorithm on the server side. The
+	derivation is performed on the server because it follows an
+	algorithm that requires settings and rules.
+*/
+
+status_t
+WebAppInterface::RetrieveUserRatingSummaryForPackage(const BString& packageName,
+	const BString& webAppRepositoryCode, BMessage& message)
+{
+	// BHttpRequest later takes ownership of this.
+	BMallocIO* requestEnvelopeData = new BMallocIO();
+	BJsonTextWriter requestEnvelopeWriter(requestEnvelopeData);
+
+	requestEnvelopeWriter.WriteObjectStart();
+	requestEnvelopeWriter.WriteObjectName("pkgName");
+	requestEnvelopeWriter.WriteString(packageName.String());
+	requestEnvelopeWriter.WriteObjectName("repositoryCode");
+	requestEnvelopeWriter.WriteString(webAppRepositoryCode);
+
+	requestEnvelopeWriter.WriteObjectEnd();
+
+	return _SendJsonRequest("user-rating/get-summary-by-pkg", requestEnvelopeData,
+		_LengthAndSeekToZero(requestEnvelopeData), 0, message);
 }
 
 
@@ -162,7 +188,7 @@ WebAppInterface::RetrieveUserRatingsForPackageForDisplay(
 	const BString& webAppRepositorySourceCode,
 	int resultOffset, int maxResults, BMessage& message)
 {
-		// BHttpRequest later takes ownership of this.
+	// BHttpRequest later takes ownership of this.
 	BMallocIO* requestEnvelopeData = new BMallocIO();
 	BJsonTextWriter requestEnvelopeWriter(requestEnvelopeData);
 
@@ -814,9 +840,21 @@ WebAppInterface::AuthenticateUser(const BString& nickName,
 
 
 status_t
-WebAppInterface::IncrementViewCounter(const PackageInfoRef package,
-	const DepotInfoRef depot, BMessage& message)
+WebAppInterface::IncrementViewCounter(const PackageInfoRef package, const DepotInfoRef depot,
+	BMessage& message)
 {
+	if (!package.IsSet()) {
+		HDERROR("unable to increment the view count as no package has been provided.");
+		return B_BAD_DATA;
+	}
+
+	const PackageVersionRef version = PackageUtils::Version(package);
+
+	if (!version.IsSet()) {
+		HDERROR("unable to increment the view count as no version has been set.");
+		return B_BAD_DATA;
+	}
+
 	BMallocIO* requestEnvelopeData = new BMallocIO();
 		// BHttpRequest later takes ownership of this.
 	BJsonTextWriter requestEnvelopeWriter(requestEnvelopeData);
@@ -824,7 +862,7 @@ WebAppInterface::IncrementViewCounter(const PackageInfoRef package,
 	requestEnvelopeWriter.WriteObjectStart();
 
 	requestEnvelopeWriter.WriteObjectName("architectureCode");
-	requestEnvelopeWriter.WriteString(package->Architecture());
+	requestEnvelopeWriter.WriteString(PackageUtils::Architecture(package));
 	requestEnvelopeWriter.WriteObjectName("repositoryCode");
 	requestEnvelopeWriter.WriteString(depot->WebAppRepositoryCode());
 	requestEnvelopeWriter.WriteObjectName("repositorySourceCode");
@@ -832,27 +870,25 @@ WebAppInterface::IncrementViewCounter(const PackageInfoRef package,
 	requestEnvelopeWriter.WriteObjectName("name");
 	requestEnvelopeWriter.WriteString(package->Name());
 
-	const BPackageVersion version = package->Version();
-	if (!version.Major().IsEmpty()) {
+	if (!version->Major().IsEmpty()) {
 		requestEnvelopeWriter.WriteObjectName("major");
-		requestEnvelopeWriter.WriteString(version.Major());
+		requestEnvelopeWriter.WriteString(version->Major());
 	}
-	if (!version.Minor().IsEmpty()) {
+	if (!version->Minor().IsEmpty()) {
 		requestEnvelopeWriter.WriteObjectName("minor");
-		requestEnvelopeWriter.WriteString(version.Minor());
+		requestEnvelopeWriter.WriteString(version->Minor());
 	}
-	if (!version.Micro().IsEmpty()) {
+	if (!version->Micro().IsEmpty()) {
 		requestEnvelopeWriter.WriteObjectName("micro");
-		requestEnvelopeWriter.WriteString(version.Micro());
+		requestEnvelopeWriter.WriteString(version->Micro());
 	}
-	if (!version.PreRelease().IsEmpty()) {
+	if (!version->PreRelease().IsEmpty()) {
 		requestEnvelopeWriter.WriteObjectName("preRelease");
-		requestEnvelopeWriter.WriteString(version.PreRelease());
+		requestEnvelopeWriter.WriteString(version->PreRelease());
 	}
-	if (version.Revision() != 0) {
+	if (version->Revision() != 0) {
 		requestEnvelopeWriter.WriteObjectName("revision");
-		requestEnvelopeWriter.WriteInteger(
-			static_cast<int64>(version.Revision()));
+		requestEnvelopeWriter.WriteInteger(static_cast<int64>(version->Revision()));
 	}
 
 	requestEnvelopeWriter.WriteObjectEnd();

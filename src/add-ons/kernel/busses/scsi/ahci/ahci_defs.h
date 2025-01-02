@@ -330,9 +330,8 @@ extern scsi_for_sim_interface *gSCSI;
 #define MAX_SECTOR_LBA_48 ((1ull << 48) - 1)
 
 
-#define LO32(val) ((uint32)(addr_t)(val))
-#define HI32(val) ((uint32)(((uint64)(addr_t)(val)) >> 32))
-#define ASSERT(expr) if (expr) {} else panic("%s", #expr)
+#define LO32(val) ((uint32)(val))
+#define HI32(val) ((uint32)(((uint64)(val)) >> 32))
 
 #define PCI_VENDOR_INTEL	0x8086
 #define PCI_VENDOR_JMICRON	0x197b
@@ -343,16 +342,6 @@ extern scsi_for_sim_interface *gSCSI;
 #endif
 
 #ifdef __cplusplus
-
-template <class T>
-int count_bits_set(T value)
-{
-	int count = 0;
-	for (T mask = 1; mask; mask <<= 1)
-		if (value & mask)
-			count++;
-	return count;
-}
 
 inline
 status_t

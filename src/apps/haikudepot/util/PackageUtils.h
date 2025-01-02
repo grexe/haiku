@@ -1,33 +1,45 @@
 /*
- * Copyright 2022, Andrew Lindesay <apl@lindesay.co.nz>.
+ * Copyright 2024, Andrew Lindesay <apl@lindesay.co.nz>.
  * All rights reserved. Distributed under the terms of the MIT License.
  */
 #ifndef PACKAGE_UTILS_H
 #define PACKAGE_UTILS_H
 
 
-#include <FindDirectory.h>
-#include <Path.h>
-
 #include "PackageInfo.h"
-
-#include <package/PackageDefs.h>
 
 
 class PackageUtils {
 public:
-	static	status_t		DeriveLocalFilePath(const PackageInfo* package,
-								BPath& result);
+	static	void			TitleOrName(const PackageInfoRef& package, BString& title);
+	static	void			Title(const PackageInfoRef& package, BString& title);
+	static	void			Summary(const PackageInfoRef& package, BString& summary);
 
-	static	BPackageKit::BPackageInstallationLocation
-							DeriveInstallLocation(const PackageInfo* package);
+	static	PackageVersionRef
+							Version(const PackageInfoRef& package);
+	static	const BString	Architecture(const PackageInfoRef& package);
+	static	const BString	DepotName(const PackageInfoRef& package);
+	static	const BString	PublisherName(const PackageInfoRef& package);
 
-private:
-	static	status_t		_DeriveDirectoryWhich(
-								BPackageKit::BPackageInstallationLocation
-									location,
-								directory_which* which);
+	static	PackageCoreInfoRef
+							NewCoreInfo(const PackageInfoRef& package);
+
+	static	bool			IsNativeDesktop(const PackageInfoRef& package);
+
+	static PackageLocalizedTextRef
+							NewLocalizedText(const PackageInfoRef& package);
+
+	static	bool			Viewed(const PackageInfoRef& package);
+	static	PackageState	State(const PackageInfoRef& package);
+	static	float			DownloadProgress(const PackageInfoRef& package);
+	static	bool			IsActivatedOrLocalFile(const PackageInfoRef& package);
+	static	off_t			Size(const PackageInfoRef& package);
+	static	int32			Flags(const PackageInfoRef& package);
+
+	static	PackageLocalInfoRef
+							NewLocalInfo(const PackageInfoRef& package);
+
+	static	const char*		StateToString(PackageState state);
 };
-
 
 #endif // PACKAGE_UTILS_H

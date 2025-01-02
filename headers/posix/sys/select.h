@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2012 Haiku, Inc. All Rights Reserved.
+ * Copyright 2002-2024, Haiku, Inc. All rights reserved.
  * Distributed under the terms of the MIT License.
  */
 #ifndef _SYS_SELECT_H
@@ -10,41 +10,25 @@
 
 #include <sys/time.h>
 #include <signal.h>
+#include <string.h>
 
 
-/* If FD_SET is already defined, only the select() prototype is
- * exported in this header.
- */
-#ifndef FD_SET
-
-/* You can define your own FDSETSIZE if you need more bits - but
- * it should be enough for most uses.
- */
+/* Custom FD_SETSIZEs can be defined if more bits are needed, but the default
+ * should suffice for most uses. */
 #ifndef FD_SETSIZE
-#	define FD_SETSIZE 1024
+#	define FD_SETSIZE	1024
 #endif
 
 typedef __haiku_uint32 fd_mask;
 
-#ifndef _howmany
-#	define _howmany(x, y) (((x) + ((y) - 1)) / (y))
-#endif
-
-#ifndef howmany
-#	define howmany(x, y) (((x) + ((y) - 1)) / (y))
-#endif
-
-#define NFDBITS (sizeof(fd_mask) * 8)	/* bits per mask */
+#define NFDBITS		(sizeof(fd_mask) * 8)	/* bits per mask */
 
 typedef struct fd_set {
-	fd_mask bits[_howmany(FD_SETSIZE, NFDBITS)];
+	fd_mask bits[((FD_SETSIZE) + ((NFDBITS) - 1)) / (NFDBITS)];
 } fd_set;
 
 #define _FD_BITSINDEX(fd) ((fd) / NFDBITS)
 #define _FD_BIT(fd) (1L << ((fd) % NFDBITS))
-
-/* FD_ZERO uses memset */
-#include <string.h>
 
 #define FD_ZERO(set) memset((set), 0, sizeof(fd_set))
 #define FD_SET(fd, set) ((set)->bits[_FD_BITSINDEX(fd)] |= _FD_BIT(fd))
@@ -52,7 +36,6 @@ typedef struct fd_set {
 #define FD_ISSET(fd, set) ((set)->bits[_FD_BITSINDEX(fd)] & _FD_BIT(fd))
 #define FD_COPY(source, target) (*(target) = *(source))
 
-#endif	/* FD_SET */
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,5 +49,6 @@ extern int select(int numBits, struct fd_set *readBits, struct fd_set *writeBits
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif	/* _SYS_SELECT_H */

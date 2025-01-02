@@ -1,4 +1,4 @@
-1	spanish; castilian	x-vnd.Haiku-DriveSetup	63900332
+1	spanish; castilian	x-vnd.Haiku-DriveSetup	2521240656
 Could not unmount partition %s.	MainWindow		No se pudo desmontar la partición %s.
 Mount all	MainWindow		Montar todo
 Disk	MainWindow		Disco
@@ -6,6 +6,7 @@ Are you sure you want to write the changes back to disk now?\n\nAll data on the 
 Device	PartitionList		Dispositivo
 Initialize	MainWindow		Inicializar
 Could not change the parameters of the selected partition.	MainWindow		No se pudieron cambiar los parámetros de la partición seleccionada.
+Are you sure you want to write the changes back to disk now?\n\nAll data on the partition \"%s\" will be irretrievably lost if you do so!	MainWindow		¿Desea escribir ahora mismo los cambios en el disco?\n\nDe continuar, se reemplazarán permanentemente todos los datos de la partición \"%s\".
 PGP encrypted	Encryption utils		Cifrado PGP
 Delete partition	MainWindow		Eliminar partición
 Error: 	MainWindow	in any error alert	Error: 
@@ -22,12 +23,12 @@ Validation of the given parameters failed.	MainWindow		Falló la validación de 
 Are you sure you want to format the partition \"%s\"? You will be asked again before changes are written to the disk.	MainWindow		¿Está seguro de que desea formatear la partición \"%s\"? Tendrá que confirmarlo nuevamente antes de que los cambios se apliquen al disco.
 DriveSetup	System name		Configuración de discos
 Mounted at	PartitionList		Montado en
+Disk system %s not found!	MainWindow		¡No se ha encontrado el disco de sistema %s!
 Create…	MainWindow		Crear…
 Write changes	MainWindow		Escribir cambios
 Initialization of the partition %s failed. (Nothing has been written to disk.)	MainWindow		No se pudo inicializar la partición %s. (No se ha escrito nada en el disco).
 Validation of the given creation parameters failed.	MainWindow		Falló la validación de los parámetros de creación proporcionados.
 Eject	MainWindow		Expulsar
-Are you sure you want to write the changes back to disk now?\n\nAll data on the disk %s will be irretrievably lost if you do so!	MainWindow		¿Está seguro que quiere escribir los cambios en el disco ahora?\n\nToda la información en el disco %s se perderá irreversiblemente si lo hace.
 Surface test (not implemented)	MainWindow		Comprobación de superficie (no implementado)
 Read only	PartitionList		Sólo lectura
 The panel could not return successfully.	MainWindow		El panel no pudo regresar exitosamente.
@@ -64,7 +65,6 @@ Are you sure you want to write the changes back to disk now?\n\nAll data on the 
 Change	ChangeParametersPanel		Cambiar
 Partition name:	ChangeParametersPanel		Nombre de la partición:
 LUKS encrypted	Encryption utils		Cifrado LUKS
-Are you sure you want to write the changes back to disk now?\n\nAll data on the partition %s will be irretrievably lost if you do so!	MainWindow		¿Está seguro que desea escribir los cambios de regreso al disco ahora?\n\nToda la información de la partición %s se perderá irreversiblemente si lo hace!
 Empty space	PartitionList		Espacio vacío
 Cancel	AbstractParametersPanel		Cancelar
 Format	MainWindow		Formato
@@ -85,7 +85,6 @@ Change parameters	MainWindow		Cambiar parámetros
 Rescan	MainWindow		Actualizar lista de dispositivos
 There was an error acquiring the partition row.	MainWindow		Hubo un error adquiriendo la fila de partición.
 Failed to initialize the disk %s!\n	MainWindow		¡Error al inicializar el disco %s!\n
-Disk system \"%s\" not found!	MainWindow		¡No se encuentra el disco de sistema \"%s\"!
 The partition cannot be unmounted.	MainWindow		No se puede desmontar la partición.
 Delete	MainWindow		Eliminar
 Partition type:	ChangeParametersPanel		Tipo de partición:
@@ -100,6 +99,7 @@ The partition %s is already unmounted.	MainWindow		La partición %s ya está mon
 Are you sure you want to change parameters of the selected partition?\n\nThe partition may no longer be recognized by other operating systems anymore!	MainWindow		¿Está seguro que desea cambiar los parámetros de la partición seleccionada?\n\n¡La partición ya podrá ser reconocida por otros sistemas operativos!
 Boot	PartitionList		Arranque
 OK	AbstractParametersPanel		Aceptar
+Are you sure you want to write the changes back to disk now?\n\nAll data on the disk \"%s\" will be irretrievably lost if you do so!	MainWindow		¿Desea escribir ahora mismo los cambios en el disco?\n\nDe continuar, se reemplazarán permanentemente todos los datos del disco \"%s\".
 Virtual	PartitionList		Virtual
 Virtual	DiskView		Virtual
 Are you sure you want to write the changes back to disk now?\n\nAll data on the selected disk will be irretrievably lost if you do so!	MainWindow		¿Está seguro que desea escribir los cambios al disco ahora?\n\n¡Toda la información en el disco seleccionado se perderá irreversiblemente si lo hace!

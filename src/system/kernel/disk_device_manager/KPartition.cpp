@@ -20,6 +20,7 @@
 #include <Errors.h>
 #include <fs_volume.h>
 #include <KernelExport.h>
+#include <StackOrHeapArray.h>
 
 #include <ddm_userland_interface.h>
 #include <fs/devfs.h>
@@ -79,7 +80,6 @@ KPartition::KPartition(partition_id id)
 	fPartitionData.status = B_PARTITION_UNRECOGNIZED;
 	fPartitionData.flags = B_PARTITION_BUSY;
 	fPartitionData.volume = -1;
-	fPartitionData.mount_cookie = NULL;
 	fPartitionData.name = NULL;
 	fPartitionData.content_name = NULL;
 	fPartitionData.type = NULL;
@@ -729,6 +729,52 @@ KPartition::GetPath(KPath* path) const
 }
 
 
+status_t
+KPartition::GetMountPoint(KPath* mountPoint) const
+{
+	if (!mountPoint || !ContainsFileSystem())
+		return B_BAD_VALUE;
+
+	ASSERT(!IsMounted());
+		// fetching the actual mounted point isn't implemented (yet)
+
+	int nameLength = 0;
+	const char* volumeName = ContentName();
+	if (volumeName != NULL)
+		nameLength = strlen(volumeName);
+	if (nameLength == 0) {
+		volumeName = Name();
+		if (volumeName != NULL)
+			nameLength = strlen(volumeName);
+		if (nameLength == 0) {
+			volumeName = "unnamed volume";
+			nameLength = strlen(volumeName);
+		}
+	}
+
+	BStackOrHeapArray<char, 128> basePath(nameLength + 2);
+	if (!basePath.IsValid())
+		return B_NO_MEMORY;
+	int32 len = snprintf(basePath, nameLength + 2, "/%s", volumeName);
+	for (int32 i = 1; i < len; i++)
+		if (basePath[i] == '/')
+			basePath[i] = '-';
+	char* path = mountPoint->LockBuffer();
+	int32 pathLen = mountPoint->BufferSize();
+	strncpy(path, basePath, pathLen);
+
+	struct stat dummy;
+	for (int i = 1; ; i++) {
+		if (stat(path, &dummy) != 0)
+			break;
+		snprintf(path, pathLen, "%s%d", (char*)basePath, i);
+	}
+
+	mountPoint->UnlockBuffer();
+	return B_OK;
+}
+
+
 void
 KPartition::SetVolumeID(dev_t volumeID)
 {
@@ -761,39 +807,6 @@ dev_t
 KPartition::VolumeID() const
 {
 	return fPartitionData.volume;
-}
-
-
-void
-KPartition::SetMountCookie(void* cookie)
-{
-	if (fPartitionData.mount_cookie != cookie) {
-		fPartitionData.mount_cookie = cookie;
-		FireMountCookieChanged(cookie);
-	}
-}
-
-
-void*
-KPartition::MountCookie() const
-{
-	return fPartitionData.mount_cookie;
-}
-
-
-status_t
-KPartition::Mount(uint32 mountFlags, const char* parameters)
-{
-	// not implemented
-	return B_ERROR;
-}
-
-
-status_t
-KPartition::Unmount()
-{
-	// not implemented
-	return B_ERROR;
 }
 
 
@@ -845,14 +858,6 @@ KPartition::Device() const
 }
 
 
-void
-KPartition::SetParent(KPartition* parent)
-{
-	// Must be called in a {Add,Remove}Child() only!
-	fParent = parent;
-}
-
-
 KPartition*
 KPartition::Parent() const
 {
@@ -885,7 +890,7 @@ KPartition::AddChild(KPartition* partition, int32 index)
 		_UpdateChildIndices(count, index);
 		fPartitionData.child_count++;
 
-		partition->SetParent(this);
+		partition->fParent = this;
 		partition->SetDevice(Device());
 		partition->SetPhysicalBlockSize(PhysicalBlockSize());
 
@@ -948,7 +953,7 @@ KPartition::RemoveChild(int32 index)
 		_UpdateChildIndices(index, fChildren.Count());
 		partition->SetIndex(-1);
 		fPartitionData.child_count--;
-		partition->SetParent(NULL);
+		partition->fParent = NULL;
 		partition->SetDevice(NULL);
 		// notify listeners
 		FireChildRemoved(partition, index);
@@ -1501,18 +1506,6 @@ KPartition::FireVolumeIDChanged(dev_t volumeID)
 		for (ListenerSet::Iterator it = fListeners->Begin();
 			 it != fListeners->End(); ++it) {
 			(*it)->VolumeIDChanged(this, volumeID);
-		}
-	}
-}
-
-
-void
-KPartition::FireMountCookieChanged(void* cookie)
-{
-	if (fListeners) {
-		for (ListenerSet::Iterator it = fListeners->Begin();
-			 it != fListeners->End(); ++it) {
-			(*it)->MountCookieChanged(this, cookie);
 		}
 	}
 }

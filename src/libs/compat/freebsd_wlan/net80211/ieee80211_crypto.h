@@ -1,5 +1,5 @@
 /*-
- * SPDX-License-Identifier: BSD-2-Clause-FreeBSD
+ * SPDX-License-Identifier: BSD-2-Clause
  *
  * Copyright (c) 2001 Atsushi Onoe
  * Copyright (c) 2002-2008 Sam Leffler, Errno Consulting
@@ -24,8 +24,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $FreeBSD: releng/12.0/sys/net80211/ieee80211_crypto.h 326272 2017-11-27 15:23:17Z pfg $
  */
 #ifndef _NET80211_IEEE80211_CRYPTO_H_
 #define _NET80211_IEEE80211_CRYPTO_H_
@@ -139,8 +137,17 @@ struct ieee80211_key {
 #define	IEEE80211_CIPHER_TKIPMIC	4	/* TKIP MIC capability */
 #define	IEEE80211_CIPHER_CKIP		5
 #define	IEEE80211_CIPHER_NONE		6	/* pseudo value */
+#define	IEEE80211_CIPHER_AES_CCM_256	7
+#define	IEEE80211_CIPHER_BIP_CMAC_128	8
+#define	IEEE80211_CIPHER_BIP_CMAC_256	9
+#define	IEEE80211_CIPHER_BIP_GMAC_128	10
+#define	IEEE80211_CIPHER_BIP_GMAC_256	11
+#define	IEEE80211_CIPHER_AES_GCM_128	12
+#define	IEEE80211_CIPHER_AES_GCM_256	13
 
-#define	IEEE80211_CIPHER_MAX		(IEEE80211_CIPHER_NONE+1)
+#define	IEEE80211_CIPHER_LAST		13
+
+#define	IEEE80211_CIPHER_MAX		(IEEE80211_CIPHER_LAST+1)
 
 /* capability bits in ic_cryptocaps/iv_cryptocaps */
 #define	IEEE80211_CRYPTO_WEP		(1<<IEEE80211_CIPHER_WEP)
@@ -149,9 +156,18 @@ struct ieee80211_key {
 #define	IEEE80211_CRYPTO_AES_CCM	(1<<IEEE80211_CIPHER_AES_CCM)
 #define	IEEE80211_CRYPTO_TKIPMIC	(1<<IEEE80211_CIPHER_TKIPMIC)
 #define	IEEE80211_CRYPTO_CKIP		(1<<IEEE80211_CIPHER_CKIP)
+#define	IEEE80211_CRYPTO_AES_CCM_256	(1<<IEEE80211_CIPHER_AES_CCM_256)
+#define	IEEE80211_CRYPTO_BIP_CMAC_128	(1<<IEEE80211_CIPHER_BIP_CMAC_128)
+#define	IEEE80211_CRYPTO_BIP_CMAC_256	(1<<IEEE80211_CIPHER_BIP_CMAC_256)
+#define	IEEE80211_CRYPTO_BIP_GMAC_128	(1<<IEEE80211_CIPHER_BIP_GMAC_128)
+#define	IEEE80211_CRYPTO_BIP_GMAC_256	(1<<IEEE80211_CIPHER_BIP_GMAC_256)
+#define	IEEE80211_CRYPTO_AES_GCM_128	(1<<IEEE80211_CIPHER_AES_GCM_128)
+#define	IEEE80211_CRYPTO_AES_GCM_256	(1<<IEEE80211_CIPHER_AES_GCM_256)
 
 #define	IEEE80211_CRYPTO_BITS \
-	"\20\1WEP\2TKIP\3AES\4AES_CCM\5TKIPMIC\6CKIP"
+	"\20\1WEP\2TKIP\3AES\4AES_CCM\5TKIPMIC\6CKIP\10AES_CCM_256" \
+	"\11BIP_CMAC_128\12BIP_CMAC_256\13BIP_GMAC_128\14BIP_CMAC_256" \
+	"\15AES_GCM_128\16AES_GCM_256"
 
 #if defined(__KERNEL__) || defined(_KERNEL)
 
@@ -164,6 +180,12 @@ MALLOC_DECLARE(M_80211_CRYPTO);
 
 void	ieee80211_crypto_attach(struct ieee80211com *);
 void	ieee80211_crypto_detach(struct ieee80211com *);
+void	ieee80211_crypto_set_supported_software_ciphers(struct ieee80211com *,
+	    uint32_t cipher_set);
+void	ieee80211_crypto_set_supported_hardware_ciphers(struct ieee80211com *,
+	    uint32_t cipher_set);
+void	ieee80211_crypto_set_supported_driver_keymgmt(struct ieee80211com *,
+	    uint32_t keymgmt_set);
 void	ieee80211_crypto_vattach(struct ieee80211vap *);
 void	ieee80211_crypto_vdetach(struct ieee80211vap *);
 int	ieee80211_crypto_newkey(struct ieee80211vap *,

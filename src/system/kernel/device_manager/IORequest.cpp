@@ -165,9 +165,10 @@ IOBuffer::GetNextVirtualVec(void*& _cookie, iovec& vector)
 	}
 
 	if (cookie->vec_index == 0
-		&& (fVecCount > 1 || fVecs[0].length > B_PAGE_SIZE)) {
+			&& (fVecCount > 1 || fVecs[0].length > B_PAGE_SIZE)) {
 		void* mappedAddress;
 		addr_t mappedSize;
+		ASSERT(cookie->mapped_area < 0);
 
 // TODO: This is a potential violation of the VIP requirement, since
 // vm_map_physical_memory_vecs() allocates memory without special flags!
@@ -185,9 +186,9 @@ IOBuffer::GetNextVirtualVec(void*& _cookie, iovec& vector)
 	}
 
 	// fallback to page wise mapping
-	generic_io_vec& currentVec = fVecs[cookie->vec_index];
-	generic_addr_t address = currentVec.base + cookie->vec_offset;
-	size_t pageOffset = address % B_PAGE_SIZE;
+	const generic_io_vec& currentVec = fVecs[cookie->vec_index];
+	const generic_addr_t address = currentVec.base + cookie->vec_offset;
+	const size_t pageOffset = address % B_PAGE_SIZE;
 
 // TODO: This is a potential violation of the VIP requirement, since
 // vm_get_physical_page() may allocate memory without special flags!
@@ -216,9 +217,9 @@ void
 IOBuffer::FreeVirtualVecCookie(void* _cookie)
 {
 	virtual_vec_cookie* cookie = (virtual_vec_cookie*)_cookie;
+
 	if (cookie->mapped_area >= 0)
 		delete_area(cookie->mapped_area);
-
 	cookie->PutPhysicalPageIfNeeded();
 
 	free_etc(cookie, fVIP ? HEAP_PRIORITY_VIP : 0);
@@ -965,6 +966,7 @@ IORequest::NotifyFinished()
 	ASSERT(fPendingChildren == 0);
 	ASSERT(fChildren.IsEmpty()
 		|| dynamic_cast<IOOperation*>(fChildren.Head()) == NULL);
+	ASSERT(fTransferSize <= fLength);
 
 	// unlock the memory
 	if (fBuffer->IsMemoryLocked())
@@ -977,8 +979,9 @@ IORequest::NotifyFinished()
 	io_request_finished_callback finishedCallback = fFinishedCallback;
 	void* finishedCookie = fFinishedCookie;
 	status_t status = fStatus;
+	generic_size_t transferredBytes = fTransferSize;
 	generic_size_t lastTransferredOffset
-		= fRelativeParentOffset + fTransferSize;
+		= fRelativeParentOffset + transferredBytes;
 	bool partialTransfer = status != B_OK || fPartialTransfer;
 	bool deleteRequest = (fFlags & B_DELETE_IO_REQUEST) != 0;
 
@@ -991,7 +994,7 @@ IORequest::NotifyFinished()
 	// notify callback
 	if (finishedCallback != NULL) {
 		finishedCallback(finishedCookie, this, status, partialTransfer,
-			lastTransferredOffset);
+			transferredBytes);
 	}
 
 	// notify parent
@@ -1039,7 +1042,7 @@ void
 IORequest::OperationFinished(IOOperation* operation)
 {
 	TRACE("IORequest::OperationFinished(%p, %#" B_PRIx32 "): request: %p\n",
-		operation, status, this);
+		operation, operation->Status(), this);
 
 	MutexLocker locker(fLock);
 
@@ -1050,7 +1053,7 @@ IORequest::OperationFinished(IOOperation* operation)
 	const bool partialTransfer =
 		(operation->TransferredBytes() < operation->OriginalLength());
 	const generic_size_t transferEndOffset =
-		(operation->OriginalOffset() + operation->TransferredBytes());
+		(operation->OriginalOffset() - Offset()) + operation->TransferredBytes();
 
 	if (status != B_OK || partialTransfer) {
 		if (fTransferSize > transferEndOffset)
@@ -1076,8 +1079,8 @@ void
 IORequest::SubRequestFinished(IORequest* request, status_t status,
 	bool partialTransfer, generic_size_t transferEndOffset)
 {
-	TRACE("IORequest::SubrequestFinished(%p, %#" B_PRIx32 ", %d, %"
-		B_PRIuGENADDR "): request: %p\n", request, status, partialTransfer, transferEndOffset, this);
+	TRACE("IORequest::SubrequestFinished(%p, %#" B_PRIx32 ", %d, %" B_PRIuGENADDR
+		"): request: %p\n", request, status, partialTransfer, transferEndOffset, this);
 
 	MutexLocker locker(fLock);
 
@@ -1121,8 +1124,6 @@ IORequest::SetTransferredBytes(bool partialTransfer,
 		partialTransfer, transferredBytes);
 
 	MutexLocker _(fLock);
-
-	ASSERT(transferredBytes <= fLength);
 
 	fPartialTransfer = partialTransfer;
 	fTransferSize = transferredBytes;

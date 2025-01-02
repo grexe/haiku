@@ -20,6 +20,8 @@
 #include "HaikuDepotConstants.h"
 #include "Logger.h"
 #include "Model.h"
+#include "PackageUtils.h"
+#include "SharedIcons.h"
 #include "WebAppInterface.h"
 
 
@@ -30,11 +32,6 @@
 static const rgb_color kBackgroundColor = { 51, 102, 152, 255 };
 	// Drawn as a border around the screenshots and also what's behind their
 	// transparent regions
-
-static BitmapRef sNextButtonIcon(
-	new(std::nothrow) SharedBitmap(RSRC_ARROW_LEFT), true);
-static BitmapRef sPreviousButtonIcon(
-	new(std::nothrow) SharedBitmap(RSRC_ARROW_RIGHT), true);
 
 
 ScreenshotWindow::ScreenshotWindow(BWindow* parent, BRect frame, Model* model)
@@ -59,10 +56,8 @@ ScreenshotWindow::ScreenshotWindow(BWindow* parent, BRect frame, Model* model)
 
 	fToolBar = new BToolBar();
 	fToolBar->AddAction(MSG_PREVIOUS_SCREENSHOT, this,
-		sNextButtonIcon->Bitmap(BITMAP_SIZE_22),
-		NULL, NULL);
-	fToolBar->AddAction(MSG_NEXT_SCREENSHOT, this,
-		sPreviousButtonIcon->Bitmap(BITMAP_SIZE_22),
+		SharedIcons::IconArrowLeft22Scaled()->Bitmap(), NULL, NULL);
+	fToolBar->AddAction(MSG_NEXT_SCREENSHOT, this, SharedIcons::IconArrowRight22Scaled()->Bitmap(),
 		NULL, NULL);
 	fToolBar->AddView(fIndexView);
 	fToolBar->AddGlue();
@@ -88,7 +83,7 @@ ScreenshotWindow::ScreenshotWindow(BWindow* parent, BRect frame, Model* model)
 	;
 
 	fScreenshotView->SetLowColor(kBackgroundColor);
-		// Set after attaching all views to prevent it from being overriden
+		// Set after attaching all views to prevent it from being overridden
 		// again by BitmapView::AllAttached()
 
 	CenterOnScreen();
@@ -168,29 +163,23 @@ ScreenshotWindow::SetOnCloseMessage(
 void
 ScreenshotWindow::SetPackage(const PackageInfoRef& package)
 {
+	if (!package.IsSet())
+		HDFATAL("attempt to provide an unset package");
+
 	if (fPackage == package)
 		return;
 
 	fPackage = package;
-
 	BString title = B_TRANSLATE("Screenshot");
-	if (package.IsSet()) {
-		title = package->Title();
-		_DownloadScreenshot();
-	}
+	PackageUtils::TitleOrName(fPackage, title);
 	SetTitle(title);
+
+	if (package.IsSet())
+		_DownloadScreenshot();
 
 	atomic_set(&fCurrentScreenshotIndex, 0);
 
 	_UpdateToolBar();
-}
-
-
-/* static */ void
-ScreenshotWindow::CleanupIcons()
-{
-	sNextButtonIcon.Unset();
-	sPreviousButtonIcon.Unset();
 }
 
 
@@ -269,12 +258,14 @@ ScreenshotWindow::_DownloadThread()
 	if (!fPackage.IsSet())
 		HDINFO("package not set");
 	else {
-		if (fPackage->CountScreenshotInfos() == 0)
-    		HDINFO("package has no screenshots");
-    	else {
-    		int32 index = atomic_get(&fCurrentScreenshotIndex);
-    		info = fPackage->ScreenshotInfoAtIndex(index);
-    	}
+		PackageScreenshotInfoRef screenshotInfo = fPackage->ScreenshotInfo();
+
+		if (!screenshotInfo.IsSet() || screenshotInfo->Count() == 0) {
+			HDINFO("package has no screenshots");
+		} else {
+			int32 index = atomic_get(&fCurrentScreenshotIndex);
+			info = screenshotInfo->ScreenshotAtIndex(index);
+		}
 	}
 
 	Unlock();
@@ -290,12 +281,11 @@ ScreenshotWindow::_DownloadThread()
 		new BMessage(MSG_DOWNLOAD_START),
 		kProgressIndicatorDelay, 1);
 
-	BitmapRef screenshot;
+	BitmapHolderRef screenshot;
 
 	// Retrieve screenshot from web-app
 	status_t status = fModel->GetPackageScreenshotRepository()->LoadScreenshot(
-		ScreenshotCoordinate(info->Code(), info->Width(), info->Height()),
-		&screenshot);
+		ScreenshotCoordinate(info->Code(), info->Width(), info->Height()), screenshot);
 
 	delayedMessenger.SetCount(0);
 	messenger.SendMessage(MSG_DOWNLOAD_STOP);
@@ -318,12 +308,18 @@ ScreenshotWindow::_MaxWidthAndHeightOfAllScreenshots()
 
 	// Find out dimensions of the largest screenshot of this package
 	if (fPackage.IsSet()) {
-		int count = fPackage->CountScreenshotInfos();
+		PackageScreenshotInfoRef screenshotInfo = fPackage->ScreenshotInfo();
+		int count = 0;
+
+		if (screenshotInfo.IsSet())
+			count = screenshotInfo->Count();
+
 		for(int32 i = 0; i < count; i++) {
-			const ScreenshotInfoRef& info = fPackage->ScreenshotInfoAtIndex(i);
-			if (info.Get() != NULL) {
-				float w = (float) info->Width();
-				float h = (float) info->Height();
+			const ScreenshotInfoRef& screenshot = screenshotInfo->ScreenshotAtIndex(i);
+
+			if (screenshot.IsSet()) {
+				float w = static_cast<float>(screenshot->Width());
+				float h = static_cast<float>(screenshot->Height());
 				if (w > size.Width())
 					size.SetWidth(w);
 				if (h > size.Height())
@@ -356,7 +352,14 @@ ScreenshotWindow::_ResizeToFitAndCenter()
 void
 ScreenshotWindow::_UpdateToolBar()
 {
-	const int32 numScreenshots = fPackage->CountScreenshotInfos();
+	int32 numScreenshots = 0;
+
+	if (fPackage.IsSet()) {
+		PackageScreenshotInfoRef screenshotInfo = fPackage->ScreenshotInfo();
+		if (screenshotInfo.IsSet())
+			numScreenshots = screenshotInfo->Count();
+	}
+
 	const int32 currentIndex = atomic_get(&fCurrentScreenshotIndex);
 
 	fToolBar->SetActionEnabled(MSG_PREVIOUS_SCREENSHOT,

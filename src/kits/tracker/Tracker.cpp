@@ -377,11 +377,10 @@ TTracker::QuitRequested()
 			= dynamic_cast<BContainerWindow*>(fWindowList.ItemAt(i));
 
 		if (window != NULL && window->Lock()) {
-			if (window->TargetModel() != NULL
-				&& !window->PoseView()->IsDesktopWindow()) {
-				if (window->TargetModel()->IsRoot())
+			if (window->TargetModel() != NULL && !window->TargetModel()->IsDesktop()) {
+				if (window->TargetModel()->IsRoot()) {
 					message.AddBool("open_disks_window", true);
-				else {
+				} else {
 					BEntry entry;
 					BPath path;
 					const entry_ref* ref = window->TargetModel()->EntryRef();
@@ -492,7 +491,7 @@ TTracker::MessageReceived(BMessage* message)
 			OpenInfoWindows(message);
 			break;
 
-		case kMoveToTrash:
+		case kMoveSelectionToTrash:
 			MoveRefsToTrash(message);
 			break;
 
@@ -1214,8 +1213,7 @@ TTracker::OpenContainerWindow(Model* model, BMessage* originalRefsList,
 	int32 windowCount = 0;
 	while (window != NULL) {
 		if ((window->Workspaces() & workspace) != 0
-			&& (dynamic_cast<BDeskWindow*>(window) == NULL
-				|| !TrackerSettings().SingleWindowBrowse())) {
+			&& (!model->IsDesktop() || !TrackerSettings().SingleWindowBrowse())) {
 			// We found at least one window that is open and is not Desktop
 			// or we're in spatial mode, activate it and make sure we don't
 			// jerk the workspaces around.
@@ -1259,7 +1257,7 @@ TTracker::OpenContainerWindow(Model* model, BMessage* originalRefsList,
 		window = new BContainerWindow(&fWindowList, openFlags);
 	}
 
-	if (model != NULL && window->LockLooper()) {
+	if (model != NULL && window != NULL && window->LockLooper()) {
 		window->CreatePoseView(model);
 		if (window->PoseView() == NULL) {
 			// Failed initialization.
